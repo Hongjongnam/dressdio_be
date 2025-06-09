@@ -2,17 +2,8 @@ const { Sequelize } = require("sequelize");
 const dotenv = require("dotenv");
 const path = require("path");
 
-// Load environment variables based on NODE_ENV
-const envFile =
-  process.env.NODE_ENV === "production"
-    ? ".env.production"
-    : ".env.development";
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
-
-// Fallback to .env if specific env file doesn't exist
-if (!process.env.DB_NAME) {
-  dotenv.config({ path: path.resolve(process.cwd(), ".env") });
-}
+// Load environment variables from .env
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 // Custom logging function
 const customLogger = (msg) => {
@@ -67,4 +58,51 @@ sequelize
     process.exit(1);
   });
 
+async function initDatabase() {
+  try {
+    // 모델을 반드시 import한 뒤에 sync 해야 함!
+    require("../models/sbt");
+
+    // 프로덕션 환경에서는 force: false로 설정
+    const syncOptions = {
+      force: process.env.NODE_ENV === "development",
+      alter: process.env.NODE_ENV === "production", // 프로덕션에서는 alter: true로 설정
+    };
+
+    await sequelize.sync(syncOptions);
+    console.log("✅ Database synchronized successfully");
+
+    // 인덱스 생성 (이미 존재하는 경우 무시)
+    try {
+      await sequelize.query(
+        "CREATE INDEX IF NOT EXISTS idx_owner ON sbts(owner)"
+      );
+      await sequelize.query(
+        "CREATE INDEX IF NOT EXISTS idx_creator_type ON sbts(creator_type)"
+      );
+      await sequelize.query(
+        "CREATE INDEX IF NOT EXISTS idx_token_id ON sbts(token_id)"
+      );
+      console.log("✅ Indexes created/verified successfully");
+    } catch (indexError) {
+      console.log(
+        "ℹ️ Indexes already exist or could not be created:",
+        indexError.message
+      );
+    }
+  } catch (error) {
+    console.error("❌ Error initializing database:", error);
+    process.exit(1);
+  } finally {
+    await sequelize.close();
+  }
+}
+
 module.exports = sequelize;
+module.exports.initDatabase = initDatabase;
+
+if (require.main === module) {
+  initDatabase()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
+}

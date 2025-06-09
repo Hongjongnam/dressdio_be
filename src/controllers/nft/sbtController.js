@@ -6,14 +6,11 @@ const {
   sbtContract,
   dressdioAdminAccount,
 } = require("../../config/web3");
+const SBT = require("../../models/sbt");
 
 // 하드코딩된 플랫폼 어드민 지갑주소
 const PLATFORM_ADMIN_WALLET_ADDRESS =
   "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73";
-
-// SBT 컨트랙트 정보 (주소는 .env에서 불러옴)
-const SBT_CONTRACT_ADDRESS = process.env.SBT_CONTRACT_ADDRESS;
-const SBT_CONTRACT_ABI = require("../../abi/SbtContract.json"); // 실제 ABI 파일 필요
 
 // 크리에이터 타입별 IPFS URI 매핑
 const typeToIpfsUri = {
@@ -198,6 +195,20 @@ exports.mintSbt = async (req, res) => {
       const newSbt = sbtInfo[sbtInfo.length - 1]; // 가장 최근에 발행된 SBT
       console.log("New SBT:", newSbt);
 
+      // Save SBT data to database
+      const sbtData = {
+        tokenId: newSbt.tokenId.toString(),
+        owner: newSbt.owner,
+        creatorType: newSbt.creatorType,
+        description: newSbt.description,
+        tokenURI: newSbt.tokenUri,
+        transactionHash: receipt.transactionHash,
+        useCount: newSbt.useCount.toString(),
+      };
+
+      const savedSbt = await SBT.create(sbtData);
+      console.log("Saved SBT to database:", savedSbt);
+
       res.status(201).json({
         status: "success",
         message: "SBT minted successfully",
@@ -209,6 +220,7 @@ exports.mintSbt = async (req, res) => {
             creatorType: newSbt.creatorType,
             description: newSbt.description,
             tokenURI: newSbt.tokenUri,
+            useCount: newSbt.useCount.toString(),
           },
         },
       });
@@ -320,6 +332,75 @@ exports.getAdminBalance = async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to fetch admin balance",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 데이터베이스에서 지갑 주소로 SBT 정보 조회
+ * @param {Object} req - Express request object
+ * @param {string} req.params.walletAddress - 지갑 주소
+ * @param {Object} res - Express response object
+ */
+exports.getSBT = async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+
+    // 1. 필수 파라미터 검증
+    if (!walletAddress) {
+      return res.status(400).json({
+        status: "error",
+        message: "Wallet address is required",
+      });
+    }
+
+    // 2. 지갑 주소 형식 검증
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid wallet address format",
+      });
+    }
+
+    // 3. 데이터베이스에서 SBT 정보 조회
+    const sbtInfo = await SBT.findAll({
+      where: { owner: walletAddress },
+      order: [["createdAt", "DESC"]], // 최신순 정렬
+    });
+
+    // 4. 결과가 없는 경우
+    if (!sbtInfo || sbtInfo.length === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: "No SBT found for this wallet address",
+      });
+    }
+
+    // 5. 응답 데이터 포맷팅
+    const formattedSbtInfo = sbtInfo.map((sbt) => ({
+      tokenId: sbt.tokenId,
+      owner: sbt.owner,
+      creatorType: sbt.creatorType,
+      description: sbt.description,
+      tokenURI: sbt.tokenURI,
+      transactionHash: sbt.transactionHash,
+      useCount: sbt.useCount,
+      createdAt: sbt.createdAt,
+      updatedAt: sbt.updatedAt,
+    }));
+
+    // 6. 성공 응답
+    res.status(200).json({
+      status: "success",
+      message: "SBT info retrieved successfully from database",
+      data: formattedSbtInfo,
+    });
+  } catch (error) {
+    console.error("Database SBT retrieval error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve SBT info from database",
       error: error.message,
     });
   }

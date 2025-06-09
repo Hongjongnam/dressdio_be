@@ -372,6 +372,11 @@
             "internalType": "string",
             "name": "tokenUri",
             "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "useCount",
+            "type": "uint256"
           }
         ],
         "internalType": "struct CreatorSBT.SBTInfo[]",
@@ -418,6 +423,11 @@
             "internalType": "string",
             "name": "tokenUri",
             "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "useCount",
+            "type": "uint256"
           }
         ],
         "internalType": "struct CreatorSBT.SBTInfo",
@@ -474,6 +484,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "incrementUseCount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -785,6 +808,25 @@
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "useCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

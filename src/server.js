@@ -47,6 +47,13 @@ const initializeDatabase = async () => {
   try {
     await sequelize.authenticate();
     logger.info("Database connection has been established successfully.");
+
+    // Load models
+    require("./models/sbt");
+
+    // Sync database (create tables if they don't exist)
+    await sequelize.sync({ alter: true });
+    logger.info("Database synchronized successfully");
   } catch (err) {
     logger.error("Unable to connect to the database:", err);
     process.exit(1);
