@@ -1,46 +1,30 @@
 const express = require("express");
 const cors = require("cors");
-const helmet = require("helmet");
-const dotenv = require("dotenv");
-const winston = require("winston");
+const morgan = require("morgan");
 const sequelize = require("./config/database");
-const nftRoutes = require("./routes/nft");
+const logger = require("./utils/logger");
+const authRouter = require("./routes/auth/auth");
+const nftRouter = require("./routes/nft");
 
 // Load environment variables
-dotenv.config();
+require("dotenv").config();
 
 // Create Express app
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  morgan("combined", {
+    stream: { write: (message) => logger.info(message.trim()) },
+  })
+);
 
 // Mount routes
-app.use("/api/nft", nftRoutes);
-
-// Configure logger
-const logger = winston.createLogger({
-  level: process.env.NODE_ENV === "production" ? "info" : "debug",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: "error.log", level: "error" }),
-    new winston.transports.File({ filename: "combined.log" }),
-  ],
-});
-
-if (process.env.NODE_ENV !== "production") {
-  logger.add(
-    new winston.transports.Console({
-      format: winston.format.simple(),
-    })
-  );
-}
+app.use("/api/auth", authRouter);
+app.use("/api/nft", nftRouter);
 
 // Initialize database
 const initializeDatabase = async () => {
@@ -48,19 +32,14 @@ const initializeDatabase = async () => {
     await sequelize.authenticate();
     logger.info("Database connection has been established successfully.");
 
-    // Load models
-    require("./models/sbt");
-
-    // Sync database (create tables if they don't exist)
+    // alter: true로 변경하여 기존 테이블 구조를 수정
     await sequelize.sync({ alter: true });
-    logger.info("Database synchronized successfully");
-  } catch (err) {
-    logger.error("Unable to connect to the database:", err);
+    logger.info("Database tables have been synchronized.");
+  } catch (error) {
+    logger.error("Unable to connect to the database:", error);
     process.exit(1);
   }
 };
-
-initializeDatabase();
 
 // Basic route
 app.get("/", (req, res) => {
@@ -72,19 +51,13 @@ app.use((err, req, res, next) => {
   logger.error(err.stack);
   res.status(500).json({
     status: "error",
-    message:
-      process.env.NODE_ENV === "production"
-        ? "Internal server error"
-        : err.message,
+    message: "Something went wrong!",
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  logger.info(
-    `Server running in ${
-      process.env.NODE_ENV || "development"
-    } mode on port ${PORT}`
-  );
+app.listen(PORT, async () => {
+  await initializeDatabase();
+  logger.info(`Server is running on port ${PORT}`);
 });
