@@ -7,7 +7,7 @@ const ipController = require("../../controllers/nft/ipController");
  * @desc Get all IP NFTs from database
  * @access Public
  */
-router.get("/", ipController.getAllIPs);
+router.get("/", ipController.getAllIPNFTs);
 
 /**
  * @route GET /api/nft/ip/:walletAddress
@@ -28,7 +28,7 @@ router.get("/db/:walletAddress", ipController.getIP);
  * @desc Mint a new IP NFT
  * @access Public
  */
-router.post("/mint", ipController.mintIP);
+router.post("/mint", ipController.mintIPNFT);
 
 /**
  * @route GET /api/nft/ip/:tokenId
