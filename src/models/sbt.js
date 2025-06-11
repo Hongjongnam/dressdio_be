@@ -1,17 +1,13 @@
-const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
+const { DataTypes } = require("sequelize");
 
 const SBT = sequelize.define(
   "SBT",
   {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
     tokenId: {
       type: DataTypes.STRING,
       allowNull: false,
+      field: "token_id",
     },
     owner: {
       type: DataTypes.STRING,
@@ -20,6 +16,7 @@ const SBT = sequelize.define(
     creatorType: {
       type: DataTypes.ENUM("artist", "influencer", "brand"),
       allowNull: false,
+      field: "creator_type",
     },
     description: {
       type: DataTypes.TEXT,
@@ -28,20 +25,24 @@ const SBT = sequelize.define(
     tokenURI: {
       type: DataTypes.STRING,
       allowNull: false,
+      field: "token_u_r_i",
     },
     transactionHash: {
       type: DataTypes.STRING,
       allowNull: false,
+      field: "transaction_hash",
     },
     useCount: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+      field: "use_count",
     },
   },
   {
-    timestamps: true,
     tableName: "sbts",
+    timestamps: true,
+    paranoid: true,
   }
 );
 

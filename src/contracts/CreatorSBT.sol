@@ -207,4 +207,38 @@ contract CreatorSBT is ERC721, Ownable {
             return false;
         }
     }
+
+    // 모든 SBT 정보 조회
+    function getAllSBTs() external view returns (SBTInfo[] memory) {
+        uint256 totalTokens = _tokenIds.current();
+        uint256 validTokenCount = 0;
+        
+        // 유효한 토큰 수 계산
+        for (uint256 i = 1; i <= totalTokens; i++) {
+            if (_exists(i)) {
+                validTokenCount++;
+            }
+        }
+
+        // 결과 배열 생성
+        SBTInfo[] memory allSBTs = new SBTInfo[](validTokenCount);
+        uint256 index = 0;
+
+        // 모든 SBT 정보 수집
+        for (uint256 i = 1; i <= totalTokens; i++) {
+            if (_exists(i)) {
+                allSBTs[index] = SBTInfo({
+                    tokenId: i,
+                    owner: ownerOf(i),
+                    creatorType: tokenTypes[i],
+                    description: tokenDescriptions[i],
+                    tokenUri: _tokenURIs[i],
+                    useCount: useCount[i]
+                });
+                index++;
+            }
+        }
+
+        return allSBTs;
+    }
 }
