@@ -198,42 +198,100 @@
     "type": "event"
   },
   {
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_fromTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_toTokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "BatchMetadataUpdate",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "ipNFTTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "sbtTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "creatorType",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "tokenURI",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "sbtDescription",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "sbtTokenURI",
+        "type": "string"
+      }
+    ],
+    "name": "IPNFTMinted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "_tokenId",
         "type": "uint256"
       }
     ],
-    "name": "incrementUseCount",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "name": "MetadataUpdate",
+    "type": "event"
   },
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_to",
-        "type": "address"
-      },
-      {
         "internalType": "string",
-        "name": "_creatorType",
+        "name": "_tokenURI",
         "type": "string"
       },
       {
-        "internalType": "string",
-        "name": "_description",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "_tokenUri",
-        "type": "string"
+        "internalType": "uint256",
+        "name": "_sbtTokenId",
+        "type": "uint256"
       }
     ],
-    "name": "mint",
+    "name": "mintIPNFT",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -316,6 +374,19 @@
     "type": "function"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sbtContract",
+        "type": "address"
+      }
+    ],
+    "name": "SBTContractSet",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -329,6 +400,19 @@
       }
     ],
     "name": "setApprovalForAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_sbtContractAddress",
+        "type": "address"
+      }
+    ],
+    "name": "setSBTContract",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -357,6 +441,29 @@
     ],
     "name": "Transfer",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "transferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
     "inputs": [
@@ -391,27 +498,8 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "creatorTypes",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
-    "name": "getAllSBTs",
+    "name": "getAllIPNFTs",
     "outputs": [
       {
         "components": [
@@ -426,27 +514,32 @@
             "type": "address"
           },
           {
+            "internalType": "uint256",
+            "name": "sbtTokenId",
+            "type": "uint256"
+          },
+          {
             "internalType": "string",
             "name": "creatorType",
             "type": "string"
           },
           {
             "internalType": "string",
-            "name": "description",
+            "name": "tokenURI",
             "type": "string"
           },
           {
             "internalType": "string",
-            "name": "tokenUri",
+            "name": "sbtDescription",
             "type": "string"
           },
           {
-            "internalType": "uint256",
-            "name": "useCount",
-            "type": "uint256"
+            "internalType": "string",
+            "name": "sbtTokenURI",
+            "type": "string"
           }
         ],
-        "internalType": "struct CreatorSBT.SBTInfo[]",
+        "internalType": "struct IPNFT.IPNFTInfo[]",
         "name": "",
         "type": "tuple[]"
       }
@@ -481,11 +574,31 @@
         "type": "uint256"
       }
     ],
-    "name": "getCreatorType",
+    "name": "getIPNFTData",
     "outputs": [
       {
+        "internalType": "uint256",
+        "name": "sbtTokenId",
+        "type": "uint256"
+      },
+      {
         "internalType": "string",
-        "name": "",
+        "name": "creatorType",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "tokenURI",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "sbtDescription",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "sbtTokenURI",
         "type": "string"
       }
     ],
@@ -496,67 +609,16 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_tokenId",
+        "name": "_sbtTokenId",
         "type": "uint256"
       }
     ],
-    "name": "getDescription",
+    "name": "getIPNFTsBySBTTokenId",
     "outputs": [
       {
-        "internalType": "string",
+        "internalType": "uint256[]",
         "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_address",
-        "type": "address"
-      }
-    ],
-    "name": "getSBTInfoByAddress",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "creatorType",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "description",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "tokenUri",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "useCount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct CreatorSBT.SBTInfo[]",
-        "name": "",
-        "type": "tuple[]"
+        "type": "uint256[]"
       }
     ],
     "stateMutability": "view",
@@ -566,96 +628,36 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_tokenId",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "name": "getSBTInfoById",
+    "name": "ipNFTData",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "creatorType",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "description",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "tokenUri",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "useCount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct CreatorSBT.SBTInfo",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_address",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "sbtTokenId",
+        "type": "uint256"
       },
       {
         "internalType": "string",
-        "name": "_type",
+        "name": "creatorType",
         "type": "string"
-      }
-    ],
-    "name": "hasCreatorSbt",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       },
       {
         "internalType": "string",
-        "name": "",
+        "name": "tokenURI",
         "type": "string"
-      }
-    ],
-    "name": "hasSbt",
-    "outputs": [
+      },
       {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
+        "internalType": "string",
+        "name": "sbtDescription",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "sbtTokenURI",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -731,6 +733,32 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "sbtContract",
+    "outputs": [
+      {
+        "internalType": "contract ISBT",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "sbtContractSet",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes4",
@@ -766,44 +794,6 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "tokenDescriptions",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "tokenTypes",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
       }
@@ -814,61 +804,6 @@
         "internalType": "string",
         "name": "",
         "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "totalSupply",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "transferFrom",
-    "outputs": [],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "useCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",

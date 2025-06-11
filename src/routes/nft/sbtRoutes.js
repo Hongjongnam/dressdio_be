@@ -2,16 +2,39 @@ const express = require("express");
 const router = express.Router();
 const sbtController = require("../../controllers/nft/sbtController");
 
-// 블록체인에서 SBT 정보 조회
-router.get("/:walletAddress", sbtController.getSbtByWalletAddress);
+/**
+ * @route GET /api/nft/sbt
+ * @desc Get all SBTs from database
+ * @access Public
+ */
+router.get("/", sbtController.getAllSBTs);
 
-// 데이터베이스에서 SBT 정보 조회
-router.get("/db/:walletAddress", sbtController.getSBT);
+/**
+ * @route GET /api/nft/sbt/admin/balance
+ * @desc Get admin wallet balance
+ * @access Public
+ */
+router.get("/admin/balance", sbtController.getAdminBalance);
 
-// SBT 발행
+/**
+ * @route POST /api/nft/sbt/mint
+ * @desc Mint a new SBT
+ * @access Public
+ */
 router.post("/mint", sbtController.mintSbt);
 
-// 관리자 지갑 잔액 조회
-router.get("/admin/balance", sbtController.getAdminBalance);
+/**
+ * @route GET /api/nft/sbt/db/:walletAddress
+ * @desc Get SBT information from database by wallet address
+ * @access Public
+ */
+router.get("/db/:walletAddress", sbtController.getSBT);
+
+/**
+ * @route GET /api/nft/sbt/:walletAddress
+ * @desc Get SBT information from blockchain by wallet address
+ * @access Public
+ */
+router.get("/:walletAddress", sbtController.getSbtByWalletAddress);
 
 module.exports = router;
