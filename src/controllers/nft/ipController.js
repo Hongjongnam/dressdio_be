@@ -7,31 +7,56 @@ const SBT = require("../../models/sbt");
  */
 exports.mint = async (req, res) => {
   try {
-    console.log("[IP NFT Mint] req.body:");
-    const { address } = req.body;
+    console.log("[IP NFT Mint] req.body:", req.body);
+    const { address, creatorType } = req.body;
     if (!address) {
       return res.status(400).json({
         status: "error",
         message: "address is required in request body",
       });
     }
-
-    // SBT 정보 DB에서 조회
-    const sbtInfo = await SBT.findOne({ where: { owner: address } });
-    if (!sbtInfo) {
-      return res.status(404).json({
+    if (!creatorType) {
+      return res.status(400).json({
         status: "error",
-        message: "No SBT found for this wallet address",
+        message: "creatorType is required in request body",
+      });
+    }
+    const normalizedType = creatorType.toLowerCase();
+    if (normalizedType !== "artist" && normalizedType !== "brand") {
+      return res.status(400).json({
+        status: "error",
+        message: "Only artist or brand creatorType can mint IP NFT.",
       });
     }
 
-    // TODO: SBT 정보 조회 및 IP NFT 민팅 트랜잭션 실행
+    // SBT 정보 DB에서 owner+creatorType으로 조회
+    const sbtInfo = await SBT.findOne({
+      where: { owner: address, creatorType: normalizedType },
+    });
+    if (!sbtInfo) {
+      return res.status(404).json({
+        status: "error",
+        message: "No SBT found for this wallet address and creatorType",
+      });
+    }
 
-    // 예시 응답
+    // 필요한 필드만 추려서 반환
+    const sbtData = {
+      tokenId: sbtInfo.tokenId,
+      owner: sbtInfo.owner,
+      creatorType: sbtInfo.creatorType,
+      description: sbtInfo.description,
+      tokenURI: sbtInfo.tokenURI,
+      transactionHash: sbtInfo.transactionHash,
+      useCount: sbtInfo.useCount,
+      createdAt: sbtInfo.createdAt,
+      updatedAt: sbtInfo.updatedAt,
+    };
+
     return res.status(200).json({
       status: "success",
-      message: "SBT found for this wallet address",
-      data: sbtInfo,
+      message: "SBT found for this wallet address and creatorType",
+      data: sbtData,
     });
   } catch (error) {
     logger.error("IP NFT minting error:", error);

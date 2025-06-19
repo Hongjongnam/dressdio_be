@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DressDio API 통합 테스트</title>
+    <style>
+      html,
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f7f9fb;
+        margin: 0;
+        padding: 0;
+        font-size: 0.97rem;
+      }
+      h2 {
+        text-align: center;
+        margin-top: 2rem;
+        color: #2c3e50;
+        font-size: 1.3rem;
+      }
+
+      /* 탭 스타일 */
+      .tab-container {
+        margin: 2rem;
+      }
+      .tab-buttons {
+        display: flex;
+        background: #fff;
+        border-radius: 10px 10px 0 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        border: 1px solid #e1e4e8;
+        border-bottom: none;
+        overflow: hidden;
+      }
+      .tab-button {
+        flex: 1;
+        padding: 1rem;
+        background: #f8f9fa;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 500;
+        color: #6c757d;
+        transition: all 0.3s ease;
+        border-right: 1px solid #e1e4e8;
+      }
+      .tab-button:last-child {
+        border-right: none;
+      }
+      .tab-button:hover {
+        background: #e9ecef;
+        color: #495057;
+      }
+      .tab-button.active {
+        background: #2980b9;
+        color: #fff;
+      }
+      .tab-content {
+        display: none;
+        background: #fff;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        border: 1px solid #e1e4e8;
+        border-top: none;
+        padding: 2rem;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      .api-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+        gap: 1.5rem;
+      }
+      fieldset {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        border: 1px solid #e1e4e8;
+        min-width: 0;
+        padding: 1.3rem 1.5rem 1rem 1.5rem;
+      }
+      legend {
+        font-weight: bold;
+        color: #2980b9;
+        padding: 0 0.5em;
+        font-size: 1.02rem;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.6em;
+        color: #34495e;
+        font-size: 0.97rem;
+      }
+      input[type="text"],
+      input[type="email"],
+      input[type="password"] {
+        width: 100%;
+        padding: 0.4em;
+        margin-top: 0.15em;
+        margin-bottom: 0.7em;
+        border: 1px solid #bfc9d1;
+        border-radius: 5px;
+        font-size: 0.97rem;
+        background: #f9fafb;
+        box-sizing: border-box;
+      }
+      select {
+        width: 100%;
+        padding: 0.4em;
+        margin-top: 0.15em;
+        margin-bottom: 0.7em;
+        border: 1px solid #bfc9d1;
+        border-radius: 5px;
+        font-size: 0.97rem;
+        background: #f9fafb;
+        box-sizing: border-box;
+      }
+      .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 0.7em;
+      }
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .checkbox-item input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+      button {
+        background: #2980b9;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        padding: 0.45em 1.1em;
+        font-size: 0.97rem;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-top: 0.3em;
+      }
+      button:hover {
+        background: #1c5d8c;
+      }
+      button:disabled {
+        background: #95a5a6;
+        cursor: not-allowed;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 0.7em;
+        border-radius: 6px;
+        font-size: 0.85rem; /* 응답 데이터 fontSize 조정 */
+        margin-top: 0.7em;
+        overflow-x: auto;
+        border: 1px solid #e1e4e8;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .status {
+        padding: 0.5em;
+        border-radius: 5px;
+        margin-top: 0.5em;
+        font-size: 0.9rem;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      @media (max-width: 900px) {
+        .api-grid {
+          grid-template-columns: 1fr;
+        }
+        .tab-buttons {
+          flex-direction: column;
+        }
+        .tab-button {
+          border-right: none;
+          border-bottom: 1px solid #e1e4e8;
+        }
+        .tab-button:last-child {
+          border-bottom: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h2>DressDio API 통합 테스트</h2>
+
+    <div class="tab-container">
+      <!-- 탭 버튼들 -->
+      <div class="tab-buttons">
+        <button class="tab-button active" onclick="showTab('auth')">
+          Auth
+        </button>
+        <button class="tab-button" onclick="showTab('blockchain')">
+          Blockchain
+        </button>
+        <button class="tab-button" onclick="showTab('sbt')">SBT</button>
+        <button class="tab-button" onclick="showTab('nft')">NFT</button>
+        <button class="tab-button" onclick="showTab('marketplace')">
+          Marketplace
+        </button>
+      </div>
+
+      <!-- Auth 탭 -->
+      <div id="auth-tab" class="tab-content active">
+        <div class="api-grid">
+          <!-- 1. 이메일 존재 확인 -->
+          <fieldset>
+            <legend>
+              1. 이메일 존재 확인 (GET /api/auth/:email/verify-email)
+            </legend>
+            <form id="verifyEmailForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="verifyEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <button type="submit">이메일 존재 확인</button>
+            </form>
+            <pre id="verifyEmailResult"></pre>
+          </fieldset>
+
+          <!-- 2. 인증 코드 발송 -->
+          <fieldset>
+            <legend>2. 인증 코드 발송 (GET /api/auth/:email/send-code)</legend>
+            <form id="sendCodeForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="sendCodeEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <label>
+                언어:<br />
+                <select id="lang">
+                  <option value="en">English</option>
+                  <option value="ko">한국어</option>
+                  <option value="ja">日本語</option>
+                </select>
+              </label>
+              <label>
+                템플릿:<br />
+                <select id="template">
+                  <option value="verify">인증 (verify)</option>
+                  <option value="initpassword">
+                    비밀번호 재설정 (initpassword)
+                  </option>
+                </select>
+              </label>
+              <button type="submit">인증 코드 발송</button>
+            </form>
+            <pre id="sendCodeResult"></pre>
+          </fieldset>
+
+          <!-- 3. 인증 코드 검증 -->
+          <fieldset>
+            <legend>
+              3. 인증 코드 검증 (POST /api/auth/:email/verify-code)
+            </legend>
+            <form id="verifyCodeForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="verifyCodeEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <label>
+                인증 코드:<br />
+                <input
+                  type="text"
+                  id="verificationCode"
+                  placeholder="이메일로 받은 코드 입력"
+                  required
+                />
+              </label>
+              <button type="submit">인증 코드 검증</button>
+            </form>
+            <pre id="verifyCodeResult"></pre>
+          </fieldset>
+
+          <!-- 4. 회원가입 -->
+          <fieldset>
+            <legend>4. 회원가입 (POST /api/auth/register)</legend>
+            <form id="registerForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="registerEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <label>
+                비밀번호:<br />
+                <input
+                  type="password"
+                  id="registerPassword"
+                  placeholder="test1234"
+                  required
+                />
+              </label>
+              <label>
+                인증 코드:<br />
+                <input
+                  type="text"
+                  id="registerCode"
+                  placeholder="이메일로 받은 코드 입력"
+                  required
+                />
+              </label>
+              <div class="checkbox-group">
+                <div class="checkbox-item">
+                  <input type="checkbox" id="overage" />
+                  <label for="overage">연령 제한 통과</label>
+                </div>
+                <div class="checkbox-item">
+                  <input type="checkbox" id="agree" />
+                  <label for="agree">이용약관 동의</label>
+                </div>
+                <div class="checkbox-item">
+                  <input type="checkbox" id="collect" />
+                  <label for="collect">데이터 수집 동의</label>
+                </div>
+                <div class="checkbox-item">
+                  <input type="checkbox" id="thirdParty" />
+                  <label for="thirdParty">제3자 제공 동의</label>
+                </div>
+                <div class="checkbox-item">
+                  <input type="checkbox" id="advertise" />
+                  <label for="advertise">광고 수신 동의</label>
+                </div>
+              </div>
+              <button type="submit">회원가입</button>
+            </form>
+            <pre id="registerResult"></pre>
+          </fieldset>
+
+          <!-- 5. 로그인 -->
+          <fieldset>
+            <legend>5. 로그인 (POST /api/auth/login)</legend>
+            <form id="loginForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="loginEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <label>
+                비밀번호:<br />
+                <input
+                  type="password"
+                  id="loginPassword"
+                  placeholder="test1234"
+                  required
+                />
+              </label>
+              <button type="submit">로그인</button>
+            </form>
+            <pre id="loginResult"></pre>
+            <div id="loginStatus" class="status" style="display: none"></div>
+          </fieldset>
+
+          <!-- 6. 토큰 갱신 -->
+          <fieldset>
+            <legend>6. 토큰 갱신 (POST /api/auth/refresh-token)</legend>
+            <form id="refreshTokenForm">
+              <label>
+                Refresh Token:<br />
+                <input
+                  type="text"
+                  id="refreshToken"
+                  placeholder="로그인 후 받은 refresh token"
+                  required
+                />
+              </label>
+              <button type="submit">토큰 갱신</button>
+            </form>
+            <pre id="refreshTokenResult"></pre>
+          </fieldset>
+
+          <!-- 7. 비밀번호 재설정 -->
+          <fieldset>
+            <legend>7. 비밀번호 재설정 (POST /api/auth/reset-password)</legend>
+            <form id="resetPasswordForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="resetPasswordEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <label>
+                새 비밀번호:<br />
+                <input
+                  type="password"
+                  id="newPassword"
+                  placeholder="newtest1234"
+                  required
+                />
+              </label>
+              <label>
+                재설정 코드:<br />
+                <input
+                  type="text"
+                  id="resetCode"
+                  placeholder="initpassword 템플릿으로 받은 코드"
+                  required
+                />
+              </label>
+              <button type="submit">비밀번호 재설정</button>
+            </form>
+            <pre id="resetPasswordResult"></pre>
+          </fieldset>
+
+          <!-- 8. 비밀번호 변경 -->
+          <fieldset>
+            <legend>8. 비밀번호 변경 (POST /api/auth/change-password)</legend>
+            <form id="changePasswordForm">
+              <label>
+                이메일 주소:<br />
+                <input
+                  type="email"
+                  id="changePasswordEmail"
+                  placeholder="test@example.com"
+                  required
+                />
+              </label>
+              <label>
+                현재 비밀번호:<br />
+                <input
+                  type="password"
+                  id="currentPassword"
+                  placeholder="test1234"
+                  required
+                />
+              </label>
+              <label>
+                새 비밀번호:<br />
+                <input
+                  type="password"
+                  id="changeNewPassword"
+                  placeholder="changed1234"
+                  required
+                />
+              </label>
+              <button type="submit">비밀번호 변경</button>
+            </form>
+            <pre id="changePasswordResult"></pre>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- Blockchain 탭 -->
+      <div id="blockchain-tab" class="tab-content">
+        <div class="api-grid">
+          <!-- 1. ETH 전송 -->
+          <fieldset>
+            <legend>1. ETH 전송 (POST /api/blockchain/eth/transfer)</legend>
+            <form id="ethTransferForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="ethTransferToken"
+                  placeholder="로그인 후 받은 access token"
+                  required
+                />
+              </label>
+              <label>
+                받는 주소 (To):<br />
+                <input
+                  type="text"
+                  id="ethTransferTo"
+                  placeholder="0x..."
+                  required
+                />
+              </label>
+              <label>
+                전송할 ETH 양:<br />
+                <input type="text" id="ethTransferValue" value="1" required />
+              </label>
+              <button type="submit">ETH 전송</button>
+            </form>
+            <pre id="ethTransferResult"></pre>
+          </fieldset>
+
+          <!-- 2. 트랜잭션 서명 -->
+          <fieldset>
+            <legend>
+              2. 트랜잭션 서명 (POST /api/blockchain/sign/transaction)
+            </legend>
+            <form id="signTransactionForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="signTransactionToken"
+                  placeholder="로그인 후 받은 access token"
+                  required
+                />
+              </label>
+              <label>
+                받는 주소 (To):<br />
+                <input
+                  type="text"
+                  id="signTransactionTo"
+                  placeholder="0x..."
+                  required
+                />
+              </label>
+              <label>
+                전송할 ETH 양:<br />
+                <input
+                  type="text"
+                  id="signTransactionValue"
+                  value="0.001"
+                  required
+                />
+              </label>
+              <label>
+                데이터 (Data):<br />
+                <input
+                  type="text"
+                  id="signTransactionData"
+                  value="0x"
+                  placeholder="0x..."
+                />
+              </label>
+              <button type="submit">트랜잭션 서명</button>
+            </form>
+            <pre id="signTransactionResult"></pre>
+          </fieldset>
+
+          <!-- 3. 브랜드 판매 시작 (Merchandise status 변경) -->
+          <fieldset>
+            <legend>3. 브랜드 판매 시작 (Merchandise status 변경)</legend>
+            <form id="brandSetStatusForm">
+              <label>
+                Merchandise Token ID:<br />
+                <input
+                  type="text"
+                  id="brandSetStatusTokenId"
+                  placeholder="예: 123"
+                  required
+                />
+              </label>
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="brandSetStatusAccessToken"
+                  placeholder="브랜드 로그인 후 받은 access token"
+                  required
+                />
+              </label>
+              <button type="submit">판매 시작(상태 true로 변경)</button>
+            </form>
+            <pre id="brandSetStatusResult"></pre>
+          </fieldset>
+
+          <!-- 4. DP 토큰 전송 -->
+          <fieldset>
+            <legend>4. DP 토큰 전송 (POST /api/blockchain/dp/transfer)</legend>
+            <form id="dpTransferForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="dpTransferToken"
+                  placeholder="로그인 후 받은 access token"
+                  required
+                />
+              </label>
+              <label>
+                받는 주소 (To):<br />
+                <input
+                  type="text"
+                  id="dpTransferTo"
+                  placeholder="0x..."
+                  required
+                />
+              </label>
+              <label>
+                전송할 DP 토큰 양:<br />
+                <input type="text" id="dpTransferAmount" value="100" required />
+              </label>
+              <button type="submit">DP 토큰 전송</button>
+            </form>
+            <pre id="dpTransferResult"></pre>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- SBT 탭 -->
+      <div id="sbt-tab" class="tab-content">
+        <div class="api-grid">
+          <!-- 1. Mint SBT -->
+          <fieldset>
+            <legend>Mint SBT (POST /api/nft/sbt/mint)</legend>
+            <form id="mintForm">
+              <label>
+                Platform Admin Wallet Address:<br />
+                <input
+                  type="text"
+                  id="platformAdminWalletAddress"
+                  value="0xfe3b557e8fb62b89f4916b721be55ceb828dbd73"
+                  required
+                />
+              </label>
+              <label>
+                Creator Wallet Address:<br />
+                <input
+                  type="text"
+                  id="creatorWalletAddress"
+                  value="0xabcd..."
+                  required
+                />
+              </label>
+              <label>
+                Creator Type:<br />
+                <input type="text" id="creatorType" value="artist" required />
+              </label>
+              <label>
+                Creator Name:<br />
+                <input
+                  type="text"
+                  id="creatorName"
+                  value="테스트크리에이터"
+                  required
+                />
+              </label>
+              <label>
+                Description:<br />
+                <input
+                  type="text"
+                  id="description"
+                  value="테스트 SBT입니다."
+                  required
+                />
+              </label>
+              <button type="submit">Mint SBT</button>
+            </form>
+            <pre id="mintResult"></pre>
+          </fieldset>
+
+          <!-- 2. Get All SBTs -->
+          <fieldset>
+            <legend>Get All SBTs (GET /api/nft/sbt)</legend>
+            <button id="getAllSbtBtn">Get All SBTs</button>
+            <pre id="getAllSbtResult"></pre>
+          </fieldset>
+
+          <!-- 3. Get Admin Balance -->
+          <fieldset>
+            <legend>Get Admin Balance (GET /api/nft/sbt/admin/balance)</legend>
+            <button id="getAdminBalanceBtn">Get Admin Balance</button>
+            <pre id="getAdminBalanceResult"></pre>
+          </fieldset>
+
+          <!-- 4. Get SBT from Blockchain by Wallet Address -->
+          <fieldset>
+            <legend>
+              Get SBT from Blockchain (GET /api/nft/sbt/:walletAddress)
+            </legend>
+            <input
+              type="text"
+              id="bcWalletAddress"
+              placeholder="지갑주소 입력"
+              value="0xabcd..."
+            />
+            <button id="getBcSbtBtn">Get SBT from Blockchain</button>
+            <pre id="getBcSbtResult"></pre>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- NFT 탭 -->
+      <div id="nft-tab" class="tab-content">
+        <div class="api-grid">
+          <fieldset>
+            <legend>NFT 기능 (준비 중)</legend>
+            <p>NFT 관련 기능들이 여기에 추가될 예정입니다.</p>
+            <ul>
+              <li>NFT Mint</li>
+              <li>NFT Transfer</li>
+              <li>NFT Metadata</li>
+              <li>NFT Collection</li>
+            </ul>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- Marketplace 탭 -->
+      <div id="marketplace-tab" class="tab-content">
+        <div class="api-grid">
+          <fieldset>
+            <legend>Marketplace 기능 (준비 중)</legend>
+            <p>Marketplace 관련 기능들이 여기에 추가될 예정입니다.</p>
+            <ul>
+              <li>NFT Listing</li>
+              <li>NFT Purchase</li>
+              <li>Bidding</li>
+              <li>Auction</li>
+            </ul>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 전역 변수로 토큰 저장
+      let currentAccessToken = "";
+      let currentRefreshToken = "";
+
+      // 탭 전환 함수
+      function showTab(tabName) {
+        // 모든 탭 버튼에서 active 클래스 제거
+        document.querySelectorAll(".tab-button").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        // 모든 탭 콘텐츠에서 active 클래스 제거
+        document.querySelectorAll(".tab-content").forEach((content) => {
+          content.classList.remove("active");
+        });
+
+        // 선택된 탭 버튼에 active 클래스 추가
+        event.target.classList.add("active");
+
+        // 선택된 탭 콘텐츠에 active 클래스 추가
+        document.getElementById(tabName + "-tab").classList.add("active");
+      }
+
+      // Auth 관련 함수들
+      // 1. 이메일 존재 확인
+      document.getElementById("verifyEmailForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const email = document.getElementById("verifyEmail").value;
+        const resultEl = document.getElementById("verifyEmailResult");
+        resultEl.textContent = "확인 중...";
+
+        try {
+          const res = await fetch(
+            `/api/auth/${encodeURIComponent(email)}/verify-email`
+          );
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 2. 인증 코드 발송
+      document.getElementById("sendCodeForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const email = document.getElementById("sendCodeEmail").value;
+        const lang = document.getElementById("lang").value;
+        const template = document.getElementById("template").value;
+        const resultEl = document.getElementById("sendCodeResult");
+        resultEl.textContent = "발송 중...";
+
+        try {
+          const res = await fetch(
+            `/api/auth/${encodeURIComponent(
+              email
+            )}/send-code?lang=${lang}&template=${template}`
+          );
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 3. 인증 코드 검증
+      document.getElementById("verifyCodeForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const email = document.getElementById("verifyCodeEmail").value;
+        const code = document.getElementById("verificationCode").value;
+        const resultEl = document.getElementById("verifyCodeResult");
+        resultEl.textContent = "검증 중...";
+
+        try {
+          const res = await fetch(
+            `/api/auth/${encodeURIComponent(email)}/verify-code`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code }),
+            }
+          );
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 4. 회원가입
+      document.getElementById("registerForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const data = {
+          email: document.getElementById("registerEmail").value,
+          password: document.getElementById("registerPassword").value,
+          code: document.getElementById("registerCode").value,
+          overage: document.getElementById("overage").checked,
+          agree: document.getElementById("agree").checked,
+          collect: document.getElementById("collect").checked,
+          thirdParty: document.getElementById("thirdParty").checked,
+          advertise: document.getElementById("advertise").checked,
+        };
+        const resultEl = document.getElementById("registerResult");
+        resultEl.textContent = "가입 중...";
+
+        try {
+          const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 5. 로그인
+      document.getElementById("loginForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const data = {
+          email: document.getElementById("loginEmail").value,
+          password: document.getElementById("loginPassword").value,
+        };
+        const resultEl = document.getElementById("loginResult");
+        const statusEl = document.getElementById("loginStatus");
+        resultEl.textContent = "로그인 중...";
+
+        try {
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+
+          if (json.status === "success" && json.data) {
+            currentAccessToken = json.data.accessToken;
+            currentRefreshToken = json.data.refreshToken;
+
+            // 토큰을 refresh token 입력 필드에 자동 설정
+            document.getElementById("refreshToken").value = currentRefreshToken;
+
+            statusEl.textContent = `로그인 성공! 지갑 주소: ${json.data.address}`;
+            statusEl.className = "status success";
+            statusEl.style.display = "block";
+          } else {
+            statusEl.textContent = "로그인 실패";
+            statusEl.className = "status error";
+            statusEl.style.display = "block";
+          }
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+          statusEl.textContent = "로그인 오류";
+          statusEl.className = "status error";
+          statusEl.style.display = "block";
+        }
+      };
+
+      // 6. 토큰 갱신
+      document.getElementById("refreshTokenForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const refreshToken = document.getElementById("refreshToken").value;
+        const resultEl = document.getElementById("refreshTokenResult");
+        resultEl.textContent = "갱신 중...";
+
+        try {
+          const res = await fetch("/api/auth/refresh-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+
+          if (json.status === "success" && json.data) {
+            currentAccessToken = json.data.accessToken;
+            currentRefreshToken = json.data.refreshToken;
+            document.getElementById("refreshToken").value = currentRefreshToken;
+          }
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 7. 비밀번호 재설정
+      document.getElementById("resetPasswordForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const data = {
+          email: document.getElementById("resetPasswordEmail").value,
+          password: document.getElementById("newPassword").value,
+          code: document.getElementById("resetCode").value,
+        };
+        const resultEl = document.getElementById("resetPasswordResult");
+        resultEl.textContent = "재설정 중...";
+
+        try {
+          const res = await fetch("/api/auth/reset-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 8. 비밀번호 변경
+      document.getElementById("changePasswordForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const data = {
+          email: document.getElementById("changePasswordEmail").value,
+          oldpassword: document.getElementById("currentPassword").value,
+          newpassword: document.getElementById("changeNewPassword").value,
+        };
+        const resultEl = document.getElementById("changePasswordResult");
+        resultEl.textContent = "변경 중...";
+
+        try {
+          const res = await fetch("/api/auth/change-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // Blockchain 관련 함수들
+      // 1. ETH 전송
+      document.getElementById("ethTransferForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const token = document.getElementById("ethTransferToken").value;
+        const data = {
+          to: document.getElementById("ethTransferTo").value,
+          value: document.getElementById("ethTransferValue").value,
+        };
+        const resultEl = document.getElementById("ethTransferResult");
+        resultEl.textContent = "ETH 전송 중...";
+
+        try {
+          const res = await fetch("/api/blockchain/eth/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 2. 트랜잭션 서명
+      document.getElementById("signTransactionForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const token = document.getElementById("signTransactionToken").value;
+        const data = {
+          to: document.getElementById("signTransactionTo").value,
+          value: document.getElementById("signTransactionValue").value,
+          data: document.getElementById("signTransactionData").value,
+        };
+        const resultEl = document.getElementById("signTransactionResult");
+        resultEl.textContent = "트랜잭션 서명 중...";
+
+        try {
+          const res = await fetch("/api/blockchain/sign/transaction", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 3. 브랜드 판매 시작 (Merchandise status 변경)
+      document.getElementById("brandSetStatusForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const tokenId = document.getElementById("brandSetStatusTokenId").value;
+        const accessToken = document.getElementById(
+          "brandSetStatusAccessToken"
+        ).value;
+        const resultEl = document.getElementById("brandSetStatusResult");
+        resultEl.textContent = "변경 중...";
+
+        try {
+          const res = await fetch("/api/blockchain/brand/set-status", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ tokenId }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 4. DP 토큰 전송
+      document.getElementById("dpTransferForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const token = document.getElementById("dpTransferToken").value;
+        const data = {
+          to: document.getElementById("dpTransferTo").value,
+          amount: document.getElementById("dpTransferAmount").value,
+        };
+        const resultEl = document.getElementById("dpTransferResult");
+        resultEl.textContent = "DP 토큰 전송 중...";
+
+        try {
+          const res = await fetch("/api/blockchain/dp/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // SBT 관련 함수들
+      // 1. Mint SBT
+      document.getElementById("mintForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const data = {
+          platformAdminWalletAddress: document.getElementById(
+            "platformAdminWalletAddress"
+          ).value,
+          creatorWalletAddress: document.getElementById("creatorWalletAddress")
+            .value,
+          creatorType: document.getElementById("creatorType").value,
+          creatorName: document.getElementById("creatorName").value,
+          description: document.getElementById("description").value,
+        };
+        const resultEl = document.getElementById("mintResult");
+        resultEl.textContent = "Minting 중...";
+
+        try {
+          const res = await fetch("/api/nft/sbt/mint", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 2. Get All SBTs
+      document.getElementById("getAllSbtBtn").onclick = async function () {
+        const resultEl = document.getElementById("getAllSbtResult");
+        resultEl.textContent = "Loading...";
+        try {
+          const res = await fetch("/api/nft/sbt");
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err;
+        }
+      };
+
+      // 3. Get Admin Balance
+      document.getElementById("getAdminBalanceBtn").onclick =
+        async function () {
+          const resultEl = document.getElementById("getAdminBalanceResult");
+          resultEl.textContent = "Loading...";
+          try {
+            const res = await fetch("/api/nft/sbt/admin/balance");
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err;
+          }
+        };
+
+      // 4. Get SBT from Blockchain by Wallet Address
+      document.getElementById("getBcSbtBtn").onclick = async function () {
+        const wallet = document.getElementById("bcWalletAddress").value;
+        const resultEl = document.getElementById("getBcSbtResult");
+        resultEl.textContent = "Loading...";
+        try {
+          const res = await fetch("/api/nft/sbt/" + wallet);
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err;
+        }
+      };
+
+      // 페이지 로드 시 안내 메시지
+      window.onload = function () {
+        console.log("DressDio API 통합 테스트 페이지가 로드되었습니다.");
+        console.log("탭을 클릭하여 각 기능별 테스트를 진행하세요.");
+      };
+    </script>
+  </body>
+</html>

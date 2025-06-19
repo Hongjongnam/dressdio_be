@@ -3,8 +3,10 @@ const cors = require("cors");
 const morgan = require("morgan");
 const sequelize = require("./config/database");
 const logger = require("./utils/logger");
-const authRouter = require("./routes/auth/auth");
+const authRouter = require("./routes/auth/auth.js");
 const nftRouter = require("./routes/nft");
+const blockchainRouter = require("./routes/auth/blockchain.js");
+const path = require("path");
 
 // Load environment variables
 require("dotenv").config();
@@ -22,9 +24,13 @@ app.use(
   })
 );
 
+// 정적 파일 서빙 (public 폴더)
+app.use(express.static(path.join(__dirname, "../public")));
+
 // Mount routes
 app.use("/api/auth", authRouter);
 app.use("/api/nft", nftRouter);
+app.use("/api/blockchain", blockchainRouter);
 
 // Initialize database
 const initializeDatabase = async () => {

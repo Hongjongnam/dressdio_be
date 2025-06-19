@@ -17,6 +17,11 @@ const web3Config = {
   },
   platformAdmin: "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
   sbtContractAddress: process.env.SBT_CONTRACT_ADDRESS,
+  // DP Token configuration
+  dpTokenAddress: process.env.DP_TOKEN_ADDRESS,
+  // ABC Wallet configuration
+  abcWalletBaseUrl: process.env.BASEURL,
+  devicePassword: process.env.DEVICE_PASSWORD,
 };
 
 // Validate required environment variables
@@ -31,6 +36,23 @@ const validateConfig = () => {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}`
+    );
+  }
+
+  // Check optional but important variables
+  if (!web3Config.dpTokenAddress) {
+    logger.warn(
+      "DP_TOKEN_ADDRESS is not configured - DP token features will not work"
+    );
+  }
+  if (!web3Config.abcWalletBaseUrl) {
+    logger.warn(
+      "BASEURL is not configured - ABC Wallet features will not work"
+    );
+  }
+  if (!web3Config.devicePassword) {
+    logger.warn(
+      "DEVICE_PASSWORD is not configured - ABC Wallet features will not work"
     );
   }
 };
@@ -64,6 +86,37 @@ const initializeAdminAccount = () => {
 const sbtContract = new web3.eth.Contract(
   sbtContractABI,
   web3Config.sbtContractAddress
+);
+
+// DP Token contract ABI (ERC20 standard)
+const dpTokenABI = [
+  {
+    constant: true,
+    inputs: [{ name: "_owner", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ name: "balance", type: "uint256" }],
+    payable: false,
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    constant: false,
+    inputs: [
+      { name: "_to", type: "address" },
+      { name: "_value", type: "uint256" },
+    ],
+    name: "transfer",
+    outputs: [{ name: "", type: "bool" }],
+    payable: false,
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+];
+
+// Create DP Token contract instance
+const dpTokenContract = new web3.eth.Contract(
+  dpTokenABI,
+  web3Config.dpTokenAddress
 );
 
 // Check network connection
@@ -113,6 +166,10 @@ module.exports = {
   dressdioAdminAccount,
   PLATFORM_ADMIN_WALLET_ADDRESS: web3Config.platformAdmin,
   sbtContract,
+  dpTokenContract,
+  dpTokenAddress: web3Config.dpTokenAddress,
+  abcWalletBaseUrl: web3Config.abcWalletBaseUrl,
+  devicePassword: web3Config.devicePassword,
   checkConnection,
   initializeWeb3,
 };

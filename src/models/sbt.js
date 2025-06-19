@@ -18,6 +18,11 @@ const SBT = sequelize.define(
       allowNull: false,
       field: "creator_type",
     },
+    creatorName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      field: "creator_name",
+    },
     description: {
       type: DataTypes.TEXT,
       allowNull: false,

@@ -1,239 +1,218 @@
-const authService = require("../../services/authService");
-const logger = require("../../utils/logger");
+const service = require("../../services/auth.js");
+const walletService = require("../../services/wallet.js");
+const DEVICE_PASSWORD = process.env.DEVICE_PASSWORD;
+const { ethers } = require("ethers");
+const toLowerCase = require("../../utils/utils");
+const logger = require("../../utils/logger.js");
+const ADMINADDRESS = process.env.ADMINADDRESS;
 
-// 이메일 검증
-const verifyEmail = async (req, res) => {
+exports.verifyEmail = async (req, res) => {
   try {
-    const { email } = req.params;
-
-    if (!email) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Email is required",
-      });
+    let email = req.params.email || "";
+    let isUserExists = await service.isUserExists(email);
+    if (isUserExists) {
+      return res
+        .status(200)
+        .json({ status: "success", message: "User exists" });
+    } else {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "User doesn't exist" });
     }
-
-    const exists = await authService.isUserExists(email);
-    return res.status(200).json({
-      status: "success",
-      message: exists ? "User exists" : "User does not exist",
-      data: { exists },
-    });
-  } catch (error) {
-    logger.error(`Email verification error: ${error.message}`);
-    return res.status(500).json({
-      status: "failed",
-      message: "Problem while verifying email",
-    });
+  } catch (err) {
+    logger.error(err.message);
+    return res.status(404).json({ status: "failed", message: err.message });
   }
 };
 
-// 인증 코드 전송
-const sendCode = async (req, res) => {
+exports.sendCode = async (req, res) => {
   try {
-    const { email } = req.params;
-    const { lang = "ko", template = "default" } = req.query;
-
-    if (!email) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Email is required",
-      });
-    }
-
-    logger.info(
-      `Sending verification code to ${email} (lang: ${lang}, template: ${template})`
-    );
-    await authService.sendVerificationCode(email, lang, template);
-
-    return res.status(200).json({
-      status: "success",
-      message: "Verification code sent successfully",
-    });
-  } catch (error) {
-    logger.error(`Send code error: ${error.message}`, {
-      email: req.params.email,
-      lang: req.query.lang,
-      template: req.query.template,
-      error: error.message,
-      stack: error.stack,
-    });
-    return res.status(500).json({
-      status: "failed",
-      message: "Failed to send verification code",
-    });
+    let email = req.params.email;
+    let lang = req.query.lang;
+    let template = req.query.template;
+    await service.sendCode(email, lang, template);
+    return res
+      .status(200)
+      .json({ status: "success", message: "Code sent successfully" });
+  } catch (err) {
+    logger.error(err.message);
+    return res
+      .status(404)
+      .json({ status: "failed", message: "Problem while sending code" });
   }
 };
 
-// 인증 코드 검증
-const verifyCodeController = async (req, res) => {
+exports.verifyCode = async (req, res) => {
   try {
-    const { email } = req.params;
-    const { code } = req.body;
-
-    if (!email || !code) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Email and code are required",
-      });
-    }
-
-    await authService.verifyCode(email, code);
-    return res.status(200).json({
-      status: "success",
-      message: "Code verified successfully",
-    });
-  } catch (error) {
-    logger.error(`Code verification error: ${error.message}`);
-    return res.status(428).json({
-      status: "failed",
-      message: "Authentication code does not match",
-    });
+    let email = req.params.email || "";
+    let code = req.body.code || "";
+    await service.verifyCode(email, code);
+    return res
+      .status(200)
+      .json({ status: "success", message: "Code verification successful" });
+  } catch (err) {
+    logger.error(err.message);
+    return res
+      .status(404)
+      .json({ status: "failed", message: "Code verification failed" });
   }
 };
 
-// 회원가입
-const register = async (req, res) => {
+exports.register = async (req, res) => {
   try {
-    const {
-      email,
-      password,
-      code,
-      overage,
-      agree,
-      collect,
-      thirdParty,
-      advertise,
-    } = req.body;
-
-    // 요청 데이터 검증
-    if (!email || !password || !code) {
-      logger.error("Missing required fields:", {
-        email: !!email,
-        password: !!password,
-        code: !!code,
-      });
-      return res.status(400).json({
+    let email = req.body.email;
+    let password = req.body.password;
+    let code = req.body.code;
+    let overage = req.body.overage ? 1 : 0;
+    let agree = req.body.agree ? 1 : 0;
+    let collect = req.body.collect ? 1 : 0;
+    let thirdParty = req.body.thirdParty ? 1 : 0;
+    let advertise = req.body.advertise ? 1 : 0;
+    try {
+      await service.verifyCode(email, code);
+    } catch (_) {
+      return res.status(428).json({
         status: "failed",
-        message: "Email, password, and code are required",
+        message: "Authentication code does not match",
       });
     }
-
-    // 요청 데이터 로깅 (비밀번호는 마스킹)
-    logger.debug("Register request data:", {
-      email,
-      password: "***",
-      code,
-      overage,
-      agree,
-      collect,
-      thirdParty,
-      advertise,
-    });
-
-    // 1. 보안 채널 생성
-    const secureChannelRes = await authService.createSecureChannel();
-    logger.debug("Secure channel created:", {
-      channelId: secureChannelRes.ChannelID,
-    });
-
-    // 2. 비밀번호 암호화
-    const encryptedPassword = authService.encrypt(
-      password,
-      secureChannelRes.ChannelID
-    );
-    logger.debug("Password encrypted successfully");
-
-    // 3. 회원가입 요청
-    await authService.registerUser({
+    const secureChannelRes = await service.createSecureChannel();
+    const encryptedPassword = service.encrypt(secureChannelRes, password);
+    await service.registerUser({
       email,
       encryptedPassword,
       code,
-      overage: overage ? 1 : 0,
-      agree: agree ? 1 : 0,
-      collect: collect ? 1 : 0,
-      thirdParty: thirdParty ? 1 : 0,
-      advertise: advertise ? 1 : 0,
+      overage,
+      agree,
+      collect,
+      thirdParty,
+      advertise,
       channelId: secureChannelRes.ChannelID,
     });
-
-    logger.info(`User registered successfully: ${email}`);
-    res.json({ status: "success", message: "User registered successfully" });
-  } catch (error) {
-    logger.error("ABC Wallet API registration failed:", error);
-    res.status(500).json({
-      status: "failed",
-      message: "Failed to register with ABC Wallet",
-      error: error.message,
-    });
+    return res
+      .status(200)
+      .json({ status: "success", message: "User registered successfully" });
+  } catch (err) {
+    logger.error(err.message);
+    return res
+      .status(404)
+      .json({ status: "failed", message: "Problem while registering user" });
   }
 };
 
-// 로그인
-const loginController = async (req, res) => {
+exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Email and password are required",
-      });
-    }
-
-    const { accessToken, refreshToken } = await authService.login(
+    console.log("login", req.body);
+    let email = req.body.email || "";
+    let password = req.body.password || "";
+    let secureChannelRes = await service.createSecureChannel();
+    const encryptedPassword = service.encrypt(secureChannelRes, password);
+    const loginRes = await service.loginUser(
       email,
-      password
+      encryptedPassword,
+      secureChannelRes.ChannelID
     );
-    return res.status(200).json({
-      status: "success",
-      message: "Login successful",
-      data: {
-        accessToken,
-        refreshToken,
-      },
-    });
-  } catch (error) {
-    logger.error(`Login error: ${error.message}`);
-    return res.status(401).json({
-      status: "failed",
-      message: "Invalid credentials",
-    });
-  }
-};
-
-// 토큰 갱신
-const refreshTokenController = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Refresh token is required",
-      });
+    let walletInfo;
+    try {
+      walletInfo = (await walletService.getWallet(loginRes.accessToken))
+        .address;
+    } catch (_) {}
+    if (!walletInfo) {
+      const encryptedDevicePassword = service.encrypt(
+        secureChannelRes,
+        DEVICE_PASSWORD
+      );
+      try {
+        walletInfo = (
+          await walletService.createWallet(
+            email,
+            encryptedDevicePassword,
+            secureChannelRes.ChannelID,
+            loginRes.accessToken
+          )
+        ).sid;
+      } catch (_) {}
     }
-
-    const tokens = await authService.refreshToken(refreshToken);
+    let _address = toLowerCase(walletInfo);
+    let account = null; // DB 체크 생략
+    let notificationSettings = null; // DB 체크 생략
     return res.status(200).json({
       status: "success",
-      message: "Token refreshed successfully",
-      data: tokens,
+      data: {
+        accessToken: loginRes.accessToken,
+        refreshToken: loginRes.refreshToken,
+        expireIn: loginRes.expireIn,
+        address: walletInfo,
+        isAdmin: toLowerCase(walletInfo) === toLowerCase(ADMINADDRESS),
+      },
+      message: "Login successful",
     });
-  } catch (error) {
-    logger.error(`Token refresh error: ${error.message}`);
-    return res.status(401).json({
-      status: "failed",
-      message: "Invalid refresh token",
-    });
+  } catch (err) {
+    logger.error(err);
+    return res.status(404).json({ status: "failed", message: err.message });
   }
 };
 
-module.exports = {
-  verifyEmail,
-  sendCode,
-  verifyCodeController,
-  register,
-  loginController,
-  refreshTokenController,
+exports.refreshToken = async (req, res) => {
+  try {
+    let refreshToken = req.body.refreshToken || "";
+    const refreshTokenRes = await service.refreshToken(refreshToken);
+    return res.status(200).json({
+      status: "success",
+      data: {
+        accessToken: refreshTokenRes.accessToken,
+        refreshToken: refreshTokenRes.refreshToken,
+        expireIn: refreshTokenRes.expireIn,
+      },
+      message: "Reissue Accesstoken successful",
+    });
+  } catch (err) {
+    logger.error(err);
+    return res.status(404).json({ status: "failed", message: err.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    let email = req.body.email || "";
+    let password = req.body.password || "";
+    let code = req.body.code || "";
+    const secureChannelRes = await service.createSecureChannel();
+    const encryptedPassword = service.encrypt(secureChannelRes, password);
+    await service.resetPassword(
+      email,
+      encryptedPassword,
+      code,
+      secureChannelRes.ChannelID
+    );
+    return res
+      .status(200)
+      .json({ status: "success", message: "Password Reset successful" });
+  } catch (err) {
+    logger.error(err);
+    return res.status(404).json({ status: "failed", message: err.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    let email = req.body.email || "";
+    let oldpassword = req.body.oldpassword || "";
+    let newpassword = req.body.newpassword || "";
+    const secureChannelRes = await service.createSecureChannel();
+    const oldEncryptedPassword = service.encrypt(secureChannelRes, oldpassword);
+    const newEncryptedPassword = service.encrypt(secureChannelRes, newpassword);
+    await service.changePassword(
+      email,
+      oldEncryptedPassword,
+      newEncryptedPassword,
+      secureChannelRes.ChannelID
+    );
+    return res
+      .status(200)
+      .json({ status: "success", message: "Change Password successful" });
+  } catch (err) {
+    logger.error(err);
+    return res.status(404).json({ status: "failed", message: err.message });
+  }
 };

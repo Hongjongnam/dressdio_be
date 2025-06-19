@@ -25,11 +25,15 @@ contract CreatorSBT is ERC721, Ownable {
     // 크리에이터 타입 정의
     string[] public creatorTypes = ["brand", "artist", "influencer"];
 
+    // 토큰 ID => 크리에이터 이름
+    mapping(uint256 => string) public creatorNames;
+
     // SBT 정보를 담는 구조체
     struct SBTInfo {
         uint256 tokenId;
         address owner;
         string creatorType;
+        string creatorName;
         string description;
         string tokenUri;
         uint256 useCount;
@@ -53,6 +57,7 @@ contract CreatorSBT is ERC721, Ownable {
     function mint(
         address _to,
         string memory _creatorType,
+        string memory _creatorName,
         string memory _description,
         string memory _tokenUri
     ) external onlyOwner {
@@ -68,6 +73,7 @@ contract CreatorSBT is ERC721, Ownable {
         
         // 메타데이터 저장
         tokenTypes[newTokenId] = _creatorType;
+        creatorNames[newTokenId] = _creatorName;
         tokenDescriptions[newTokenId] = _description;
         hasSbt[_to][_creatorType] = true;
         useCount[newTokenId] = 0;
@@ -140,6 +146,7 @@ contract CreatorSBT is ERC721, Ownable {
                 tokenId: _tokenId,
                 owner: owner,
                 creatorType: tokenTypes[_tokenId],
+                creatorName: creatorNames[_tokenId],
                 description: tokenDescriptions[_tokenId],
                 tokenUri: _tokenURIs[_tokenId],
                 useCount: useCount[_tokenId]
@@ -176,6 +183,7 @@ contract CreatorSBT is ERC721, Ownable {
                         tokenId: i,
                         owner: owner,
                         creatorType: tokenTypes[i],
+                        creatorName: creatorNames[i],
                         description: tokenDescriptions[i],
                         tokenUri: _tokenURIs[i],
                         useCount: useCount[i]
@@ -222,6 +230,7 @@ contract CreatorSBT is ERC721, Ownable {
                     tokenId: i,
                     owner: ownerOf(i),
                     creatorType: tokenTypes[i],
+                    creatorName: creatorNames[i],
                     description: tokenDescriptions[i],
                     tokenUri: _tokenURIs[i],
                     useCount: useCount[i]

@@ -40,6 +40,7 @@ const formatSbtInfo = (sbt) => ({
   tokenId: sbt.tokenId.toString(),
   owner: sbt.owner,
   creatorType: sbt.creatorType,
+  creatorName: sbt.creatorName,
   description: sbt.description,
   tokenURI: sbt.tokenUri,
   useCount: sbt.useCount?.toString(),
@@ -56,15 +57,18 @@ const formatSbtInfo = (sbt) => ({
  * @param {string} req.body.platformAdminWalletAddress - 플랫폼 어드민 지갑 주소
  * @param {string} req.body.creatorWalletAddress - 지갑 주소
  * @param {string} req.body.creatorType - 크리에이터 타입
+ * @param {string} req.body.creatorName - 크리에이터 이름
  * @param {string} req.body.description - SBT 설명
  * @param {Object} res - Express response object
  */
 exports.mintSbt = async (req, res) => {
+  console.log(req.body);
   try {
     const {
       platformAdminWalletAddress,
       creatorWalletAddress,
       creatorType,
+      creatorName,
       description,
     } = req.body;
 
@@ -73,12 +77,13 @@ exports.mintSbt = async (req, res) => {
       !platformAdminWalletAddress ||
       !creatorWalletAddress ||
       !creatorType ||
+      !creatorName ||
       !description
     ) {
       return res.status(400).json({
         status: "error",
         message:
-          "Missing required parameters: platformAdminWalletAddress, creatorWalletAddress, creatorType, description",
+          "Missing required parameters: platformAdminWalletAddress, creatorWalletAddress, creatorType, creatorName, description",
       });
     }
 
@@ -138,7 +143,13 @@ exports.mintSbt = async (req, res) => {
 
     // 8. 트랜잭션 데이터 구성
     const mintData = sbtContract.methods
-      .mint(creatorWalletAddress, normalizedCreatorType, description, tokenUri)
+      .mint(
+        creatorWalletAddress,
+        normalizedCreatorType,
+        creatorName,
+        description,
+        tokenUri
+      )
       .encodeABI();
 
     const nonce = await web3.eth.getTransactionCount(
@@ -180,6 +191,7 @@ exports.mintSbt = async (req, res) => {
       tokenId: newSbt.tokenId.toString(),
       owner: newSbt.owner,
       creatorType: normalizedCreatorType,
+      creatorName: newSbt.creatorName,
       description: newSbt.description,
       tokenURI: newSbt.tokenUri,
       transactionHash: receipt.transactionHash,
@@ -329,6 +341,7 @@ exports.getSBT = async (req, res) => {
       tokenId: sbt.tokenId,
       owner: sbt.owner,
       creatorType: sbt.creatorType,
+      creatorName: sbt.creatorName,
       description: sbt.description,
       tokenURI: sbt.tokenURI,
       transactionHash: sbt.transactionHash,
