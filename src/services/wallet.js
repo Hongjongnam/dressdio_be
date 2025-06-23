@@ -26,13 +26,24 @@ service.getWallet = async (accessToken) => {
       throw new Error("Problem while fetching Wallets");
     }
   } catch (error) {
-    console.log("getWallet error:", error);
+    logger.error("getWallet error:", error);
     if (axios.isAxiosError(error)) {
+      if (
+        error.response?.status === 401 &&
+        error.response?.data?.message === "The token has expired."
+      ) {
+        const tokenError = new Error("Token has expired");
+        tokenError.code = "TOKEN_EXPIRED";
+        throw tokenError;
+      }
+
       if (error.response?.data["code"] == 606) {
         return error.response.data.msg;
       } else {
         const errorMsg = `HTTP ${error.response?.status}: ${
-          error.response?.data?.msg || error.message
+          error.response?.data?.message ||
+          error.response?.data?.msg ||
+          error.message
         }`;
         throw new Error(errorMsg);
       }
@@ -67,13 +78,24 @@ service.createWallet = async (
       throw new Error("Problem while creating Wallet");
     }
   } catch (error) {
-    console.log("createWallet error:", error);
+    logger.error("createWallet error:", error);
     if (axios.isAxiosError(error)) {
+      if (
+        error.response?.status === 401 &&
+        error.response?.data?.message === "The token has expired."
+      ) {
+        const tokenError = new Error("Token has expired");
+        tokenError.code = "TOKEN_EXPIRED";
+        throw tokenError;
+      }
+
       if (error.response?.data["code"] == 606) {
         return error.response.data.msg;
       } else {
         const errorMsg = `HTTP ${error.response?.status}: ${
-          error.response?.data?.msg || error.message
+          error.response?.data?.message ||
+          error.response?.data?.msg ||
+          error.message
         }`;
         throw new Error(errorMsg);
       }

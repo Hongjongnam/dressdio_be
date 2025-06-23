@@ -61,8 +61,8 @@ contract PlatformRegistry {
         require(sbtContract != address(0), "SBT contract not set");
         
         ICreatorSBT sbt = ICreatorSBT(sbtContract);
-        try sbt.ownerOf(_sbtId) returns (address owner) {
-            if (owner != _creator) return false;
+        try sbt.ownerOf(_sbtId) returns (address sbtOwner) {
+            if (sbtOwner != _creator) return false;
             string memory creatorType = sbt.getCreatorType(_sbtId);
             return keccak256(bytes(creatorType)) == keccak256(bytes(_requiredType));
         } catch {
