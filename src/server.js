@@ -6,6 +6,7 @@ const logger = require("./utils/logger");
 const authRouter = require("./routes/auth/auth.js");
 const nftRouter = require("./routes/nft");
 const blockchainRouter = require("./routes/auth/blockchain.js");
+const utilsRouter = require("./routes/utils");
 const path = require("path");
 
 // Load environment variables
@@ -31,6 +32,7 @@ app.use(express.static(path.join(__dirname, "../public")));
 app.use("/api/auth", authRouter);
 app.use("/api/nft", nftRouter);
 app.use("/api/blockchain", blockchainRouter);
+app.use("/api/utils", utilsRouter);
 
 // Initialize database
 const initializeDatabase = async () => {

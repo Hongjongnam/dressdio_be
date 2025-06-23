@@ -1,8 +1,9 @@
 const service = require("../../services/auth.js");
 const walletService = require("../../services/wallet.js");
+const { web3, dpTokenContract } = require("../../config/web3");
 const DEVICE_PASSWORD = process.env.DEVICE_PASSWORD;
 const { ethers } = require("ethers");
-const toLowerCase = require("../../utils/utils");
+const { toLowerCase, stringifyBigInts } = require("../../utils/utils");
 const logger = require("../../utils/logger.js");
 const ADMINADDRESS = process.env.ADMINADDRESS;
 
@@ -214,5 +215,104 @@ exports.changePassword = async (req, res) => {
   } catch (err) {
     logger.error(err);
     return res.status(404).json({ status: "failed", message: err.message });
+  }
+};
+
+/**
+ * @route GET /api/auth/account
+ * @desc accessToken을 walletService.getWallet로 조회하여 이메일과 walletAddress 반환
+ * @access Protected (auth 미들웨어 필요)
+ */
+exports.getAccount = async (req, res) => {
+  try {
+    const accessToken = req.token;
+    if (!accessToken) {
+      return res
+        .status(401)
+        .json({ status: "failed", message: "No accessToken provided" });
+    }
+    // ABC WAAS 방식으로 사용자 정보 조회
+    let walletInfo;
+    try {
+      walletInfo = await walletService.getWallet(accessToken);
+    } catch (e) {
+      return res.status(401).json({
+        status: "failed",
+        message: "Invalid accessToken or walletService error",
+      });
+    }
+    if (!walletInfo || (!walletInfo.address && !walletInfo.email)) {
+      return res.status(401).json({
+        status: "failed",
+        message: "No user info found for accessToken",
+      });
+    }
+    return res.json({
+      status: "success",
+      data: {
+        email: walletInfo.email,
+        walletAddress: walletInfo.address,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ status: "failed", message: err.message });
+  }
+};
+
+/**
+ * @route GET /api/auth/balance
+ * @desc 사용자의 DP 토큰 잔액을 조회
+ * @access Protected (auth 미들웨어 필요)
+ */
+exports.getAccountBalance = async (req, res) => {
+  try {
+    const accessToken = req.token;
+    if (!accessToken) {
+      return res
+        .status(401)
+        .json({ status: "failed", message: "No accessToken provided" });
+    }
+
+    // ABC WAAS로 지갑 주소 조회
+    let walletInfo;
+    try {
+      walletInfo = await walletService.getWallet(accessToken);
+    } catch (e) {
+      return res.status(401).json({
+        status: "failed",
+        message: "Invalid accessToken or walletService error",
+      });
+    }
+
+    if (!walletInfo || !walletInfo.address) {
+      return res.status(401).json({
+        status: "failed",
+        message: "No wallet address found for accessToken",
+      });
+    }
+
+    // DP 토큰 잔액 조회
+    const balance = await dpTokenContract.methods
+      .balanceOf(walletInfo.address)
+      .call();
+    const formattedBalance = web3.utils.fromWei(balance, "ether");
+
+    const responseData = {
+      status: "success",
+      data: stringifyBigInts({
+        address: walletInfo.address,
+        balance: formattedBalance,
+        rawBalance: balance,
+        symbol: "DP",
+      }),
+    };
+
+    return res.json(responseData);
+  } catch (err) {
+    logger.error("getAccountBalance error:", err);
+    return res.status(500).json({
+      status: "failed",
+      message: err.message,
+    });
   }
 };

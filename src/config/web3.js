@@ -2,10 +2,45 @@ const { Web3 } = require("web3");
 const dotenv = require("dotenv");
 const path = require("path");
 const logger = require("../utils/logger");
+
+// Load ABIs
 const sbtContractABI = require("../abi/SbtContract.json");
+const IPNFTFactoryABI = require("../abi/IPNFTFactory.json");
+const CreatorSBTABI = require("../abi/ICreatorSBT.json");
+const DPTokenABI = require("../abi/DPToken.json");
+const IPNFTABI = require("../abi/IPNFT.json");
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
+// Create Web3 instance first
+const web3 = new Web3(process.env.RPC_URL || "http://3.38.125.193:8545");
+
+// Contract Addresses
+const contractAddresses = {
+  ipnftFactory: process.env.IPNFT_FACTORY_ADDRESS,
+  dpToken: process.env.DP_TOKEN_ADDRESS,
+  sbtContract: process.env.SBT_CONTRACT_ADDRESS,
+  creatorSBT: process.env.SBT_CONTRACT_ADDRESS, // Use the same SBT contract address
+};
+
+// Log contract addresses for debugging
+logger.info("Contract Addresses:", {
+  ipnftFactory: contractAddresses.ipnftFactory,
+  dpToken: contractAddresses.dpToken,
+  sbtContract: contractAddresses.sbtContract,
+  creatorSBT: contractAddresses.creatorSBT,
+});
+
+// Validate contract addresses after web3 is initialized
+const validateAddresses = () => {
+  Object.entries(contractAddresses).forEach(([name, address]) => {
+    if (!address || !web3.utils.isAddress(address)) {
+      logger.error(`Invalid or missing ${name} contract address: ${address}`);
+      throw new Error(`Invalid or missing ${name} contract address`);
+    }
+  });
+};
 
 // Web3 configuration
 const web3Config = {
@@ -16,49 +51,10 @@ const web3Config = {
     privateKey: process.env.DRESSDIO_ADMIN_PRIVATE_KEY,
   },
   platformAdmin: "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
-  sbtContractAddress: process.env.SBT_CONTRACT_ADDRESS,
-  // DP Token configuration
-  dpTokenAddress: process.env.DP_TOKEN_ADDRESS,
   // ABC Wallet configuration
   abcWalletBaseUrl: process.env.BASEURL,
   devicePassword: process.env.DEVICE_PASSWORD,
 };
-
-// Validate required environment variables
-const validateConfig = () => {
-  const required = [
-    "DRESSDIO_ADMIN_WALLET_ADDRESS",
-    "DRESSDIO_ADMIN_PRIVATE_KEY",
-    "SBT_CONTRACT_ADDRESS",
-  ];
-
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(", ")}`
-    );
-  }
-
-  // Check optional but important variables
-  if (!web3Config.dpTokenAddress) {
-    logger.warn(
-      "DP_TOKEN_ADDRESS is not configured - DP token features will not work"
-    );
-  }
-  if (!web3Config.abcWalletBaseUrl) {
-    logger.warn(
-      "BASEURL is not configured - ABC Wallet features will not work"
-    );
-  }
-  if (!web3Config.devicePassword) {
-    logger.warn(
-      "DEVICE_PASSWORD is not configured - ABC Wallet features will not work"
-    );
-  }
-};
-
-// Create Web3 instance
-const web3 = new Web3(web3Config.rpcUrl);
 
 // Format and validate admin account
 const dressdioAdminAccount = {
@@ -82,41 +78,26 @@ const initializeAdminAccount = () => {
   }
 };
 
-// Create contract instance
+// Create contract instances
 const sbtContract = new web3.eth.Contract(
   sbtContractABI,
-  web3Config.sbtContractAddress
+  contractAddresses.sbtContract
 );
 
-// DP Token contract ABI (ERC20 standard)
-const dpTokenABI = [
-  {
-    constant: true,
-    inputs: [{ name: "_owner", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "balance", type: "uint256" }],
-    payable: false,
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    constant: false,
-    inputs: [
-      { name: "_to", type: "address" },
-      { name: "_value", type: "uint256" },
-    ],
-    name: "transfer",
-    outputs: [{ name: "", type: "bool" }],
-    payable: false,
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-];
-
-// Create DP Token contract instance
 const dpTokenContract = new web3.eth.Contract(
-  dpTokenABI,
-  web3Config.dpTokenAddress
+  DPTokenABI,
+  contractAddresses.dpToken
+);
+
+const ipnftFactoryContract = new web3.eth.Contract(
+  IPNFTFactoryABI,
+  contractAddresses.ipnftFactory
+);
+
+// Use the full SbtContract ABI for creatorSBTContract
+const creatorSBTContract = new web3.eth.Contract(
+  sbtContractABI, // Changed from CreatorSBTABI to sbtContractABI
+  contractAddresses.creatorSBT
 );
 
 // Check network connection
@@ -139,7 +120,7 @@ const checkConnection = async () => {
 // Initialize Web3
 const initializeWeb3 = async () => {
   try {
-    validateConfig();
+    validateAddresses();
     initializeAdminAccount();
     await checkConnection();
   } catch (error) {
@@ -162,14 +143,32 @@ if (require.main === module) {
 }
 
 module.exports = {
+  // Contract ABIs
+  sbtContractABI,
+  IPNFTFactoryABI,
+  CreatorSBTABI,
+  DPTokenABI,
+  IPNFTABI,
+  // Web3 instance
   web3,
-  dressdioAdminAccount,
-  PLATFORM_ADMIN_WALLET_ADDRESS: web3Config.platformAdmin,
+  // Contract instances
   sbtContract,
   dpTokenContract,
-  dpTokenAddress: web3Config.dpTokenAddress,
+  ipnftFactoryContract,
+  creatorSBTContract,
+  // Contract addresses
+  ipnftFactoryAddress: contractAddresses.ipnftFactory,
+  dpTokenAddress: contractAddresses.dpToken,
+  sbtContractAddress: contractAddresses.sbtContract,
+  creatorSBTAddress: contractAddresses.creatorSBT,
+  // ABC Wallet config
   abcWalletBaseUrl: web3Config.abcWalletBaseUrl,
   devicePassword: web3Config.devicePassword,
+  // Admin account
+  dressdioAdminAccount,
+  // Web3 config
+  web3Config,
+  // Functions
   checkConnection,
   initializeWeb3,
 };

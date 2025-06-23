@@ -6,25 +6,12 @@ const {
   sbtContract,
   dressdioAdminAccount,
   PLATFORM_ADMIN_WALLET_ADDRESS,
+  web3Config,
 } = require("../../config/web3");
 const SBT = require("../../models/sbt");
 const logger = require("../../utils/logger");
-
-// Constants
-const CREATOR_TYPES = {
-  ARTIST: "artist",
-  INFLUENCER: "influencer",
-  BRAND: "brand",
-};
-
-const IPFS_URIS = {
-  [CREATOR_TYPES.ARTIST]:
-    "https://ipfs.io/ipfs/QmVjNKowy3nqoaA7atZe615R7XcVcu2eMPknmimHnbybyV",
-  [CREATOR_TYPES.INFLUENCER]:
-    "https://ipfs.io/ipfs/QmWA53Ma6jos1SqWA8b8ZuRKJh2bm5U26YYE5soHmKR38T",
-  [CREATOR_TYPES.BRAND]:
-    "https://ipfs.io/ipfs/QmX39UUBB2KVGs27qXscrqZYLmibDcUSUx5pnf8MoFEDHC",
-};
+const { toLowerCase, stringifyBigInts } = require("../../utils/utils");
+const { CREATOR_TYPES, IPFS_URIS } = require("../../utils/constants");
 
 // Utility functions
 const validateWalletAddress = (address) => {
@@ -90,7 +77,7 @@ exports.mintSbt = async (req, res) => {
     // 2. 플랫폼 관리자 주소 검증
     if (
       platformAdminWalletAddress.toLowerCase() !==
-      PLATFORM_ADMIN_WALLET_ADDRESS.toLowerCase()
+      web3Config.platformAdmin.toLowerCase()
     ) {
       return res.status(403).json({
         status: "error",
