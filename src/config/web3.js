@@ -9,6 +9,7 @@ const IPNFTFactoryABI = require("../abi/IPNFTFactory.json");
 const CreatorSBTABI = require("../abi/ICreatorSBT.json");
 const DPTokenABI = require("../abi/DPToken.json");
 const IPNFTABI = require("../abi/IPNFT.json");
+const PlatformRegistryABI = require("../abi/PlatformRegistry.json");
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -22,6 +23,7 @@ const contractAddresses = {
   dpToken: process.env.DP_TOKEN_ADDRESS,
   sbtContract: process.env.SBT_CONTRACT_ADDRESS,
   creatorSBT: process.env.SBT_CONTRACT_ADDRESS, // Use the same SBT contract address
+  platformRegistry: process.env.PLATFORM_REGISTRY_ADDRESS,
 };
 
 // Log contract addresses for debugging
@@ -30,6 +32,7 @@ logger.info("Contract Addresses:", {
   dpToken: contractAddresses.dpToken,
   sbtContract: contractAddresses.sbtContract,
   creatorSBT: contractAddresses.creatorSBT,
+  platformRegistry: contractAddresses.platformRegistry,
 });
 
 // Validate contract addresses after web3 is initialized
@@ -47,10 +50,10 @@ const web3Config = {
   chainId: process.env.CHAIN_ID || "1337",
   rpcUrl: process.env.RPC_URL || "http://3.38.125.193:8545",
   adminWallet: {
-    address: process.env.DRESSDIO_ADMIN_WALLET_ADDRESS,
+    address: process.env.PLATFORM_ADMIN_WALLET_ADDRESS,
     privateKey: process.env.DRESSDIO_ADMIN_PRIVATE_KEY,
   },
-  platformAdmin: "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
+  platformAdmin: process.env.PLATFORM_ADMIN_WALLET_ADDRESS,
   // ABC Wallet configuration
   abcWalletBaseUrl: process.env.BASEURL,
   devicePassword: process.env.DEVICE_PASSWORD,
@@ -92,6 +95,11 @@ const dpTokenContract = new web3.eth.Contract(
 const ipnftFactoryContract = new web3.eth.Contract(
   IPNFTFactoryABI,
   contractAddresses.ipnftFactory
+);
+
+const platformRegistryContract = new web3.eth.Contract(
+  PlatformRegistryABI,
+  contractAddresses.platformRegistry
 );
 
 // Use the full SbtContract ABI for creatorSBTContract
@@ -149,18 +157,21 @@ module.exports = {
   CreatorSBTABI,
   DPTokenABI,
   IPNFTABI,
+  PlatformRegistryABI,
   // Web3 instance
   web3,
   // Contract instances
   sbtContract,
   dpTokenContract,
   ipnftFactoryContract,
+  platformRegistryContract,
   creatorSBTContract,
   // Contract addresses
   ipnftFactoryAddress: contractAddresses.ipnftFactory,
   dpTokenAddress: contractAddresses.dpToken,
   sbtContractAddress: contractAddresses.sbtContract,
   creatorSBTAddress: contractAddresses.creatorSBT,
+  platformRegistryAddress: contractAddresses.platformRegistry,
   // ABC Wallet config
   abcWalletBaseUrl: web3Config.abcWalletBaseUrl,
   devicePassword: web3Config.devicePassword,

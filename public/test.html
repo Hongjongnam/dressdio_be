@@ -126,7 +126,7 @@
       .checkbox-item {
         display: flex;
         align-items: center;
-        gap: 0.3rem;
+        margin-bottom: 5px;
       }
       .checkbox-item input[type="checkbox"] {
         width: auto;
@@ -196,6 +196,163 @@
         .tab-button:last-child {
           border-bottom: none;
         }
+      }
+
+      .subsection {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: #f9f9f9;
+      }
+
+      .subsection h4 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #333;
+        font-size: 16px;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin: 2px;
+      }
+
+      .btn-info {
+        background-color: #17a2b8;
+        color: white;
+      }
+
+      .btn-danger {
+        background-color: #dc3545;
+        color: white;
+      }
+
+      .btn-warning {
+        background-color: #ffc107;
+        color: #212529;
+      }
+
+      .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+      }
+
+      .form-control {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      .input-group {
+        display: flex;
+        gap: 5px;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .col-md-2 {
+        flex: 0 0 16.666667%;
+      }
+      .col-md-4 {
+        flex: 0 0 33.333333%;
+      }
+      .col-md-6 {
+        flex: 0 0 50%;
+      }
+
+      .mt-2 {
+        margin-top: 10px;
+      }
+      .mb-3 {
+        margin-bottom: 15px;
+      }
+
+      code {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 3px;
+        padding: 2px 4px;
+        font-family: "Courier New", monospace;
+        font-size: 0.9em;
+        color: #e83e8c;
+      }
+
+      /* Platform Registry 관리 개선 스타일 */
+      #platformStatusResult,
+      #platformOwnerResult,
+      #factoryResult {
+        max-width: 100%;
+        overflow-x: auto;
+        word-break: break-all;
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin-top: 8px;
+        font-size: 0.97em;
+      }
+      .input-group {
+        flex-wrap: nowrap;
+      }
+      .input-group input {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .col-md-4,
+      .col-md-6,
+      .col-md-8,
+      .col-md-2,
+      .col-md-12 {
+        flex: 1 1 0;
+        min-width: 120px;
+        margin-bottom: 4px;
+      }
+      @media (max-width: 600px) {
+        .row {
+          flex-direction: column;
+          gap: 4px;
+        }
+        .input-group {
+          flex-direction: column;
+        }
+        .input-group button {
+          margin-top: 6px;
+        }
+      }
+      fieldset {
+        margin-bottom: 24px;
+        padding: 18px 14px 14px 14px;
+        border-radius: 8px;
+        border: 1.5px solid #e0e0e0;
+        background: #fff;
+      }
+      legend {
+        font-weight: bold;
+        font-size: 1.1em;
+        margin-bottom: 8px;
+      }
+      .subsection {
+        margin-bottom: 18px;
+      }
+      .btn {
+        min-width: 90px;
+        white-space: nowrap;
       }
     </style>
   </head>
@@ -389,6 +546,21 @@
             </form>
             <pre id="loginResult"></pre>
             <div id="loginStatus" class="status" style="display: none"></div>
+            <button
+              type="button"
+              onclick="logout()"
+              style="
+                margin-top: 10px;
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+              "
+            >
+              로그아웃
+            </button>
           </fieldset>
 
           <!-- 6. 토큰 갱신 -->
@@ -519,7 +691,7 @@
 
           <!-- 2. DP 토큰 전송 -->
           <fieldset>
-            <legend>2. DP 토큰 전송 (POST /api/blockchain/dp/transfer)</legend>
+            <legend>2. DP 토큰 전송 (POST /api/)</legend>
             <form id="dpTransferForm">
               <label>
                 Access Token:<br />
@@ -609,14 +781,14 @@
         <div class="api-grid">
           <!-- 1. Mint SBT -->
           <fieldset>
-            <legend>Mint SBT (POST /api/nft/sbt/mint)</legend>
+            <legend>1. Mint SBT (POST /api/nft/sbt/mint)</legend>
             <form id="mintForm">
               <label>
-                Platform Admin Wallet Address:<br />
+                Access Token:<br />
                 <input
                   type="text"
-                  id="platformAdminWalletAddress"
-                  value="0xfe3b557e8fb62b89f4916b721be55ceb828dbd73"
+                  id="mintAccessToken"
+                  placeholder="Platform Admin의 ABC Wallet access token"
                   required
                 />
               </label>
@@ -625,7 +797,7 @@
                 <input
                   type="text"
                   id="creatorWalletAddress"
-                  value="0xabcd..."
+                  value="0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
                   required
                 />
               </label>
@@ -658,22 +830,24 @@
 
           <!-- 2. Get All SBTs -->
           <fieldset>
-            <legend>Get All SBTs (GET /api/nft/sbt)</legend>
+            <legend>2. Get All SBTs (GET /api/nft/sbt)</legend>
             <button id="getAllSbtBtn">Get All SBTs</button>
             <pre id="getAllSbtResult"></pre>
           </fieldset>
 
           <!-- 3. Get Admin Balance -->
           <fieldset>
-            <legend>Get Admin Balance (GET /api/nft/sbt/admin/balance)</legend>
+            <legend>
+              3. Get Admin Balance (GET /api/nft/sbt/admin/balance)
+            </legend>
             <button id="getAdminBalanceBtn">Get Admin Balance</button>
             <pre id="getAdminBalanceResult"></pre>
           </fieldset>
 
-          <!-- 4. Get SBT from Blockchain by Wallet Address -->
+          <!-- 4. Get SBT from Blockchain -->
           <fieldset>
             <legend>
-              Get SBT from Blockchain (GET /api/nft/sbt/:walletAddress)
+              4. Get SBT from Blockchain (GET /api/nft/sbt/:walletAddress)
             </legend>
             <input
               type="text"
@@ -754,7 +928,12 @@
               </label>
               <label>
                 이미지 파일:<br />
-                <input type="file" id="ipnftImage" accept="image/*" />
+                <input
+                  type="file"
+                  id="ipnftImage"
+                  name="ipnftImage"
+                  accept="image/*"
+                />
               </label>
               <label>
                 IPFS 이미지 URI (파일 업로드 대신 직접 입력):<br />
@@ -793,6 +972,45 @@
             </form>
             <pre id="myIpnftListResult"></pre>
           </fieldset>
+
+          <!-- 4. 민팅 수수료 조회 -->
+          <fieldset>
+            <legend>4. 민팅 수수료 조회 (GET /api/nft/ip/minting-fee)</legend>
+            <button id="getMintingFeeBtn">현재 수수료 조회</button>
+            <pre id="getMintingFeeResult"></pre>
+          </fieldset>
+
+          <!-- 5. 민팅 수수료 설정 -->
+          <fieldset>
+            <legend>
+              5. [관리자] 민팅 수수료 설정 (POST /api/nft/ip/minting-fee)
+            </legend>
+            <form id="setMintingFeeForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="setMintingFeeToken"
+                  placeholder="관리자계정 access token"
+                  required
+                />
+              </label>
+              <label>
+                새로운 수수료 (DP):<br />
+                <input
+                  type="number"
+                  id="newMintingFee"
+                  placeholder="3"
+                  value="3"
+                  min="0.1"
+                  step="0.1"
+                  required
+                />
+              </label>
+              <button type="submit">수수료 변경</button>
+            </form>
+            <pre id="setMintingFeeResult"></pre>
+          </fieldset>
         </div>
       </div>
 
@@ -800,42 +1018,114 @@
       <div id="marketplace-tab" class="tab-content">
         <div class="api-grid">
           <!-- 1. 브랜드 판매 시작 (Merchandise status 변경) -->
-          <fieldset>
-            <legend>1. 브랜드 판매 시작 (Merchandise status 변경)</legend>
-            <form id="brandSetStatusForm">
-              <label>
-                Merchandise Token ID:<br />
-                <input
-                  type="text"
-                  id="brandSetStatusTokenId"
-                  placeholder="예: 123"
-                  required
-                />
-              </label>
-              <label>
-                Access Token:<br />
-                <input
-                  type="text"
-                  id="brandSetStatusAccessToken"
-                  placeholder="브랜드 로그인 후 받은 access token"
-                  required
-                />
-              </label>
-              <button type="submit">판매 시작(상태 true로 변경)</button>
-            </form>
-            <pre id="brandSetStatusResult"></pre>
-          </fieldset>
 
-          <!-- 2. Marketplace 기능 (준비 중) -->
+          <!-- 2. Platform Registry 관리 -->
           <fieldset>
-            <legend>Marketplace 기능 (준비 중)</legend>
-            <p>Marketplace 관련 기능들이 여기에 추가될 예정입니다.</p>
-            <ul>
-              <li>NFT Listing</li>
-              <li>NFT Purchase</li>
-              <li>Bidding</li>
-              <li>Auction</li>
-            </ul>
+            <legend>2. Platform Registry 관리</legend>
+
+            <!-- Login Status Check -->
+            <div class="subsection">
+              <h4>Login Status</h4>
+              <div class="row">
+                <div class="col-md-8">
+                  <input
+                    type="text"
+                    id="platformAccessToken"
+                    class="form-control"
+                    placeholder="Auth 탭에서 로그인 후 받은 access token을 여기에 입력하세요"
+                  />
+                </div>
+                <div class="col-md-4">
+                  <button
+                    class="btn btn-secondary"
+                    onclick="checkPlatformLoginStatus()"
+                  >
+                    Check Login Status
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Platform Status -->
+            <div class="subsection">
+              <h4>Platform Status</h4>
+              <button class="btn btn-info" onclick="getPlatformStatus()">
+                Get Platform Status
+              </button>
+              <div id="platformStatusResult" class="mt-2"></div>
+            </div>
+
+            <!-- Ownership Management -->
+            <div class="subsection">
+              <h4>Ownership Management</h4>
+              <div class="alert alert-warning">
+                <strong>⚠️ 주의사항:</strong><br />
+                • 소유권 이전은 현재 소유자만 가능합니다<br />
+                • 먼저 "Get Current Owner" 버튼으로 현재 소유자를 확인하세요<br />
+                • 현재 소유자가 아닌 경우 소유권 이전이 실패합니다
+              </div>
+              <div class="row">
+                <div class="col-md-6">
+                  <button class="btn btn-info" onclick="getPlatformOwner()">
+                    Get Current Owner
+                  </button>
+                  <div id="platformOwnerResult" class="mt-2"></div>
+                </div>
+                <div class="col-md-6">
+                  <div class="input-group">
+                    <input
+                      type="text"
+                      id="newPlatformOwner"
+                      class="form-control"
+                      placeholder="New owner address"
+                    />
+                    <button
+                      class="btn btn-danger"
+                      onclick="transferPlatformOwnership()"
+                    >
+                      Transfer Ownership
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Factory Management -->
+            <div class="subsection">
+              <h4>Factory Management</h4>
+              <div class="row">
+                <div class="col-md-4">
+                  <select id="factoryType" class="form-control">
+                    <option value="merchandise">Merchandise Factory</option>
+                    <option value="ipnft">IPNFT Factory</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <input
+                    type="text"
+                    id="factoryAddress"
+                    class="form-control"
+                    placeholder="Factory contract address"
+                    value="0x04a5745e66f25ECD3F82Bbc333e80c19004be151"
+                  />
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-warning" onclick="setFactory()">
+                    Set Factory
+                  </button>
+                </div>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted">
+                  <strong>배포된 팩토리 주소:</strong><br />
+                  MerchandiseFactory:
+                  <code>0x04a5745e66f25ECD3F82Bbc333e80c19004be151</code><br />
+                  IPNFTFactory:
+                  <code>0xf019427Bf47e7D85872B60Ba7D722022e8Ea6290</code>
+                </small>
+              </div>
+              <div id="factoryResult" class="mt-2"></div>
+            </div>
           </fieldset>
         </div>
       </div>
@@ -983,6 +1273,10 @@
             currentAccessToken = json.data.accessToken;
             currentRefreshToken = json.data.refreshToken;
 
+            // 토큰을 localStorage에 저장하지 않음 (보안상 위험)
+            // localStorage.setItem('accessToken', currentAccessToken);
+            // localStorage.setItem('refreshToken', currentRefreshToken);
+
             // 토큰을 refresh token 입력 필드에 자동 설정
             document.getElementById("refreshToken").value = currentRefreshToken;
 
@@ -1082,99 +1376,446 @@
         }
       };
 
-      // Blockchain 관련 함수들
-      // 1. ETH 전송
-      document.getElementById("ethTransferForm").onsubmit = async function (e) {
-        e.preventDefault();
-        const token = document.getElementById("ethTransferToken").value;
-        const data = {
-          to: document.getElementById("ethTransferTo").value,
-          value: document.getElementById("ethTransferValue").value,
-        };
-        const resultEl = document.getElementById("ethTransferResult");
-        resultEl.textContent = "ETH 전송 중...";
+      // 로그아웃 함수
+      function logout() {
+        currentAccessToken = "";
+        currentRefreshToken = "";
+        // localStorage에서 토큰 제거하지 않음 (이미 저장하지 않음)
+        // localStorage.removeItem('accessToken');
+        // localStorage.removeItem('refreshToken');
+
+        // 로그인 상태 표시 업데이트
+        const statusEl = document.getElementById("loginStatus");
+        statusEl.textContent = "로그아웃됨";
+        statusEl.className = "status";
+        statusEl.style.display = "block";
+
+        alert("로그아웃되었습니다.");
+      }
+
+      // 현재 로그인 상태 확인
+      function checkPlatformLoginStatus() {
+        const accessToken = document.getElementById(
+          "platformAccessToken"
+        ).value;
+        if (accessToken && accessToken.trim() !== "") {
+          alert(
+            `Access Token 입력됨\nToken: ${accessToken.substring(0, 20)}...`
+          );
+        } else {
+          alert(
+            "Access Token이 입력되지 않았습니다.\nAuth 탭에서 로그인 후 받은 access token을 입력해주세요."
+          );
+        }
+      }
+
+      // Platform Registry Functions
+      async function getPlatformStatus() {
+        try {
+          const response = await fetch("/api/nft/platform/status");
+          const result = await response.json();
+
+          if (result.success) {
+            document.getElementById("platformStatusResult").innerHTML = `
+              <div class="alert alert-info">
+                <strong>Platform Status:</strong><br>
+                <strong>Owner:</strong> ${result.data.owner}<br>
+                <strong>Merchandise Factory:</strong> ${result.data.merchandiseFactory}<br>
+                <strong>IPNFT Factory:</strong> ${result.data.ipnftFactory}<br>
+                <strong>SBT Contract:</strong> ${result.data.sbtContract}
+              </div>
+            `;
+          } else {
+            document.getElementById("platformStatusResult").innerHTML = `
+              <div class="alert alert-danger">Error: ${result.message}</div>
+            `;
+          }
+        } catch (error) {
+          document.getElementById("platformStatusResult").innerHTML = `
+            <div class="alert alert-danger">Error: ${error.message}</div>
+          `;
+        }
+      }
+
+      async function getPlatformOwner() {
+        try {
+          const response = await fetch("/api/nft/platform/owner");
+          const result = await response.json();
+
+          if (result.success) {
+            document.getElementById("platformOwnerResult").innerHTML = `
+              <div class="alert alert-info">
+                <strong>Current Owner:</strong> ${result.data.owner}
+              </div>
+            `;
+          } else {
+            document.getElementById("platformOwnerResult").innerHTML = `
+              <div class="alert alert-danger">Error: ${result.message}</div>
+            `;
+          }
+        } catch (error) {
+          document.getElementById("platformOwnerResult").innerHTML = `
+            <div class="alert alert-danger">Error: ${error.message}</div>
+          `;
+        }
+      }
+
+      async function transferPlatformOwnership() {
+        const newOwner = document.getElementById("newPlatformOwner").value;
+        const token = document.getElementById("platformAccessToken").value;
+
+        if (!token || token.trim() === "") {
+          alert("Please enter access token first");
+          return;
+        }
+
+        if (!newOwner || newOwner.length !== 42 || !newOwner.startsWith("0x")) {
+          alert("Please enter a valid Ethereum address");
+          return;
+        }
+
+        if (
+          !confirm(
+            `Are you sure you want to transfer PlatformRegistry ownership to ${newOwner}?\n\nThis action cannot be undone!`
+          )
+        ) {
+          return;
+        }
 
         try {
-          const res = await fetch("/api/blockchain/eth/transfer", {
+          const response = await fetch("/api/nft/platform/transfer-ownership", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify(data),
+            body: JSON.stringify({ newOwner }),
           });
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err.message;
-        }
-      };
+          const result = await response.json();
 
-      // 2. DP 토큰 전송
-      document.getElementById("dpTransferForm").onsubmit = async function (e) {
-        e.preventDefault();
-        const token = document.getElementById("dpTransferToken").value;
-        const data = {
-          to: document.getElementById("dpTransferTo").value,
-          amount: document.getElementById("dpTransferAmount").value,
-        };
-        const resultEl = document.getElementById("dpTransferResult");
-        resultEl.textContent = "DP 토큰 전송 중...";
+          if (result.success) {
+            document.getElementById("platformOwnerResult").innerHTML = `
+              <div class="alert alert-success">
+                <strong>Success!</strong> PlatformRegistry ownership transferred to ${newOwner}<br>
+                <strong>Transaction Hash:</strong> ${result.data.txHash}<br>
+                <strong>Previous Owner:</strong> ${result.data.previousOwner}
+              </div>
+            `;
+            getPlatformOwner(); // Refresh the display
+            getPlatformStatus(); // Refresh platform status
+          } else {
+            let errorMessage = result.message;
+            if (result.message && result.message.includes("reverted")) {
+              errorMessage =
+                '권한 부족: 현재 로그인한 사용자가 PlatformRegistry의 소유자가 아닙니다.\n\n해결 방법:\n1. "Get Current Owner" 버튼으로 현재 소유자 확인\n2. 현재 소유자로 로그인 후 다시 시도';
+            }
+            document.getElementById("platformOwnerResult").innerHTML = `
+              <div class="alert alert-danger">
+                <strong>Error:</strong> ${errorMessage}
+              </div>
+            `;
+          }
+        } catch (error) {
+          let errorMessage = error.message;
+          if (error.message && error.message.includes("reverted")) {
+            errorMessage =
+              "권한 부족: 현재 로그인한 사용자가 PlatformRegistry의 소유자가 아닙니다.";
+          }
+          document.getElementById("platformOwnerResult").innerHTML = `
+            <div class="alert alert-danger">
+              <strong>Error:</strong> ${errorMessage}
+            </div>
+          `;
+        }
+      }
+
+      // Factory Management Functions
+      async function setFactory() {
+        const factoryType = document.getElementById("factoryType").value;
+        const factoryAddress = document.getElementById("factoryAddress").value;
+        const token = document.getElementById("platformAccessToken").value;
+
+        if (!token || token.trim() === "") {
+          alert("Please enter access token first");
+          return;
+        }
+
+        if (
+          !factoryAddress ||
+          factoryAddress.length !== 42 ||
+          !factoryAddress.startsWith("0x")
+        ) {
+          alert("Please enter a valid factory contract address");
+          return;
+        }
+
+        if (
+          !confirm(
+            `Are you sure you want to set ${factoryType} factory to ${factoryAddress}?`
+          )
+        ) {
+          return;
+        }
 
         try {
-          const res = await fetch("/api/blockchain/dp/transfer", {
+          const response = await fetch("/api/nft/platform/set-factory", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify(data),
+            body: JSON.stringify({ factoryType, factoryAddress }),
           });
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err.message;
-        }
-      };
+          const result = await response.json();
 
-      // 3. DP 토큰 잔액 조회
-      document.getElementById("dpBalanceForm").onsubmit = async function (e) {
+          if (result.success) {
+            document.getElementById("factoryResult").innerHTML = `
+              <div class="alert alert-success">
+                <strong>Success!</strong> ${factoryType} factory set to ${factoryAddress}<br>
+                <strong>Transaction Hash:</strong> ${result.data.txHash}
+              </div>
+            `;
+            getPlatformStatus(); // Refresh the display
+          } else {
+            document.getElementById("factoryResult").innerHTML = `
+              <div class="alert alert-danger">Error: ${result.message}</div>
+            `;
+          }
+        } catch (error) {
+          document.getElementById("factoryResult").innerHTML = `
+            <div class="alert alert-danger">Error: ${error.message}</div>
+          `;
+        }
+      }
+
+      // Factory type 변경 시 주소 자동 설정
+      document
+        .getElementById("factoryType")
+        .addEventListener("change", function () {
+          const factoryType = this.value;
+          const factoryAddressInput = document.getElementById("factoryAddress");
+
+          if (factoryType === "merchandise") {
+            factoryAddressInput.value =
+              "0x04a5745e66f25ECD3F82Bbc333e80c19004be151";
+          } else if (factoryType === "ipnft") {
+            factoryAddressInput.value =
+              "0xf019427Bf47e7D85872B60Ba7D722022e8Ea6290";
+          }
+        });
+
+      // SBT 관련 함수들
+      // 1. Mint SBT
+      document.getElementById("mintForm").onsubmit = async function (e) {
         e.preventDefault();
-        const token = document.getElementById("dpBalanceToken").value;
-        const resultEl = document.getElementById("dpBalanceResult");
-        resultEl.textContent = "잔액 조회 중...";
+        const data = {
+          accessToken: document.getElementById("mintAccessToken").value,
+          creatorWalletAddress: document.getElementById("creatorWalletAddress")
+            .value,
+          creatorType: document.getElementById("creatorType").value,
+          creatorName: document.getElementById("creatorName").value,
+          description: document.getElementById("description").value,
+        };
+        const resultEl = document.getElementById("mintResult");
+        resultEl.textContent = "민팅 중...";
 
         try {
-          const res = await fetch("/api/auth/balance", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err.message;
-        }
-      };
-
-      // 4. DP 토큰 에어드랍(Faucet)
-      document.getElementById("dpFaucetForm").onsubmit = async function (e) {
-        e.preventDefault();
-        const address = document.getElementById("dpFaucetAddress").value;
-        const resultEl = document.getElementById("dpFaucetResult");
-        resultEl.textContent = "에어드랍 요청 중...";
-
-        try {
-          const res = await fetch("/api/utils/faucet", {
+          const res = await fetch("/api/nft/sbt/mint", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ address }),
+            body: JSON.stringify(data),
           });
           const json = await res.json();
           resultEl.textContent = JSON.stringify(json, null, 2);
         } catch (err) {
           resultEl.textContent = "Error: " + err.message;
         }
+      };
+
+      // 2. Get All SBTs
+      document.getElementById("getAllSbtBtn").onclick = async function () {
+        const resultEl = document.getElementById("getAllSbtResult");
+        resultEl.textContent = "조회 중...";
+
+        try {
+          const res = await fetch("/api/nft/sbt");
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 3. Get Admin Balance
+      document.getElementById("getAdminBalanceBtn").onclick =
+        async function () {
+          const resultEl = document.getElementById("getAdminBalanceResult");
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch("/api/nft/sbt/admin/balance");
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
+
+      // 4. Get SBT from Blockchain
+      document.getElementById("getBcSbtBtn").onclick = async function () {
+        const walletAddress = document.getElementById("bcWalletAddress").value;
+        const resultEl = document.getElementById("getBcSbtResult");
+        resultEl.textContent = "조회 중...";
+
+        if (!walletAddress || walletAddress.trim() === "") {
+          resultEl.textContent = "Error: 지갑 주소를 입력해주세요.";
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/nft/sbt/${walletAddress}`);
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // IPNFT 관련 함수들
+      // 1. IPNFT 민팅
+      document.getElementById("ipnftMintForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const token = document.getElementById("ipnftMintToken").value;
+        const formData = new FormData();
+
+        // 기본 데이터 추가
+        formData.append("name", document.getElementById("ipnftName").value);
+        formData.append(
+          "description",
+          document.getElementById("ipnftDescription").value
+        );
+        formData.append("price", document.getElementById("ipnftPrice").value);
+        formData.append(
+          "supplyPrice",
+          document.getElementById("ipnftSupplyPrice").value
+        );
+        formData.append(
+          "creatorType",
+          document.getElementById("ipnftCreatorType").value
+        );
+
+        // 이미지 파일 또는 IPFS URI 추가
+        const fileInput = document.getElementById("ipnftImage");
+        const ipfsImage = document.getElementById("ipnftIpfsImage").value;
+
+        if (fileInput.files.length > 0) {
+          formData.append("ipnftImage", fileInput.files[0]);
+        } else if (ipfsImage) {
+          formData.append("ipfsImage", ipfsImage);
+        }
+
+        const resultEl = document.getElementById("ipnftMintResult");
+        resultEl.textContent = "민팅 중...";
+
+        try {
+          const res = await fetch("/api/nft/ip/mint", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 2. 전체 IPNFT 목록 조회
+      document.getElementById("ipnftListBtn").onclick = async function () {
+        const resultEl = document.getElementById("ipnftListResult");
+        resultEl.textContent = "조회 중...";
+
+        try {
+          const res = await fetch("/api/nft/ip/list");
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 3. 내 IPNFT 목록 조회
+      document.getElementById("myIpnftListForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const token = document.getElementById("myIpnftListToken").value;
+        const resultEl = document.getElementById("myIpnftListResult");
+        resultEl.textContent = "조회 중...";
+
+        try {
+          const res = await fetch("/api/nft/ip/my", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 4. 민팅 수수료 조회
+      document.getElementById("getMintingFeeBtn").onclick = async function () {
+        const resultEl = document.getElementById("getMintingFeeResult");
+        resultEl.textContent = "조회 중...";
+
+        try {
+          const res = await fetch("/api/nft/ip/minting-fee");
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // 5. 민팅 수수료 설정
+      document.getElementById("setMintingFeeForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const accessToken = document
+          .getElementById("setMintingFeeToken")
+          .value.trim();
+        const newFee = document.getElementById("newMintingFee").value.trim();
+        const resultPre = document.getElementById("setMintingFeeResult");
+
+        resultPre.textContent = "처리 중...";
+
+        try {
+          const response = await fetch("/api/nft/ip/minting-fee", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              accessToken,
+              newFee,
+            }),
+          });
+
+          const data = await response.json();
+          resultPre.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          resultPre.textContent = "에러: " + err.message;
+        }
+      };
+
+      // 페이지 로드 시 안내 메시지
+      window.onload = function () {
+        console.log("DressDio API 통합 테스트 페이지가 로드되었습니다.");
+        console.log("탭을 클릭하여 각 기능별 테스트를 진행하세요.");
       };
 
       // 5. 계정 정보 조회
@@ -1197,28 +1838,84 @@
         }
       };
 
-      // SBT 관련 함수들
-      // 1. Mint SBT
-      document.getElementById("mintForm").onsubmit = async function (e) {
+      // Blockchain 탭 - 1. ETH 전송
+      document.getElementById("ethTransferForm").onsubmit = async function (e) {
         e.preventDefault();
-        const data = {
-          platformAdminWalletAddress: document.getElementById(
-            "platformAdminWalletAddress"
-          ).value,
-          creatorWalletAddress: document.getElementById("creatorWalletAddress")
-            .value,
-          creatorType: document.getElementById("creatorType").value,
-          creatorName: document.getElementById("creatorName").value,
-          description: document.getElementById("description").value,
-        };
-        const resultEl = document.getElementById("mintResult");
-        resultEl.textContent = "Minting 중...";
-
+        const token = document.getElementById("ethTransferToken").value;
+        const to = document.getElementById("ethTransferTo").value;
+        const value = document.getElementById("ethTransferValue").value;
+        const resultEl = document.getElementById("ethTransferResult");
+        resultEl.textContent = "전송 중...";
         try {
-          const res = await fetch("/api/nft/sbt/mint", {
+          const res = await fetch("/api/blockchain/eth/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ to, value }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // Blockchain 탭 - 2. DP 토큰 전송
+      document.getElementById("dpTransferForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const token = document.getElementById("dpTransferToken").value;
+        const to = document.getElementById("dpTransferTo").value;
+        const amount = document.getElementById("dpTransferAmount").value;
+        const resultEl = document.getElementById("dpTransferResult");
+        resultEl.textContent = "전송 중...";
+        try {
+          const res = await fetch("/api/blockchain/dp/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ to, amount }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // Blockchain 탭 - 3. DP 토큰 잔액 조회
+      document.getElementById("dpBalanceForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const token = document.getElementById("dpBalanceToken").value;
+        const resultEl = document.getElementById("dpBalanceResult");
+        resultEl.textContent = "조회 중...";
+        try {
+          const res = await fetch("/api/auth/balance", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      // Blockchain 탭 - 4. DP 토큰 에어드랍(Faucet)
+      document.getElementById("dpFaucetForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const address = document.getElementById("dpFaucetAddress").value;
+        const resultEl = document.getElementById("dpFaucetResult");
+        resultEl.textContent = "요청 중...";
+        try {
+          const res = await fetch("/api/utils/faucet", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
+            body: JSON.stringify({ address }),
           });
           const json = await res.json();
           resultEl.textContent = JSON.stringify(json, null, 2);
@@ -1227,140 +1924,56 @@
         }
       };
 
-      // 2. Get All SBTs
-      document.getElementById("getAllSbtBtn").onclick = async function () {
-        const resultEl = document.getElementById("getAllSbtResult");
-        resultEl.textContent = "Loading...";
+      async function loadPlatformAddresses() {
         try {
-          const res = await fetch("/api/nft/sbt");
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err;
-        }
-      };
-
-      // 3. Get Admin Balance
-      document.getElementById("getAdminBalanceBtn").onclick =
-        async function () {
-          const resultEl = document.getElementById("getAdminBalanceResult");
-          resultEl.textContent = "Loading...";
-          try {
-            const res = await fetch("/api/nft/sbt/admin/balance");
-            const json = await res.json();
-            resultEl.textContent = JSON.stringify(json, null, 2);
-          } catch (err) {
-            resultEl.textContent = "Error: " + err;
+          const res = await fetch("/api/nft/platform/addresses");
+          const result = await res.json();
+          if (result.success && result.data) {
+            document.getElementById("platformRegistryAddress").textContent =
+              result.data.platformRegistry || "-";
+            document.getElementById("creatorSBTAddress").textContent =
+              result.data.creatorSBT || "-";
+            document.getElementById("merchandiseFactoryAddress").textContent =
+              result.data.merchandiseFactory || "-";
+            document.getElementById("ipnftFactoryAddress").textContent =
+              result.data.ipnftFactory || "-";
+            document.getElementById("ipnftAddress").textContent =
+              result.data.ipnft || "-";
+            document.getElementById("dpTokenAddress").textContent =
+              result.data.dpToken || "-";
+            document.getElementById("adminAddress").textContent =
+              result.data.admin || "-";
+          } else {
+            // 에러 처리
+            [
+              "platformRegistryAddress",
+              "creatorSBTAddress",
+              "merchandiseFactoryAddress",
+              "ipnftFactoryAddress",
+              "ipnftAddress",
+              "dpTokenAddress",
+              "adminAddress",
+            ].forEach((id) => {
+              document.getElementById(id).textContent = "조회 실패";
+            });
           }
-        };
-
-      // 4. Get SBT from Blockchain by Wallet Address
-      document.getElementById("getBcSbtBtn").onclick = async function () {
-        const wallet = document.getElementById("bcWalletAddress").value;
-        const resultEl = document.getElementById("getBcSbtResult");
-        resultEl.textContent = "Loading...";
-        try {
-          const res = await fetch("/api/nft/sbt/" + wallet);
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err;
-        }
-      };
-
-      // IP NFT 관련 함수들
-      // 1. IPNFT 민팅
-      document.getElementById("ipnftMintForm").onsubmit = async function (e) {
-        e.preventDefault();
-        const token = document.getElementById("ipnftMintToken").value;
-        const resultEl = document.getElementById("ipnftMintResult");
-        resultEl.textContent = "민팅 중...";
-
-        const formData = new FormData();
-        formData.append("name", document.getElementById("ipnftName").value);
-        formData.append(
-          "description",
-          document.getElementById("ipnftDescription").value
-        );
-
-        // DP 단위로 입력받은 가격을 그대로 전송
-        const price = document.getElementById("ipnftPrice").value;
-        const supplyPrice = document.getElementById("ipnftSupplyPrice").value;
-
-        formData.append("price", price);
-        formData.append("supplyPrice", supplyPrice);
-        formData.append(
-          "creatorType",
-          document.getElementById("ipnftCreatorType").value
-        );
-
-        const imageFile = document.getElementById("ipnftImage").files[0];
-        const ipfsImage = document.getElementById("ipnftIpfsImage").value;
-
-        if (imageFile) {
-          formData.append("file", imageFile);
-        } else if (ipfsImage) {
-          formData.append("ipfsImage", ipfsImage);
-        } else {
-          resultEl.textContent =
-            "Error: 이미지 파일 또는 IPFS URI를 제공해야 합니다.";
-          return;
-        }
-
-        try {
-          const res = await fetch("/api/nft/ip/mint", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            body: formData,
+        } catch (e) {
+          [
+            "platformRegistryAddress",
+            "creatorSBTAddress",
+            "merchandiseFactoryAddress",
+            "ipnftFactoryAddress",
+            "ipnftAddress",
+            "dpTokenAddress",
+            "adminAddress",
+          ].forEach((id) => {
+            document.getElementById(id).textContent = "조회 실패";
           });
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err.message;
         }
-      };
+      }
 
-      // 2. 전체 IPNFT 목록 조회
-      document.getElementById("ipnftListBtn").onclick = async function () {
-        const resultEl = document.getElementById("ipnftListResult");
-        resultEl.textContent = "목록 조회 중...";
-
-        try {
-          const res = await fetch("/api/nft/ip/list");
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err.message;
-        }
-      };
-
-      // 3. 내 IPNFT 목록 조회
-      document.getElementById("myIpnftListForm").onsubmit = async function (e) {
-        e.preventDefault();
-        const token = document.getElementById("myIpnftListToken").value;
-        const resultEl = document.getElementById("myIpnftListResult");
-        resultEl.textContent = "내 NFT 목록 조회 중...";
-
-        try {
-          const res = await fetch("/api/nft/ip/my", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          resultEl.textContent = "Error: " + err.message;
-        }
-      };
-
-      // 페이지 로드 시 안내 메시지
-      window.onload = function () {
-        console.log("DressDio API 통합 테스트 페이지가 로드되었습니다.");
-        console.log("탭을 클릭하여 각 기능별 테스트를 진행하세요.");
-      };
+      // 페이지 로드시 자동 호출
+      window.addEventListener("DOMContentLoaded", loadPlatformAddresses);
     </script>
   </body>
 </html>

@@ -1,25 +1,18 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./MerchandiseNFT.sol";
 import "./PlatformRegistry.sol";
 
-contract MerchandiseFactory {
-    address public owner;
+contract MerchandiseFactory is Ownable {
     address[] public allMerchandiseNFTs;
     PlatformRegistry public platformRegistry;
 
     event MerchandiseCreated(address nft, address influencer, address creator, uint256 creatorSBTId);
 
-    constructor(address _platformRegistry) {
-        owner = msg.sender;
+    constructor(address _platformRegistry) Ownable(msg.sender) {
         platformRegistry = PlatformRegistry(_platformRegistry);
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
     }
 
     function createMerchandiseNFT(
@@ -28,18 +21,13 @@ contract MerchandiseFactory {
         address influencer,
         address creator,
         uint256 creatorSBTId
-    ) external returns (address) {
-        // SBT 검증 - 브랜드 또는 아티스트만 머천다이즈 NFT 생성 가능
+    ) external onlyOwner returns (address) {
         require(
             platformRegistry.validateCreatorSBT(creator, creatorSBTId, "brand") ||
             platformRegistry.validateCreatorSBT(creator, creatorSBTId, "artist"),
             "Invalid or insufficient SBT"
         );
-
-        // SBT 사용 횟수 증가
         platformRegistry.incrementSBTUseCount(creatorSBTId);
-
-        // NFT 생성
         MerchandiseNFT nft = new MerchandiseNFT(name, symbol, influencer, creator, creatorSBTId);
         allMerchandiseNFTs.push(address(nft));
         emit MerchandiseCreated(address(nft), influencer, creator, creatorSBTId);

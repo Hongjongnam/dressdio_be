@@ -4,6 +4,13 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with:", deployer.address);
 
+  // ABC Wallet 관리자 주소 설정
+  const ABC_ADMIN_ADDRESS = process.env.PLATFORM_ADMIN_WALLET_ADDRESS;
+  if (!ABC_ADMIN_ADDRESS) {
+    throw new Error("PLATFORM_ADMIN_WALLET_ADDRESS is not set in .env");
+  }
+  console.log("ABC Wallet Admin Address:", ABC_ADMIN_ADDRESS);
+
   // 1. SBT 컨트랙트 배포
   const CreatorSBT = await ethers.getContractFactory("CreatorSBT");
   const sbt = await CreatorSBT.deploy();
@@ -47,12 +54,104 @@ async function main() {
   const ipnftAddress = await ipnftFactory.getIPNFTAddress();
   console.log("IPNFT deployed to:", ipnftAddress);
 
-  // 5. Registry에 주소 등록
+  // 5. Registry에 주소 등록 (소유권 이전 전에 실행)
+  console.log("Registering contracts in PlatformRegistry...");
   await registry.setSBTContract(sbt.target);
   await registry.setMerchandiseFactory(merchFactory.target);
   await registry.setIPNFTFactory(ipnftFactory.target);
+  console.log("✅ All contracts registered in PlatformRegistry.");
 
-  console.log("All contracts registered in PlatformRegistry.");
+  // 6. 각 컨트랙트 소유권을 ABC Wallet 관리자로 이전
+  console.log("Transferring ownership to ABC Wallet admin...");
+
+  // PlatformRegistry 소유권 이전
+  try {
+    const tx = await registry.transferOwnership(ABC_ADMIN_ADDRESS);
+    console.log("PlatformRegistry ownership transfer tx hash:", tx.hash);
+    const receipt = await tx.wait();
+    console.log(
+      "PlatformRegistry ownership confirmed in block:",
+      receipt.blockNumber
+    );
+    const newOwner = await registry.owner();
+    console.log("Current PlatformRegistry owner:", newOwner);
+    if (newOwner !== ABC_ADMIN_ADDRESS) {
+      throw new Error(
+        `PlatformRegistry ownership transfer failed! Expected: ${ABC_ADMIN_ADDRESS}, Got: ${newOwner}`
+      );
+    }
+    console.log("✅ PlatformRegistry ownership transfer confirmed!");
+  } catch (error) {
+    console.error("❌ PlatformRegistry ownership transfer failed:");
+    console.error(error.message);
+    throw error;
+  }
+
+  // SBT 소유권 이전
+  try {
+    const tx = await sbt.transferOwnership(ABC_ADMIN_ADDRESS);
+    console.log("SBT ownership transfer tx hash:", tx.hash);
+    const receipt = await tx.wait();
+    console.log("SBT ownership confirmed in block:", receipt.blockNumber);
+    const newOwner = await sbt.owner();
+    console.log("Current SBT owner:", newOwner);
+    if (newOwner !== ABC_ADMIN_ADDRESS) {
+      throw new Error(
+        `SBT ownership transfer failed! Expected: ${ABC_ADMIN_ADDRESS}, Got: ${newOwner}`
+      );
+    }
+    console.log("✅ SBT ownership transfer confirmed!");
+  } catch (error) {
+    console.error("❌ SBT ownership transfer failed:");
+    console.error(error.message);
+    throw error;
+  }
+
+  // MerchandiseFactory 소유권 이전
+  try {
+    const tx = await merchFactory.transferOwnership(ABC_ADMIN_ADDRESS);
+    console.log("MerchandiseFactory ownership transfer tx hash:", tx.hash);
+    const receipt = await tx.wait();
+    console.log(
+      "MerchandiseFactory ownership confirmed in block:",
+      receipt.blockNumber
+    );
+    const newOwner = await merchFactory.owner();
+    console.log("Current MerchandiseFactory owner:", newOwner);
+    if (newOwner !== ABC_ADMIN_ADDRESS) {
+      throw new Error(
+        `MerchandiseFactory ownership transfer failed! Expected: ${ABC_ADMIN_ADDRESS}, Got: ${newOwner}`
+      );
+    }
+    console.log("✅ MerchandiseFactory ownership transfer confirmed!");
+  } catch (error) {
+    console.error("❌ MerchandiseFactory ownership transfer failed:");
+    console.error(error.message);
+    throw error;
+  }
+
+  // IPNFTFactory 소유권 이전
+  try {
+    const tx = await ipnftFactory.transferOwnership(ABC_ADMIN_ADDRESS);
+    console.log("IPNFTFactory ownership transfer tx hash:", tx.hash);
+    const receipt = await tx.wait();
+    console.log(
+      "IPNFTFactory ownership confirmed in block:",
+      receipt.blockNumber
+    );
+    const newOwner = await ipnftFactory.owner();
+    console.log("Current IPNFTFactory owner:", newOwner);
+    if (newOwner !== ABC_ADMIN_ADDRESS) {
+      throw new Error(
+        `IPNFTFactory ownership transfer failed! Expected: ${ABC_ADMIN_ADDRESS}, Got: ${newOwner}`
+      );
+    }
+    console.log("✅ IPNFTFactory ownership transfer confirmed!");
+  } catch (error) {
+    console.error("❌ IPNFTFactory ownership transfer failed:");
+    console.error(error.message);
+    throw error;
+  }
 
   // 배포된 주소 정보 출력
   console.log("\nDeployed Contract Addresses:");

@@ -2,14 +2,15 @@
 
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+
 interface ICreatorSBT {
     function ownerOf(uint256 tokenId) external view returns (address);
     function getCreatorType(uint256 tokenId) external view returns (string memory);
     function incrementUseCount(uint256 tokenId) external;
 }
 
-contract PlatformRegistry {
-    address public owner;
+contract PlatformRegistry is Ownable {
     address public merchandiseFactory;
     address public ipnftFactory;
     address public sbtContract; // SBT 컨트랙트 주소
@@ -19,13 +20,7 @@ contract PlatformRegistry {
     event SBTValidated(address creator, uint256 sbtId, string creatorType);
     event SBTUseCountIncremented(uint256 sbtId);
 
-    constructor() {
-        owner = msg.sender;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
+    constructor() Ownable(msg.sender) {
     }
 
     modifier onlyRegisteredContracts() {
@@ -82,4 +77,8 @@ contract PlatformRegistry {
     function isRegisteredContract(address _contract) public view returns (bool) {
         return _contract == merchandiseFactory || _contract == ipnftFactory;
     }
+
+    // 소유권 이전 함수 (OpenZeppelin Ownable에서 제공)
+    // function transferOwnership(address newOwner) external onlyOwner
+    // function renounceOwnership() external onlyOwner
 }

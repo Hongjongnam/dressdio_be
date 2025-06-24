@@ -1,11 +1,21 @@
-const {
-  web3,
-  dpTokenContract,
-  dressdioAdminAccount,
-} = require("../../config/web3");
+const { web3, dpTokenContract } = require("../../config/web3");
+
+// faucet에서만 직접 .env의 DRESSDIO_ADMIN_WALLET_ADDRESS, DRESSDIO_ADMIN_PRIVATE_KEY 사용
+const FAUCET_ADMIN_ADDRESS = process.env.DRESSDIO_ADMIN_WALLET_ADDRESS;
+const FAUCET_ADMIN_PRIVATE_KEY = process.env.DRESSDIO_ADMIN_PRIVATE_KEY;
+
+let faucetLock = false;
 
 // POST /api/utils/faucet
 exports.faucet = async (req, res) => {
+  if (faucetLock) {
+    return res.status(429).json({
+      success: false,
+      message:
+        "다른 에어드랍 트랜잭션이 처리 중입니다. 잠시 후 다시 시도하세요.",
+    });
+  }
+  faucetLock = true;
   try {
     const { address } = req.body;
     if (!address || !web3.utils.isAddress(address)) {
@@ -23,19 +33,25 @@ exports.faucet = async (req, res) => {
     // 최신 web3 및 EIP-1559 호환 트랜잭션 옵션
     const gas = 100000;
     const gasPrice = await web3.eth.getGasPrice();
+    const nonce = await web3.eth.getTransactionCount(
+      FAUCET_ADMIN_ADDRESS,
+      "pending"
+    );
+    console.log(FAUCET_ADMIN_ADDRESS, "FAUCET_ADMIN_ADDRESS");
 
     const tx = {
-      from: dressdioAdminAccount.address,
+      from: FAUCET_ADMIN_ADDRESS,
       to: dpTokenContract.options.address,
       data,
       gas: web3.utils.toHex(gas),
       gasPrice: web3.utils.toHex(gasPrice),
+      nonce: web3.utils.toHex(nonce),
     };
 
     // 서명 및 전송
     const signed = await web3.eth.accounts.signTransaction(
       tx,
-      dressdioAdminAccount.privateKey
+      FAUCET_ADMIN_PRIVATE_KEY
     );
     const receipt = await web3.eth.sendSignedTransaction(signed.rawTransaction);
 
@@ -46,5 +62,7 @@ exports.faucet = async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
+  } finally {
+    faucetLock = false;
   }
 };

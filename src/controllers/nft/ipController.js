@@ -12,6 +12,7 @@ const {
   CreatorSBTABI,
   DPTokenABI,
   IPNFTABI,
+  web3Config,
 } = require("../../config/web3");
 const { stringifyBigInts } = require("../../utils/utils");
 const authService = require("../../services/auth");
@@ -19,8 +20,38 @@ const walletService = require("../../services/wallet");
 const blockchainService = require("../../services/blockchain");
 const logger = require("../../utils/logger");
 
+// IPNFT 민팅 시 필요한 DP 금액 (컨트랙트와 동기화)
+let mintingFee = "1";
+
+// 서버 시작 시 컨트랙트에서 현재 수수료 가져오기
+const initializeMintingFee = async () => {
+  try {
+    // 새로운 컨트랙트가 배포되지 않았을 경우를 대비해 안전하게 처리
+    if (ipnftFactoryContract.methods.getMintingFee) {
+      const contractFee = await ipnftFactoryContract.methods
+        .getMintingFee()
+        .call();
+      mintingFee = web3.utils.fromWei(contractFee, "ether");
+      logger.info(`Initialized minting fee from contract: ${mintingFee} DP`);
+    } else {
+      logger.warn(
+        "getMintingFee method not found in contract. Using default fee: 1 DP"
+      );
+      mintingFee = "1";
+    }
+  } catch (error) {
+    logger.error("Failed to initialize minting fee from contract:", error);
+    logger.warn("Using default minting fee: 1 DP");
+    // 기본값 사용
+    mintingFee = "1";
+  }
+};
+
+// 서버 시작 시 수수료 초기화
+initializeMintingFee();
+
 /**
- * IP NFT 민팅 (WaaS)
+ * IPNFT 민팅 (WaaS)
  * @route POST /api/nft/ip/mint
  * @desc 사용자의 accessToken을 사용하여 DP 토큰을 approve하고 IPNFT를 민팅합니다.
  */
@@ -34,12 +65,11 @@ exports.mint = async (req, res) => {
   const supplyPriceInWei = web3.utils.toWei(String(supplyPrice), "ether");
 
   // 1. 파일이 첨부된 경우 IPFS 업로드
-  if (req.file) {
+  if (req.files && req.files.length > 0) {
     try {
-      ipfsImage = await uploadFileToIPFS(
-        req.file.buffer,
-        req.file.originalname
-      );
+      // 여러 파일 중 첫 번째 파일 사용
+      const file = req.files[0];
+      ipfsImage = await uploadFileToIPFS(file.buffer, file.originalname);
     } catch (err) {
       return res.status(500).json({
         success: false,
@@ -107,18 +137,18 @@ exports.mint = async (req, res) => {
       .getSBTInfoByAddress(walletInfo.address)
       .call();
 
-    // DP 토큰 잔액 확인 (1 DP만 있으면 됨)
-    const oneDPWei = web3.utils.toWei("1", "ether");
+    // DP 토큰 잔액 확인 (동적 mintingFee 사용)
+    const mintingFeeWei = web3.utils.toWei(mintingFee, "ether");
     const dpBalance = await dpTokenContract.methods
       .balanceOf(walletInfo.address)
       .call();
-    if (BigInt(dpBalance) < BigInt(oneDPWei)) {
+    if (BigInt(dpBalance) < BigInt(mintingFeeWei)) {
       return res.status(403).json({
         success: false,
         message: `DP 토큰 잔액이 부족합니다. 현재 잔액: ${web3.utils.fromWei(
           dpBalance,
           "ether"
-        )} DP, 필요한 금액: 1 DP`,
+        )} DP, 필요한 금액: ${mintingFee} DP`,
         code: "INSUFFICIENT_DP_BALANCE",
       });
     }
@@ -156,10 +186,12 @@ exports.mint = async (req, res) => {
       });
     }
 
-    // 3. DP 토큰 Approve 트랜잭션 처리
-    logger.info(`Approving DP token for ${walletInfo.address}...`);
+    // 3. DP 토큰 Approve 트랜잭션 처리 (동적 mintingFee 사용)
+    logger.info(
+      `Approving ${mintingFee} DP token for ${walletInfo.address}...`
+    );
     const approveTxData = dpTokenContract.methods
-      .approve(ipnftFactoryAddress, web3.utils.toWei("1", "ether"))
+      .approve(ipnftFactoryAddress, mintingFeeWei)
       .encodeABI();
 
     const approveTx = {
@@ -307,6 +339,139 @@ exports.mint = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to mint IPNFT",
+    });
+  }
+};
+
+/**
+ * 현재 IPNFT 민팅 수수료 조회
+ * @route GET /api/nft/ip/minting-fee
+ * @desc 현재 설정된 IPNFT 민팅 시 필요한 DP 금액을 조회합니다.
+ */
+exports.getMintingFee = async (req, res) => {
+  try {
+    // 컨트랙트에서 최신 수수료 가져오기
+    const contractFee = await ipnftFactoryContract.methods
+      .getMintingFee()
+      .call();
+    const currentFee = web3.utils.fromWei(contractFee, "ether");
+
+    // 백엔드 변수도 업데이트
+    mintingFee = currentFee;
+
+    return res.json({
+      success: true,
+      data: {
+        mintingFee: mintingFee,
+        unit: "DP",
+        description: "IPNFT 민팅 시 필요한 DP 토큰 수량",
+      },
+    });
+  } catch (error) {
+    logger.error("Get minting fee error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to get minting fee",
+    });
+  }
+};
+
+/**
+ * IPNFT 민팅 수수료 변경 (관리자 전용)
+ * @route POST /api/nft/ip/minting-fee
+ * @desc IPNFT 민팅 시 필요한 DP 금액을 변경합니다. (관리자 전용)
+ */
+exports.setMintingFee = async (req, res) => {
+  try {
+    const accessToken = req.body.accessToken || req.token;
+    const { newFee } = req.body;
+
+    // 입력값 검증
+    if (!newFee || isNaN(newFee) || Number(newFee) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "유효한 수수료를 입력해주세요. (양수여야 합니다.)",
+      });
+    }
+
+    // 관리자 권한 체크
+    let walletData = await walletService.getWallet(accessToken);
+    const adminAddress = (web3Config.platformAdmin || "").toLowerCase();
+    const userAddress = (walletData.address || "").toLowerCase();
+    if (userAddress !== adminAddress) {
+      return res.status(403).json({
+        success: false,
+        message: "권한 부족: 관리자만 민팅 수수료를 변경할 수 있습니다.",
+        code: "NOT_ADMIN",
+      });
+    }
+
+    // 기존 수수료 저장
+    const oldFee = mintingFee;
+
+    // 새로운 수수료를 wei로 변환
+    const newFeeWei = web3.utils.toWei(String(newFee), "ether");
+
+    // 컨트랙트에서 수수료 변경 트랜잭션 데이터 생성
+    const setFeeTxData = ipnftFactoryContract.methods
+      .setMintingFee(newFeeWei)
+      .encodeABI();
+
+    // ABC WaaS 방식으로 트랜잭션 생성/서명/전송
+    // 1. 보안 채널 생성
+    const secureChannelRes = await authService.createSecureChannel();
+    const encryptedDevicePassword = authService.encrypt(
+      secureChannelRes,
+      devicePassword
+    );
+
+    // 2. 지갑 정보 조회 및 필요시 생성
+    let email = walletData.email;
+    walletData = await walletService.createWallet(
+      email,
+      encryptedDevicePassword,
+      secureChannelRes.ChannelID,
+      accessToken
+    );
+
+    // 3. 트랜잭션 데이터 준비
+    const txData = {
+      to: ipnftFactoryAddress,
+      data: setFeeTxData,
+      value: "0",
+    };
+
+    // 4. 트랜잭션 서명 및 전송 (ABC Server에 위임)
+    const signedTx = await blockchainService.signTransaction(
+      secureChannelRes,
+      walletData,
+      txData,
+      accessToken
+    );
+    const receipt = await web3.eth.sendSignedTransaction(signedTx);
+
+    // 백엔드 변수도 업데이트
+    mintingFee = String(newFee);
+
+    logger.info(
+      `IPNFT minting fee changed from ${oldFee} DP to ${mintingFee} DP. Tx Hash: ${receipt.transactionHash}`
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        oldFee: oldFee,
+        newFee: mintingFee,
+        unit: "DP",
+        txHash: receipt.transactionHash,
+        message: `IPNFT 민팅 수수료가 ${oldFee} DP에서 ${mintingFee} DP로 변경되었습니다.`,
+      },
+    });
+  } catch (error) {
+    logger.error("Set minting fee error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to set minting fee",
     });
   }
 };
@@ -497,12 +662,21 @@ function cleanTokenInfo(tokenInfo) {
     return value;
   };
 
+  // wei -> DP(ether) 변환
+  const toDP = (wei) => {
+    try {
+      return web3.utils.fromWei(wei.toString(), "ether");
+    } catch {
+      return wei;
+    }
+  };
+
   return {
     ipfsImage: convertIpfsUri(tokenInfo.ipfsImage),
     name: stripQuotes(tokenInfo.name),
     description: stripQuotes(tokenInfo.description),
-    price: convertBigInt(tokenInfo.price),
-    supplyPrice: convertBigInt(tokenInfo.supplyPrice),
+    price: toDP(tokenInfo.price),
+    supplyPrice: toDP(tokenInfo.supplyPrice),
     createdAt: convertBigInt(tokenInfo.createdAt),
   };
 }

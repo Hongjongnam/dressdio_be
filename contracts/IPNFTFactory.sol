@@ -5,13 +5,13 @@ pragma solidity ^0.8.20;
 import "./IPNFT.sol";
 import "./PlatformRegistry.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract IPNFTFactory {
-    address public owner;
+contract IPNFTFactory is Ownable {
     IPNFT public ipnft;
     PlatformRegistry public platformRegistry;
     IERC20 public dpToken;
-    uint256 public constant MINT_FEE = 1e18; // 1 DP (18 decimals)
+    uint256 public mintingFee = 1e18; // 기본값: 1 DP (18 decimals)
 
     event IPNFTDeployed(address nft);
     event TokenMinted(
@@ -21,25 +21,20 @@ contract IPNFTFactory {
         string name,
         string symbol
     );
+    event MintingFeeUpdated(uint256 oldFee, uint256 newFee);
 
     constructor(
         string memory name,
         string memory symbol,
         address _platformRegistry,
         address _dpToken
-    ) {
-        owner = msg.sender;
+    ) Ownable(msg.sender) {
         platformRegistry = PlatformRegistry(_platformRegistry);
         dpToken = IERC20(_dpToken);
 
         // Deploy the single IPNFT contract
         ipnft = new IPNFT(name, symbol, address(this));
         emit IPNFTDeployed(address(ipnft));
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
     }
 
     function createToken(
@@ -57,9 +52,9 @@ contract IPNFTFactory {
             "Invalid or insufficient SBT"
         );
 
-        // 1 DP 수취
+        // 동적 수수료 수취
         require(
-            dpToken.transferFrom(msg.sender, address(this), MINT_FEE),
+            dpToken.transferFrom(msg.sender, address(this), mintingFee),
             "DP payment failed"
         );
 
@@ -87,6 +82,17 @@ contract IPNFTFactory {
         );
 
         return tokenId;
+    }
+
+    function setMintingFee(uint256 newFee) external onlyOwner {
+        require(newFee > 0, "Minting fee must be greater than 0");
+        uint256 oldFee = mintingFee;
+        mintingFee = newFee;
+        emit MintingFeeUpdated(oldFee, newFee);
+    }
+
+    function getMintingFee() external view returns (uint256) {
+        return mintingFee;
     }
 
     function getIPNFTAddress() external view returns (address) {

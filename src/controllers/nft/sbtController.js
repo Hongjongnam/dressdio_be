@@ -12,17 +12,20 @@ const SBT = require("../../models/sbt");
 const logger = require("../../utils/logger");
 const { toLowerCase, stringifyBigInts } = require("../../utils/utils");
 const { CREATOR_TYPES, IPFS_URIS } = require("../../utils/constants");
+const {
+  validateWalletAddress,
+  validateCreatorType,
+} = require("../../utils/validator");
+const { sendTransaction } = require("../../services/blockchain");
+const {
+  validateAccessTokenAndGetWallet,
+  sendTransactionViaABCWallet,
+} = require("../../services/auth");
+const walletService = require("../../services/wallet");
+const authService = require("../../services/auth");
+const blockchainService = require("../../services/blockchain");
 
 // Utility functions
-const validateWalletAddress = (address) => {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-};
-
-const validateCreatorType = (type) => {
-  const normalizedType = type.toLowerCase();
-  return Object.values(CREATOR_TYPES).includes(normalizedType);
-};
-
 const formatSbtInfo = (sbt) => ({
   tokenId: sbt.tokenId.toString(),
   owner: sbt.owner,
@@ -41,7 +44,7 @@ const formatSbtInfo = (sbt) => ({
 /**
  * SBT 발행
  * @param {Object} req - Express request object
- * @param {string} req.body.platformAdminWalletAddress - 플랫폼 어드민 지갑 주소
+ * @param {string} req.body.accessToken - Platform Admin Wallet Address 대신 access token 사용
  * @param {string} req.body.creatorWalletAddress - 지갑 주소
  * @param {string} req.body.creatorType - 크리에이터 타입
  * @param {string} req.body.creatorName - 크리에이터 이름
@@ -49,162 +52,146 @@ const formatSbtInfo = (sbt) => ({
  * @param {Object} res - Express response object
  */
 exports.mintSbt = async (req, res) => {
-  console.log(req.body);
+  const accessToken = req.body.accessToken;
+  const creatorWalletAddress = req.body.creatorWalletAddress;
+  const creatorType = req.body.creatorType;
+  const creatorName = req.body.creatorName;
+  const description = req.body.description;
+
+  // 1. accessToken으로 walletService에서 직접 지갑 주소 조회
+  let userWalletAddress;
+  let email;
   try {
-    const {
-      platformAdminWalletAddress,
-      creatorWalletAddress,
-      creatorType,
-      creatorName,
-      description,
-    } = req.body;
+    const walletInfo = await walletService.getWallet(accessToken);
+    userWalletAddress = (walletInfo.address || "").toLowerCase();
+    email = walletInfo.email;
+    console.log("[SBT/MINT] accessToken wallet address:", userWalletAddress);
+  } catch (error) {
+    return res
+      .status(401)
+      .json({ status: "error", message: "Invalid or expired access token" });
+  }
 
-    // 1. 필수 파라미터 검증
-    if (
-      !platformAdminWalletAddress ||
-      !creatorWalletAddress ||
-      !creatorType ||
-      !creatorName ||
-      !description
-    ) {
-      return res.status(400).json({
-        status: "error",
-        message:
-          "Missing required parameters: platformAdminWalletAddress, creatorWalletAddress, creatorType, creatorName, description",
-      });
-    }
+  // 2. 관리자 지갑 주소와 일치하는지 확인
+  const adminWalletAddress = (
+    process.env.PLATFORM_ADMIN_WALLET_ADDRESS || ""
+  ).toLowerCase();
+  console.log("[SBT/MINT] PLATFORM_ADMIN_WALLET_ADDRESS:", adminWalletAddress);
+  if (userWalletAddress !== adminWalletAddress) {
+    return res.status(403).json({
+      status: "error",
+      message: "Unauthorized: Only platform admin can mint SBT",
+    });
+  }
 
-    // 2. 플랫폼 관리자 주소 검증
-    if (
-      platformAdminWalletAddress.toLowerCase() !==
-      web3Config.platformAdmin.toLowerCase()
-    ) {
-      return res.status(403).json({
-        status: "error",
-        message: "Unauthorized: Invalid platform admin wallet address",
-      });
-    }
+  // 3. 지갑 주소 형식 검증
+  if (!validateWalletAddress(creatorWalletAddress)) {
+    return res.status(400).json({
+      status: "error",
+      message: "Invalid creator wallet address format",
+    });
+  }
 
-    // 3. 지갑 주소 형식 검증
-    if (!validateWalletAddress(creatorWalletAddress)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Invalid creator wallet address format",
-      });
-    }
+  // 4. 크리에이터 타입 검증
+  const normalizedCreatorType = creatorType.toLowerCase();
+  if (!validateCreatorType(normalizedCreatorType)) {
+    return res.status(400).json({
+      status: "error",
+      message: `Invalid creator type. Must be one of: ${Object.values(
+        CREATOR_TYPES
+      ).join(", ")}`,
+    });
+  }
 
-    // 4. 크리에이터 타입 검증
-    const normalizedCreatorType = creatorType.toLowerCase();
-    if (!validateCreatorType(normalizedCreatorType)) {
-      return res.status(400).json({
-        status: "error",
-        message: `Invalid creator type. Must be one of: ${Object.values(
-          CREATOR_TYPES
-        ).join(", ")}`,
-      });
-    }
+  // 5. 이미 SBT 존재하는지 확인
+  const hasSbt = await sbtContract.methods
+    .hasCreatorSbt(creatorWalletAddress, normalizedCreatorType)
+    .call();
+  console.log("[SBT/MINT] hasSbt result:", hasSbt);
 
-    // 5. 이미 SBT 존재하는지 확인
-    const hasSbt = await sbtContract.methods
-      .hasCreatorSbt(creatorWalletAddress, normalizedCreatorType)
-      .call();
+  if (hasSbt) {
+    return res.status(409).json({
+      status: "error",
+      message: "SBT already exists for this creator wallet address and type",
+    });
+  }
 
-    if (hasSbt) {
-      return res.status(409).json({
-        status: "error",
-        message: "SBT already exists for this creator wallet address and type",
-      });
-    }
+  // 6. SBT 발행을 위한 준비
+  const tokenUri = IPFS_URIS[normalizedCreatorType];
+  console.log("[SBT/MINT] mint params:", {
+    to: creatorWalletAddress,
+    creatorType,
+    creatorName,
+    description,
+    tokenUri,
+  });
 
-    // 6. SBT 발행을 위한 준비
-    const tokenUri = IPFS_URIS[normalizedCreatorType];
+  // 7. SBT 민팅 트랜잭션 생성/서명/전송 (ABC Server 위임 방식)
+  try {
+    const { web3, SBT_ABI } = require("../../config/web3");
 
-    // 7. 컨트랙트 소유자 확인
-    const owner = await sbtContract.methods.owner().call();
-    if (owner.toLowerCase() !== dressdioAdminAccount.address.toLowerCase()) {
-      return res.status(403).json({
-        status: "error",
-        message: "Dressdio admin is not the contract owner",
-      });
-    }
-
-    // 8. 트랜잭션 데이터 구성
-    const mintData = sbtContract.methods
-      .mint(
-        creatorWalletAddress,
-        normalizedCreatorType,
-        creatorName,
-        description,
-        tokenUri
-      )
-      .encodeABI();
-
-    const nonce = await web3.eth.getTransactionCount(
-      dressdioAdminAccount.address,
-      "latest"
+    // 1) 보안 채널 생성
+    const secureChannelRes = await authService.createSecureChannel();
+    const encryptedDevicePassword = authService.encrypt(
+      secureChannelRes,
+      process.env.DEVICE_PASSWORD
     );
 
-    const tx = {
-      from: dressdioAdminAccount.address,
+    // 2) 지갑 정보 조회 및 필요시 생성
+    let walletData = await walletService.getWallet(accessToken);
+    walletData = await walletService.createWallet(
+      email,
+      encryptedDevicePassword,
+      secureChannelRes.ChannelID,
+      accessToken
+    );
+    console.log("[SBT/MINT] walletData:", walletData);
+
+    // 3) SBT 민팅용 트랜잭션 데이터 준비
+    const mintData = web3.eth.abi.encodeFunctionCall(
+      {
+        name: "mint",
+        type: "function",
+        inputs: [
+          { type: "address", name: "to" },
+          { type: "string", name: "creatorType" },
+          { type: "string", name: "creatorName" },
+          { type: "string", name: "description" },
+          { type: "string", name: "tokenUri" },
+        ],
+      },
+      [creatorWalletAddress, creatorType, creatorName, description, tokenUri]
+    );
+
+    const txData = {
       to: sbtContract.options.address,
       data: mintData,
-      gas: 300000,
-      gasPrice: "0",
-      nonce,
-      chainId: 1337,
+      value: "0",
     };
+    console.log("[SBT/MINT] txData:", txData);
 
-    // 9. 트랜잭션 서명 및 전송
-    const signedTx = await web3.eth.accounts.signTransaction(
-      tx,
-      dressdioAdminAccount.privateKey
+    // SBT 컨트랙트 owner 확인
+    const sbtOwner = await sbtContract.methods.owner().call();
+    console.log("[SBT/MINT] SBT contract owner:", sbtOwner);
+
+    // 4) 트랜잭션 서명 및 전송 (ABC Server에 위임)
+    const signedTx = await blockchainService.signTransaction(
+      secureChannelRes,
+      walletData,
+      txData,
+      accessToken
     );
-    const receipt = await web3.eth.sendSignedTransaction(
-      signedTx.rawTransaction
-    );
+    console.log("[SBT/MINT] signedTx:", signedTx);
 
-    if (!receipt.status) {
-      throw new Error("Transaction failed");
-    }
+    const txHash = await blockchainService.sendTransaction(signedTx);
+    console.log("[SBT/MINT] txHash:", txHash);
 
-    // 10. SBT 정보 조회
-    const sbtInfo = await sbtContract.methods
-      .getSBTInfoByAddress(creatorWalletAddress)
-      .call();
-    const newSbt = sbtInfo[sbtInfo.length - 1];
-
-    // 11. DB 저장
-    const sbtData = {
-      tokenId: newSbt.tokenId.toString(),
-      owner: newSbt.owner,
-      creatorType: normalizedCreatorType,
-      creatorName: newSbt.creatorName,
-      description: newSbt.description,
-      tokenURI: newSbt.tokenUri,
-      transactionHash: receipt.transactionHash,
-      useCount: newSbt.useCount.toString(),
-    };
-
-    const savedSbt = await SBT.create(sbtData);
-
-    // 12. 응답 반환
-    return res.status(201).json({
-      status: "success",
-      message: "SBT minted successfully",
-      data: {
-        transactionHash: receipt.transactionHash,
-        sbtInfo: sbtData,
-      },
-    });
+    return res.status(200).json({ status: "success", data: { txHash } });
   } catch (error) {
-    logger.error("SBT minting error:", {
-      message: error.message,
-      stack: error.stack,
-    });
-
+    console.error("[SBT/MINT] error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Failed to mint SBT",
+      message: "Failed to mint SBT via ABC Wallet",
       error: error.message,
     });
   }

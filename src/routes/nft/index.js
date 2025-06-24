@@ -4,6 +4,7 @@ const router = express.Router();
 // Import NFT type routes
 const sbtRoutes = require("./sbtRoutes");
 const ipRoutes = require("./ipRoutes");
+const platformRoutes = require("./platformRoutes");
 
 /**
  * @route /api/nft/sbt
@@ -16,5 +17,11 @@ router.use("/sbt", sbtRoutes);
  * @desc IP (In-Game Item) related routes
  */
 router.use("/ip", ipRoutes);
+
+/**
+ * @route /api/nft/platform
+ * @desc PlatformRegistry management routes
+ */
+router.use("/platform", platformRoutes);
 
 module.exports = router;

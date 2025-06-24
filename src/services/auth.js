@@ -8,6 +8,7 @@ let axios = require("axios");
 let crypto = require("crypto");
 let CryptoJS = require("crypto-js");
 let qs = require("qs");
+const { web3Config } = require("../config/web3");
 
 const BASE_URL = process.env.BASEURL;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -304,4 +305,71 @@ service.changePassword = async (
   }
 };
 
-module.exports = service;
+/**
+ * ABC Wallet access token을 검증하고 지갑 정보를 조회
+ * @param {string} accessToken - ABC Wallet access token
+ * @returns {Object} 지갑 정보 { address, publicKey 등 }
+ */
+const validateAccessTokenAndGetWallet = async (accessToken) => {
+  try {
+    const response = await axios.get(
+      `${web3Config.abcWalletBaseUrl}/api/auth/account`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.status === 200 && response.data.success) {
+      return {
+        address: response.data.data.address,
+        // publicKey 등 필요시 추가
+      };
+    } else {
+      throw new Error("Failed to get wallet info from ABC Wallet");
+    }
+  } catch (error) {
+    logger.error("ABC Wallet access token validation error:", error);
+    throw new Error("Invalid or expired access token");
+  }
+};
+
+/**
+ * ABC Wallet을 통해 트랜잭션 실행
+ * @param {string} accessToken - ABC Wallet access token
+ * @param {Object} transactionParams - 트랜잭션 파라미터
+ * @returns {Object} 트랜잭션 영수증
+ */
+const sendTransactionViaABCWallet = async (accessToken, transactionParams) => {
+  try {
+    const response = await axios.post(
+      `${web3Config.abcWalletBaseUrl}/api/v1/transaction/send`,
+      {
+        ...transactionParams,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.status === 200 && response.data.success) {
+      return response.data.data.receipt;
+    } else {
+      throw new Error("Failed to send transaction via ABC Wallet");
+    }
+  } catch (error) {
+    logger.error("ABC Wallet transaction error:", error);
+    throw new Error("Transaction failed via ABC Wallet");
+  }
+};
+
+module.exports = {
+  ...service,
+  validateAccessTokenAndGetWallet,
+  sendTransactionViaABCWallet,
+};
