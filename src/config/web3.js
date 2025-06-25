@@ -10,6 +10,7 @@ const CreatorSBTABI = require("../abi/ICreatorSBT.json");
 const DPTokenABI = require("../abi/DPToken.json");
 const IPNFTABI = require("../abi/IPNFT.json");
 const PlatformRegistryABI = require("../abi/PlatformRegistry.json");
+const MerchandiseFactoryABI = require("../abi/MerchandiseFactory.json");
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -24,6 +25,7 @@ const contractAddresses = {
   sbtContract: process.env.SBT_CONTRACT_ADDRESS,
   creatorSBT: process.env.SBT_CONTRACT_ADDRESS, // Use the same SBT contract address
   platformRegistry: process.env.PLATFORM_REGISTRY_ADDRESS,
+  merchandiseFactory: process.env.MERCH_FACTORY_ADDRESS,
 };
 
 // Log contract addresses for debugging
@@ -33,6 +35,7 @@ logger.info("Contract Addresses:", {
   sbtContract: contractAddresses.sbtContract,
   creatorSBT: contractAddresses.creatorSBT,
   platformRegistry: contractAddresses.platformRegistry,
+  merchandiseFactory: contractAddresses.merchandiseFactory,
 });
 
 // Validate contract addresses after web3 is initialized
@@ -102,6 +105,11 @@ const platformRegistryContract = new web3.eth.Contract(
   contractAddresses.platformRegistry
 );
 
+const merchandiseFactoryContract = new web3.eth.Contract(
+  MerchandiseFactoryABI,
+  contractAddresses.merchandiseFactory
+);
+
 // Use the full SbtContract ABI for creatorSBTContract
 const creatorSBTContract = new web3.eth.Contract(
   sbtContractABI, // Changed from CreatorSBTABI to sbtContractABI
@@ -158,6 +166,7 @@ module.exports = {
   DPTokenABI,
   IPNFTABI,
   PlatformRegistryABI,
+  MerchandiseFactoryABI,
   // Web3 instance
   web3,
   // Contract instances
@@ -166,12 +175,14 @@ module.exports = {
   ipnftFactoryContract,
   platformRegistryContract,
   creatorSBTContract,
+  merchandiseFactoryContract,
   // Contract addresses
   ipnftFactoryAddress: contractAddresses.ipnftFactory,
   dpTokenAddress: contractAddresses.dpToken,
   sbtContractAddress: contractAddresses.sbtContract,
   creatorSBTAddress: contractAddresses.creatorSBT,
   platformRegistryAddress: contractAddresses.platformRegistry,
+  merchandiseFactoryAddress: contractAddresses.merchandiseFactory,
   // ABC Wallet config
   abcWalletBaseUrl: web3Config.abcWalletBaseUrl,
   devicePassword: web3Config.devicePassword,
