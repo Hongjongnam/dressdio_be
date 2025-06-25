@@ -5,6 +5,7 @@ const router = express.Router();
 const sbtRoutes = require("./sbtRoutes");
 const ipRoutes = require("./ipRoutes");
 const platformRoutes = require("./platformRoutes");
+const merchandiseRoutes = require("./merchandiseRoutes");
 
 /**
  * @route /api/nft/sbt
@@ -23,5 +24,11 @@ router.use("/ip", ipRoutes);
  * @desc PlatformRegistry management routes
  */
 router.use("/platform", platformRoutes);
+
+/**
+ * @route /api/nft/merchandise
+ * @desc Merchandise project related routes
+ */
+router.use("/merchandise", merchandiseRoutes);
 
 module.exports = router;

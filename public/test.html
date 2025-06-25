@@ -370,6 +370,9 @@
         </button>
         <button class="tab-button" onclick="showTab('sbt')">SBT</button>
         <button class="tab-button" onclick="showTab('ipnft')">IP NFT</button>
+        <button class="tab-button" onclick="showTab('merchandise')">
+          Merchandise NFT
+        </button>
         <button class="tab-button" onclick="showTab('marketplace')">
           Marketplace
         </button>
@@ -1010,6 +1013,122 @@
               <button type="submit">수수료 변경</button>
             </form>
             <pre id="setMintingFeeResult"></pre>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- Merchandise NFT 탭 -->
+      <div id="merchandise-tab" class="tab-content">
+        <div class="api-grid">
+          <!-- 1. Merchandise 프로젝트 생성 -->
+          <fieldset>
+            <legend>
+              1. Merchandise 프로젝트 생성 (POST /api/nft/merchandise/create)
+            </legend>
+            <form id="merchandiseCreateForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="merchandiseCreateToken"
+                  placeholder="로그인 후 받은 access token (influencer SBT 필요)"
+                  required
+                />
+              </label>
+              <label>
+                프로젝트명:<br />
+                <input
+                  type="text"
+                  id="merchandiseProjectName"
+                  placeholder="테스트 머천다이즈"
+                  value="테스트 머천다이즈"
+                  required
+                />
+              </label>
+              <label>
+                설명:<br />
+                <input
+                  type="text"
+                  id="merchandiseDescription"
+                  placeholder="테스트용 머천다이즈 프로젝트입니다."
+                  value="테스트용 머천다이즈 프로젝트입니다."
+                  required
+                />
+              </label>
+              <label>
+                수량:<br />
+                <input
+                  type="number"
+                  id="merchandiseQuantity"
+                  placeholder="800"
+                  value="800"
+                  min="1"
+                  required
+                />
+              </label>
+              <label>
+                판매 가격 (DP):<br />
+                <input
+                  type="number"
+                  id="merchandiseSalePrice"
+                  placeholder="300"
+                  value="300"
+                  min="1"
+                  required
+                />
+              </label>
+              <label>
+                IPNFT 토큰 ID들 (쉼표로 구분):<br />
+                <input
+                  type="text"
+                  id="merchandiseIpnftTokenIds"
+                  placeholder="0,1"
+                  value="0,1"
+                  required
+                />
+              </label>
+              <label>
+                프로젝트 이미지 파일:<br />
+                <input
+                  type="file"
+                  id="merchandiseImage"
+                  name="merchandiseImage"
+                  accept="image/*"
+                />
+              </label>
+              <button type="submit">프로젝트 생성</button>
+            </form>
+            <pre id="merchandiseCreateResult"></pre>
+          </fieldset>
+
+          <!-- 2. 내 Merchandise 프로젝트 목록 조회 -->
+          <fieldset>
+            <legend>
+              2. 내 Merchandise 프로젝트 목록 조회 (GET /api/nft/merchandise/my)
+            </legend>
+            <form id="myMerchandiseListForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="myMerchandiseListToken"
+                  placeholder="로그인 후 받은 access token"
+                  required
+                />
+              </label>
+              <button type="submit">내 프로젝트 조회</button>
+            </form>
+            <pre id="myMerchandiseListResult"></pre>
+          </fieldset>
+
+          <!-- 3. 전체 Merchandise 프로젝트 목록 조회 -->
+          <fieldset>
+            <legend>
+              3. 전체 Merchandise 프로젝트 목록 조회 (GET
+              /api/nft/merchandise/list)
+            </legend>
+            <button id="allMerchandiseListBtn">전체 프로젝트 조회</button>
+            <pre id="allMerchandiseListResult"></pre>
           </fieldset>
         </div>
       </div>
@@ -1811,6 +1930,96 @@
           resultPre.textContent = "에러: " + err.message;
         }
       };
+
+      // Merchandise NFT 관련 함수들
+      // 1. Merchandise 프로젝트 생성
+      document.getElementById("merchandiseCreateForm").onsubmit =
+        async function (e) {
+          e.preventDefault();
+          const token = document.getElementById("merchandiseCreateToken").value;
+          const formData = new FormData();
+
+          // 기본 데이터 추가
+          formData.append(
+            "projectName",
+            document.getElementById("merchandiseProjectName").value
+          );
+          formData.append(
+            "description",
+            document.getElementById("merchandiseDescription").value
+          );
+          formData.append(
+            "quantity",
+            document.getElementById("merchandiseQuantity").value
+          );
+          formData.append(
+            "salePrice",
+            document.getElementById("merchandiseSalePrice").value
+          );
+          formData.append(
+            "ipnftTokenIds",
+            document.getElementById("merchandiseIpnftTokenIds").value
+          );
+
+          // 이미지 파일 추가
+          const fileInput = document.getElementById("merchandiseImage");
+          if (fileInput.files.length > 0) {
+            formData.append("merchandiseImage", fileInput.files[0]);
+          }
+
+          const resultEl = document.getElementById("merchandiseCreateResult");
+          resultEl.textContent = "프로젝트 생성 중...";
+
+          try {
+            const res = await fetch("/api/nft/merchandise/create", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              body: formData,
+            });
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
+
+      // 2. 내 Merchandise 프로젝트 목록 조회
+      document.getElementById("myMerchandiseListForm").onsubmit =
+        async function (e) {
+          e.preventDefault();
+          const token = document.getElementById("myMerchandiseListToken").value;
+          const resultEl = document.getElementById("myMerchandiseListResult");
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch("/api/nft/merchandise/my", {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
+
+      // 3. 전체 Merchandise 프로젝트 목록 조회
+      document.getElementById("allMerchandiseListBtn").onclick =
+        async function () {
+          const resultEl = document.getElementById("allMerchandiseListResult");
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch("/api/nft/merchandise/list");
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
 
       // 페이지 로드 시 안내 메시지
       window.onload = function () {

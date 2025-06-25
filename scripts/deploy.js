@@ -23,11 +23,19 @@ async function main() {
   await registry.waitForDeployment();
   console.log("Registry deployed to:", registry.target);
 
-  // 3. MerchandiseFactory 배포 (PlatformRegistry 주소 필요)
+  // 3. Registry에 SBT 주소 등록 (MerchandiseFactory 배포 전에 필요)
+  console.log("Registering SBT contract in PlatformRegistry...");
+  await registry.setSBTContract(sbt.target);
+  console.log("✅ SBT contract registered in PlatformRegistry.");
+
+  // 4. MerchandiseFactory 배포 (PlatformRegistry 주소와 SBT 주소 필요)
   const MerchandiseFactory = await ethers.getContractFactory(
     "MerchandiseFactory"
   );
-  const merchFactory = await MerchandiseFactory.deploy(registry.target);
+  const merchFactory = await MerchandiseFactory.deploy(
+    registry.target,
+    sbt.target
+  );
   await merchFactory.waitForDeployment();
   console.log("MerchandiseFactory deployed to:", merchFactory.target);
 
@@ -38,7 +46,7 @@ async function main() {
   }
   console.log("DP_TOKEN_ADDRESS:", dpTokenAddress);
 
-  // 4. IPNFTFactory 배포 (name, symbol, PlatformRegistry, DP 토큰 주소 필요)
+  // 5. IPNFTFactory 배포 (name, symbol, PlatformRegistry, DP 토큰 주소 필요)
   const IPNFTFactory = await ethers.getContractFactory("IPNFTFactory");
   const ipnftFactory = await IPNFTFactory.deploy(
     "Dressdio IP NFT", // name
@@ -54,14 +62,13 @@ async function main() {
   const ipnftAddress = await ipnftFactory.getIPNFTAddress();
   console.log("IPNFT deployed to:", ipnftAddress);
 
-  // 5. Registry에 주소 등록 (소유권 이전 전에 실행)
-  console.log("Registering contracts in PlatformRegistry...");
-  await registry.setSBTContract(sbt.target);
+  // 6. Registry에 나머지 주소 등록
+  console.log("Registering remaining contracts in PlatformRegistry...");
   await registry.setMerchandiseFactory(merchFactory.target);
   await registry.setIPNFTFactory(ipnftFactory.target);
   console.log("✅ All contracts registered in PlatformRegistry.");
 
-  // 6. 각 컨트랙트 소유권을 ABC Wallet 관리자로 이전
+  // 7. 각 컨트랙트 소유권을 ABC Wallet 관리자로 이전
   console.log("Transferring ownership to ABC Wallet admin...");
 
   // PlatformRegistry 소유권 이전
@@ -108,6 +115,8 @@ async function main() {
   }
 
   // MerchandiseFactory 소유권 이전
+  // MerchandiseFactory는 Ownable을 상속하지 않으므로 소유권 이전 불필요
+  /*
   try {
     const tx = await merchFactory.transferOwnership(ABC_ADMIN_ADDRESS);
     console.log("MerchandiseFactory ownership transfer tx hash:", tx.hash);
@@ -129,6 +138,10 @@ async function main() {
     console.error(error.message);
     throw error;
   }
+  */
+  console.log(
+    "ℹ️ MerchandiseFactory는 Ownable을 상속하지 않으므로 소유권 이전을 건너뜁니다."
+  );
 
   // IPNFTFactory 소유권 이전
   try {
