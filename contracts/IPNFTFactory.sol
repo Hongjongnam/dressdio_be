@@ -46,9 +46,10 @@ contract IPNFTFactory is Ownable {
         uint256 creatorSBTId
     ) external returns (uint256) {
         // SBT 검증 (artist 또는 brand)
+        bool isBrand = platformRegistry.validateCreatorSBT(msg.sender, creatorSBTId, "brand");
+        bool isArtist = platformRegistry.validateCreatorSBT(msg.sender, creatorSBTId, "artist");
         require(
-            platformRegistry.validateCreatorSBT(msg.sender, creatorSBTId, "artist") ||
-            platformRegistry.validateCreatorSBT(msg.sender, creatorSBTId, "brand"),
+            isBrand || isArtist,
             "Invalid or insufficient SBT"
         );
 
@@ -72,6 +73,11 @@ contract IPNFTFactory is Ownable {
             price,
             supplyPrice
         );
+
+        // creatorType 결정 (artist/brand)
+        string memory creatorType = isBrand ? "brand" : "artist";
+        // PlatformRegistry에 IPNFT 등록
+        platformRegistry.registerIPNFTTokenId(tokenId, msg.sender, creatorType);
 
         emit TokenMinted(
             tokenId,

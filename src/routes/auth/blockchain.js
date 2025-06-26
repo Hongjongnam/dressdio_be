@@ -173,8 +173,8 @@ const {
 router.post("/sign/transaction", auth, async (req, res) => {
   try {
     let to = req.body.to || "";
-    let value = req.body.value || "0";
-    let data = req.body.data || "";
+    let value = req.body.value || "0"; // ETH 단위 (wei로 자동 변환됨)
+    let data = req.body.data || "0x"; // 기본값을 0x로 설정
     let accessToken = req.token;
 
     let secureChannelRes = await authService.createSecureChannel();

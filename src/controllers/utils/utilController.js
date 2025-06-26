@@ -17,8 +17,8 @@ exports.faucet = async (req, res) => {
   }
   faucetLock = true;
   try {
-    const { address } = req.body;
-    if (!address || !web3.utils.isAddress(address)) {
+    const { walletAddress } = req.body;
+    if (!walletAddress || !web3.utils.isAddress(walletAddress)) {
       return res
         .status(400)
         .json({ success: false, message: "유효한 지갑 주소를 입력하세요." });
@@ -28,7 +28,9 @@ exports.faucet = async (req, res) => {
     const amount = web3.utils.toWei("10", "ether");
 
     // 트랜잭션 데이터 생성 (ERC20 transfer)
-    const data = dpTokenContract.methods.transfer(address, amount).encodeABI();
+    const data = dpTokenContract.methods
+      .transfer(walletAddress, amount)
+      .encodeABI();
 
     // 최신 web3 및 EIP-1559 호환 트랜잭션 옵션
     const gas = 100000;

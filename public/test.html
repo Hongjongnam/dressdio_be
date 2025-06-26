@@ -1130,6 +1130,215 @@
             <button id="allMerchandiseListBtn">전체 프로젝트 조회</button>
             <pre id="allMerchandiseListResult"></pre>
           </fieldset>
+
+          <!-- 4. 브랜드 서명 대기 프로젝트 조회 및 활성화 -->
+          <fieldset>
+            <legend>
+              4. 브랜드 서명 대기 프로젝트 조회 및 활성화 (GET
+              /api/nft/merchandise/brand-pending, POST
+              /api/nft/merchandise/activate)
+            </legend>
+            <form id="brandPendingForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="brandPendingToken"
+                  placeholder="로그인 후 받은 access token (브랜드 계정)"
+                  required
+                />
+              </label>
+              <button type="submit">서명 대기 프로젝트 조회</button>
+            </form>
+            <div id="brandPendingProjects"></div>
+          </fieldset>
+
+          <!-- 5. 구매 요청 -->
+          <fieldset>
+            <legend>
+              5. 구매 요청 (POST /api/nft/merchandise/request-purchase)
+            </legend>
+            <form id="requestPurchaseForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="requestPurchaseToken"
+                  placeholder="로그인 후 받은 access token (구매자 계정)"
+                  required
+                />
+              </label>
+              <label>
+                Project ID:<br />
+                <input
+                  type="number"
+                  id="requestPurchaseProjectId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <button type="submit">구매 요청</button>
+            </form>
+            <pre id="requestPurchaseResult"></pre>
+          </fieldset>
+
+          <!-- 6. 구매 확정 -->
+          <fieldset>
+            <legend>
+              6. 구매 확정 (POST /api/nft/merchandise/confirm-purchase)
+            </legend>
+            <form id="confirmPurchaseForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="confirmPurchaseToken"
+                  placeholder="로그인 후 받은 access token (구매자 계정)"
+                  required
+                />
+              </label>
+              <label>
+                Project ID:<br />
+                <input
+                  type="number"
+                  id="confirmPurchaseProjectId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <label>
+                Request ID:<br />
+                <input
+                  type="number"
+                  id="confirmPurchaseRequestId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <button type="submit">구매 확정</button>
+            </form>
+            <pre id="confirmPurchaseResult"></pre>
+          </fieldset>
+
+          <!-- 7. 구매 취소 -->
+          <fieldset>
+            <legend>
+              7. 구매 취소 (POST /api/nft/merchandise/cancel-purchase)
+            </legend>
+            <form id="cancelPurchaseForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="cancelPurchaseToken"
+                  placeholder="로그인 후 받은 access token (구매자 계정)"
+                  required
+                />
+              </label>
+              <label>
+                Project ID:<br />
+                <input
+                  type="number"
+                  id="cancelPurchaseProjectId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <label>
+                Request ID:<br />
+                <input
+                  type="number"
+                  id="cancelPurchaseRequestId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <button type="submit">구매 취소</button>
+            </form>
+            <pre id="cancelPurchaseResult"></pre>
+          </fieldset>
+
+          <!-- 8. 구매 요청 조회 -->
+          <fieldset>
+            <legend>
+              8. 구매 요청 조회 (GET
+              /api/nft/merchandise/purchase-request/:projectId/:requestId)
+            </legend>
+            <form id="getPurchaseRequestForm">
+              <label>
+                Project ID:<br />
+                <input
+                  type="number"
+                  id="getPurchaseRequestProjectId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <label>
+                Request ID:<br />
+                <input
+                  type="number"
+                  id="getPurchaseRequestId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <button type="submit">구매 요청 조회</button>
+            </form>
+            <pre id="getPurchaseRequestResult"></pre>
+          </fieldset>
+
+          <!-- 9. 프로젝트별 구매 요청 목록 조회 -->
+          <fieldset>
+            <legend>
+              9. 프로젝트별 구매 요청 목록 조회 (GET
+              /api/nft/merchandise/purchase-requests/:projectId)
+            </legend>
+            <form id="getProjectPurchaseRequestsForm">
+              <label>
+                Project ID:<br />
+                <input
+                  type="number"
+                  id="getProjectPurchaseRequestsProjectId"
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <button type="submit">구매 요청 목록 조회</button>
+            </form>
+            <pre id="getProjectPurchaseRequestsResult"></pre>
+          </fieldset>
+
+          <!-- 10. 내 구매 요청 목록 조회 -->
+          <fieldset>
+            <legend>
+              10. 내 구매 요청 목록 조회 (GET
+              /api/nft/merchandise/my-purchase-requests)
+            </legend>
+            <form id="getMyPurchaseRequestsForm">
+              <label>
+                Access Token:<br />
+                <input
+                  type="text"
+                  id="getMyPurchaseRequestsToken"
+                  placeholder="로그인 후 받은 access token (구매자 계정)"
+                  required
+                />
+              </label>
+              <button type="submit">내 구매 요청 목록 조회</button>
+            </form>
+            <pre id="getMyPurchaseRequestsResult"></pre>
+          </fieldset>
+
+          <!-- 11. 플랫폼 수수료 정보 조회 -->
+          <fieldset>
+            <legend>
+              11. 플랫폼 수수료 정보 조회 (GET
+              /api/nft/merchandise/platform-fee-info)
+            </legend>
+            <button id="getPlatformFeeInfoBtn">플랫폼 수수료 정보 조회</button>
+            <pre id="getPlatformFeeInfoResult"></pre>
+          </fieldset>
         </div>
       </div>
 
@@ -2183,6 +2392,272 @@
 
       // 페이지 로드시 자동 호출
       window.addEventListener("DOMContentLoaded", loadPlatformAddresses);
+
+      // 4. 브랜드 서명 대기 프로젝트 조회 및 활성화
+
+      document.getElementById("brandPendingForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const token = document.getElementById("brandPendingToken").value;
+        const resultDiv = document.getElementById("brandPendingProjects");
+        resultDiv.textContent = "조회 중...";
+
+        try {
+          const res = await fetch("/api/nft/merchandise/brand-pending", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const json = await res.json();
+          if (!json.success) {
+            resultDiv.innerHTML = `<div class='status error'>${
+              json.message || "조회 실패"
+            }</div>`;
+            return;
+          }
+          if (!json.data || json.data.length === 0) {
+            resultDiv.innerHTML = `<div class='status info'>서명 대기 프로젝트가 없습니다.</div>`;
+            return;
+          }
+          // 프로젝트 리스트 렌더링
+          resultDiv.innerHTML = json.data
+            .map(
+              (proj, idx) => `
+            <div style="border:1px solid #e1e4e8; border-radius:7px; margin-bottom:16px; padding:12px; background:#fafbfc;">
+              <b>프로젝트 ID:</b> ${proj.projectId}<br/>
+              <b>프로젝트명:</b> ${proj.projectName || "-"}<br/>
+              <b>Influencer:</b> <code>${proj.influencer}</code><br/>
+              <b>Brand IPNFT TokenId:</b> ${proj.brandIPNFTTokenId}<br/>
+              <b>isActive:</b> <span style="color:#c0392b; font-weight:bold;">${
+                proj.isActive ? "true" : "false"
+              }</span><br/>
+              <button class="btn btn-info" onclick="activateProject('${
+                proj.projectId
+              }', this)">프로젝트 활성화</button>
+              <div class="activation-result" style="margin-top:8px;"></div>
+            </div>
+          `
+            )
+            .join("");
+        } catch (err) {
+          resultDiv.innerHTML = `<div class='status error'>Error: ${err.message}</div>`;
+        }
+      };
+
+      window.activateProject = async function (projectId, btn) {
+        const token = document.getElementById("brandPendingToken").value;
+        const resultDiv = btn.nextElementSibling;
+        btn.disabled = true;
+        resultDiv.textContent = "활성화 중...";
+        try {
+          const res = await fetch(`/api/nft/merchandise/set-active`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              projectId: projectId,
+            }),
+          });
+          const json = await res.json();
+          if (json.success) {
+            resultDiv.innerHTML = `<span class='status success'>활성화 성공!<br/>TxHash: <code>${json.data.transactionHash}</code></span>`;
+            btn.style.background = "#27ae60";
+            btn.textContent = "활성화 완료";
+          } else {
+            resultDiv.innerHTML = `<span class='status error'>${
+              json.message || "활성화 실패"
+            }</span>`;
+            btn.disabled = false;
+          }
+        } catch (err) {
+          resultDiv.innerHTML = `<span class='status error'>Error: ${err.message}</span>`;
+          btn.disabled = false;
+        }
+      };
+
+      // 구매 요청 관련 함수들
+      document.getElementById("requestPurchaseForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const token = document.getElementById("requestPurchaseToken").value;
+        const projectId = document.getElementById(
+          "requestPurchaseProjectId"
+        ).value;
+        const resultEl = document.getElementById("requestPurchaseResult");
+        resultEl.textContent = "요청 중...";
+
+        try {
+          const res = await fetch("/api/nft/merchandise/request-purchase", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ projectId: projectId }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      document.getElementById("confirmPurchaseForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const token = document.getElementById("confirmPurchaseToken").value;
+        const projectId = document.getElementById(
+          "confirmPurchaseProjectId"
+        ).value;
+        const requestId = document.getElementById(
+          "confirmPurchaseRequestId"
+        ).value;
+        const resultEl = document.getElementById("confirmPurchaseResult");
+        resultEl.textContent = "확정 중...";
+
+        try {
+          const res = await fetch("/api/nft/merchandise/confirm-purchase", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              projectId: projectId,
+              requestId,
+            }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      document.getElementById("cancelPurchaseForm").onsubmit = async function (
+        e
+      ) {
+        e.preventDefault();
+        const token = document.getElementById("cancelPurchaseToken").value;
+        const projectId = document.getElementById(
+          "cancelPurchaseProjectId"
+        ).value;
+        const requestId = document.getElementById(
+          "cancelPurchaseRequestId"
+        ).value;
+        const resultEl = document.getElementById("cancelPurchaseResult");
+        resultEl.textContent = "취소 중...";
+
+        try {
+          const res = await fetch("/api/nft/merchandise/cancel-purchase", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              projectId: projectId,
+              requestId,
+            }),
+          });
+          const json = await res.json();
+          resultEl.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          resultEl.textContent = "Error: " + err.message;
+        }
+      };
+
+      document.getElementById("getPurchaseRequestForm").onsubmit =
+        async function (e) {
+          e.preventDefault();
+          const projectId = document.getElementById(
+            "getPurchaseRequestProjectId"
+          ).value;
+          const requestId = document.getElementById(
+            "getPurchaseRequestId"
+          ).value;
+          const resultEl = document.getElementById("getPurchaseRequestResult");
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch(
+              `/api/nft/merchandise/purchase-request/${projectId}/${requestId}`
+            );
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
+
+      document.getElementById("getProjectPurchaseRequestsForm").onsubmit =
+        async function (e) {
+          e.preventDefault();
+          const projectId = document.getElementById(
+            "getProjectPurchaseRequestsProjectId"
+          ).value;
+          const resultEl = document.getElementById(
+            "getProjectPurchaseRequestsResult"
+          );
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch(
+              `/api/nft/merchandise/purchase-requests/${projectId}`
+            );
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
+
+      document.getElementById("getMyPurchaseRequestsForm").onsubmit =
+        async function (e) {
+          e.preventDefault();
+          const token = document.getElementById(
+            "getMyPurchaseRequestsToken"
+          ).value;
+          const resultEl = document.getElementById(
+            "getMyPurchaseRequestsResult"
+          );
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch(
+              "/api/nft/merchandise/my-purchase-requests",
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
+
+      // 플랫폼 수수료 정보 조회
+      document.getElementById("getPlatformFeeInfoBtn").onclick =
+        async function () {
+          const resultEl = document.getElementById("getPlatformFeeInfoResult");
+          resultEl.textContent = "조회 중...";
+
+          try {
+            const res = await fetch("/api/nft/merchandise/platform-fee-info");
+            const json = await res.json();
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch (err) {
+            resultEl.textContent = "Error: " + err.message;
+          }
+        };
     </script>
   </body>
 </html>

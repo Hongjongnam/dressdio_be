@@ -108,9 +108,47 @@ contract IPNFT is ERC721, Ownable {
         emit TokenPriceUpdated(tokenId, newPrice, newSupplyPrice);
     }
 
-    function getTokenInfo(uint256 tokenId) public view returns (TokenInfo memory) {
+    function getTokenInfo(uint256 tokenId) external view returns (
+        address owner,
+        string memory name,
+        string memory description,
+        uint256 price,
+        uint256 supplyPrice,
+        address creatorAddress,
+        uint256 creatorSBTId,
+        string memory imageUri
+    ) {
         require(_exists(tokenId), "Token does not exist");
-        return tokenInfo[tokenId];
+        TokenInfo storage info = tokenInfo[tokenId];
+        return (
+            _ownerOf(tokenId),
+            info.name,
+            info.description,
+            info.price,
+            info.supplyPrice,
+            info.creator,
+            info.creatorSBTId,
+            info.ipfsImage
+        );
+    }
+
+    // 주소를 string으로 변환하는 유틸리티 함수
+    function toAsciiString(address x) internal pure returns (string memory) {
+        bytes memory s = new bytes(42);
+        s[0] = '0';
+        s[1] = 'x';
+        for (uint i = 0; i < 20; i++) {
+            uint8 b = uint8(uint(uint160(x)) >> (8 * (19 - i)));
+            uint8 hi = b / 16;
+            uint8 lo = b - 16 * hi;
+            s[2*i + 2] = char(hi);
+            s[2*i + 3] = char(lo);
+        }
+        return string(s);
+    }
+    function char(uint8 b) internal pure returns (bytes1 c) {
+        if (b < 10) return bytes1(b + 0x30);
+        else return bytes1(b + 0x57);
     }
 
     function getCreatorTokens(address creator) public view returns (uint256[] memory) {

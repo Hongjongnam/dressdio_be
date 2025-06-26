@@ -69,16 +69,33 @@ exports.register = async (req, res) => {
     let collect = req.body.collect ? 1 : 0;
     let thirdParty = req.body.thirdParty ? 1 : 0;
     let advertise = req.body.advertise ? 1 : 0;
+
+    logger.info(`Register attempt for email: ${email}`);
+    logger.info(`Code verification: ${code}`);
+    logger.info(
+      `Agreements: overage=${overage}, agree=${agree}, collect=${collect}, thirdParty=${thirdParty}, advertise=${advertise}`
+    );
+
     try {
       await service.verifyCode(email, code);
-    } catch (_) {
+      logger.info("Code verification successful");
+    } catch (verifyError) {
+      logger.error("Code verification failed:", verifyError.message);
       return res.status(428).json({
         status: "failed",
         message: "Authentication code does not match",
       });
     }
+
+    logger.info("Creating secure channel...");
     const secureChannelRes = await service.createSecureChannel();
+    logger.info("Secure channel created successfully");
+
+    logger.info("Encrypting password...");
     const encryptedPassword = service.encrypt(secureChannelRes, password);
+    logger.info("Password encrypted successfully");
+
+    logger.info("Calling registerUser service...");
     await service.registerUser({
       email,
       encryptedPassword,
@@ -90,11 +107,14 @@ exports.register = async (req, res) => {
       advertise,
       channelId: secureChannelRes.ChannelID,
     });
+    logger.info("User registration successful");
+
     return res
       .status(200)
       .json({ status: "success", message: "User registered successfully" });
   } catch (err) {
-    logger.error(err.message);
+    logger.error("Registration error details:", err);
+    logger.error("Error stack:", err.stack);
     return res
       .status(404)
       .json({ status: "failed", message: "Problem while registering user" });
@@ -197,12 +217,33 @@ exports.resetPassword = async (req, res) => {
 
 exports.changePassword = async (req, res) => {
   try {
-    let email = req.body.email || "";
+    let accessToken = req.body.accessToken || "";
     let oldpassword = req.body.oldpassword || "";
     let newpassword = req.body.newpassword || "";
+
+    // accessToken에서 사용자 정보 조회
+    let walletInfo;
+    try {
+      walletInfo = await walletService.getWallet(accessToken);
+    } catch (e) {
+      return res.status(401).json({
+        status: "failed",
+        message: "Invalid accessToken or walletService error",
+      });
+    }
+
+    if (!walletInfo || !walletInfo.email) {
+      return res.status(401).json({
+        status: "failed",
+        message: "No user email found for accessToken",
+      });
+    }
+
+    const email = walletInfo.email;
     const secureChannelRes = await service.createSecureChannel();
     const oldEncryptedPassword = service.encrypt(secureChannelRes, oldpassword);
     const newEncryptedPassword = service.encrypt(secureChannelRes, newpassword);
+
     await service.changePassword(
       email,
       oldEncryptedPassword,

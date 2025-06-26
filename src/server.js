@@ -31,7 +31,7 @@ app.use(express.static(path.join(__dirname, "../public")));
 // Mount routes
 app.use("/api/auth", authRouter);
 app.use("/api/nft", nftRouter);
-app.use("/api/blockchain", blockchainRouter);
+app.use("/api/auth/blockchain", blockchainRouter);
 app.use("/api/utils", utilsRouter);
 
 // Initialize database

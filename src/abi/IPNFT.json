@@ -512,51 +512,44 @@
     "name": "getTokenInfo",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "creator",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "creatorSBTId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "string",
-            "name": "ipfsImage",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "description",
-            "type": "string"
-          },
-          {
-            "internalType": "uint256",
-            "name": "price",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "supplyPrice",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "createdAt",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct IPNFT.TokenInfo",
-        "name": "",
-        "type": "tuple"
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "description",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "supplyPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "creatorAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "creatorSBTId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "imageUri",
+        "type": "string"
       }
     ],
     "stateMutability": "view",

@@ -66,11 +66,17 @@ service.signTransaction = async (
 
     let gasEstimate = 450000;
     try {
+      // data 필드가 없거나 빈 문자열이면 0x로 설정
+      const safeData =
+        transactionData.data && transactionData.data.trim() !== ""
+          ? transactionData.data
+          : "0x";
+
       gasEstimate = await web3.eth.estimateGas({
         from: walletData.sid,
         to: transactionData.to,
-        data: transactionData.data,
-        value: web3.utils.toWei(transactionData.value, "ether"),
+        data: safeData,
+        value: web3.utils.toWei(transactionData.value, "ether"), // ETH 단위를 wei로 변환
       });
       console.log("GAS PRICE: " + gasPrice);
       console.log("GAS ESTIMATE: " + gasEstimate);
@@ -78,11 +84,11 @@ service.signTransaction = async (
 
     let gasLimit = Math.floor(parseInt(gasEstimate) * 1.2); // Adding 20% buffer
 
-    // Convert value to wei first, then to BigInt
+    // Convert value from ETH to wei first, then to BigInt
     const valueInWei =
       transactionData.value === "0"
         ? "0"
-        : web3.utils.toWei(transactionData.value, "ether");
+        : web3.utils.toWei(transactionData.value, "ether"); // ETH 단위를 wei로 변환
 
     // Handle nonce properly - convert to string and check for zero
     const nonceStr = nonce.toString();

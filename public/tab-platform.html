@@ -1,0 +1,55 @@
+<h2>Platform Admin</h2>
+<div class="api-grid">
+  <fieldset>
+    <legend>1. 소유권 이전 (POST /api/nft/platform/transfer-ownership)</legend>
+    <form id="transfer-ownership-form">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <label
+        >New Owner Address <input type="text" name="newOwner" required
+      /></label>
+      <button type="submit">Transfer Ownership</button>
+    </form>
+    <pre id="transfer-ownership-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>2. 현재 소유자 조회 (GET /api/nft/platform/owner)</legend>
+    <button id="get-owner-btn">Get Owner</button>
+    <pre id="get-owner-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      3. PlatformRegistry 상태 조회 (GET /api/nft/platform/status)
+    </legend>
+    <button id="get-status-btn">Get Status</button>
+    <pre id="get-status-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>4. 팩토리 설정 (POST /api/nft/platform/set-factory)</legend>
+    <form id="set-factory-form">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <label
+        >Factory Type
+        <select name="factoryType" required>
+          <option value="merchandise">merchandise</option>
+          <option value="ipnft">ipnft</option>
+        </select>
+      </label>
+      <label
+        >Factory Address <input type="text" name="factoryAddress" required
+      /></label>
+      <button type="submit">Set Factory</button>
+    </form>
+    <pre id="set-factory-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      5. 주요 컨트랙트 주소 조회 (GET /api/nft/platform/addresses)
+    </legend>
+    <button id="get-addresses-btn">Get Addresses</button>
+    <pre id="get-addresses-result"></pre>
+  </fieldset>
+</div>

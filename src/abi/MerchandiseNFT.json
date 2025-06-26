@@ -50,6 +50,11 @@
         "internalType": "string",
         "name": "_projectImageURI",
         "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "_ipnftContract",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -564,6 +569,19 @@
   },
   {
     "inputs": [],
+    "name": "ipnftContract",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "isActive",
     "outputs": [
       {
@@ -604,6 +622,25 @@
     "name": "mint",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "name": "mintTo",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

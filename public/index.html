@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DressDio API 통합 테스트</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="tab-container">
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="auth">Auth/Wallet</button>
+        <button class="tab-button" data-tab="sbt">SBT</button>
+        <button class="tab-button" data-tab="ipnft">IPNFT</button>
+        <button class="tab-button" data-tab="merchandise">Merchandise</button>
+        <button class="tab-button" data-tab="platform">Platform Admin</button>
+        <button class="tab-button" data-tab="blockchain">
+          Blockchain Utils
+        </button>
+      </div>
+      <div id="tab-content" class="tab-content-area">
+        <!-- 탭별 내용이 ajax로 로드됨 -->
+      </div>
+    </div>
+    <script src="js/main.js"></script>
+  </body>
+</html>
