@@ -2,47 +2,103 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./MerchandiseNFT.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./PlatformRegistry.sol";
 import "./CreatorSBT.sol";
 
-contract MerchandiseFactory {
-    address[] public allMerchandiseNFTs;
+contract MerchandiseFactory is Ownable {
     PlatformRegistry public platformRegistry;
     CreatorSBT public sbtContract;
+    IERC20 public dpToken; // DP 토큰 컨트랙트
+    
+    // 프로젝트 ID 관리
+    uint256 public nextProjectId;
     
     // 프로젝트 정보 구조체
     struct ProjectInfo {
-        address merchandiseContract;
         address influencer;
         string projectName;
+        string productDescription;
         uint256 brandIPNFTTokenId;
         uint256[] artistIPNFTTokenIds;
         uint256 totalSupply;
         uint256 salePrice;
         bool isActive;
         uint256 createdAt;
+        string projectImageURI;
+        uint256 mintedCount; // 현재까지 민팅된 수량
     }
     
-    // 프로젝트 정보 매핑
-    mapping(address => ProjectInfo) public projects;
-    mapping(address => address[]) public influencerProjects; // 인플루언서별 프로젝트 목록
+    // 구매 요청 정보 구조체
+    struct PurchaseRequest {
+        address buyer;           // 구매자 주소
+        uint256 amount;          // 지불한 DP 금액
+        uint256 timestamp;       // 구매 요청 시간
+        bool isConfirmed;        // 구매 확정 여부
+        bool isCancelled;        // 취소 여부
+        uint256 tokenId;         // 발행될 토큰 ID (확정 시)
+    }
+    
+    // 프로젝트 정보 매핑 (projectId 기반)
+    mapping(uint256 => ProjectInfo) public projects;
+    mapping(address => uint256[]) public influencerProjects; // 인플루언서별 프로젝트 ID 목록
+    
+    // 에스크로 관련 매핑 (projectId 기반)
+    mapping(uint256 => mapping(uint256 => PurchaseRequest)) public purchaseRequests; // projectId => requestId => PurchaseRequest
+    mapping(uint256 => uint256) public nextRequestId; // 프로젝트별 다음 요청 ID
+    mapping(uint256 => uint256) public projectTotalRequests; // 프로젝트별 총 요청 수
+    
+    // 플랫폼 수수료 관련
+    uint256 public platformFeePercentage = 100; // 1% (100 basis points)
+    address public platformFeeCollector; // 플랫폼 수수료 수취 주소
     
     // 이벤트
     event MerchandiseProjectCreated(
-        address merchandiseContract,
-        address influencer,
+        uint256 indexed projectId,
+        address indexed influencer,
         string projectName,
         uint256 brandIPNFTTokenId,
         uint256[] artistIPNFTTokenIds,
         uint256 totalSupply,
         uint256 salePrice
     );
-    event ProjectActivated(address merchandiseContract, bool isActive);
+    event ProjectActivated(uint256 indexed projectId, bool isActive);
+    event PurchaseRequestCreated(
+        uint256 indexed projectId,
+        uint256 requestId,
+        address buyer,
+        uint256 amount
+    );
+    event PurchaseConfirmed(
+        uint256 indexed projectId,
+        uint256 requestId,
+        address buyer,
+        uint256 tokenId,
+        uint256 amount
+    );
+    event PurchaseCancelled(
+        uint256 indexed projectId,
+        uint256 requestId,
+        address buyer,
+        uint256 refundAmount,
+        uint256 platformFee
+    );
+    event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
+    event PlatformFeeCollectorUpdated(address oldCollector, address newCollector);
+    
+    // 디버깅용 이벤트
+    event DebugAddress(address brandOwner, address msgSender, uint256 brandTokenId, bool isMatch);
 
-    constructor(address _platformRegistry, address _sbtContract) {
+    constructor(
+        address _platformRegistry, 
+        address _sbtContract,
+        address _dpToken
+    ) Ownable(msg.sender) {
         platformRegistry = PlatformRegistry(_platformRegistry);
         sbtContract = CreatorSBT(_sbtContract);
+        dpToken = IERC20(_dpToken);
+        platformFeeCollector = msg.sender; // 초기에는 배포자가 수수료 수취
+        nextProjectId = 0; // 프로젝트 ID는 0부터 시작
     }
     
     // 인플루언서 SBT 검증
@@ -51,6 +107,25 @@ contract MerchandiseFactory {
             sbtContract.hasCreatorSbt(msg.sender, "influencer"),
             "Only influencers can create merchandise projects"
         );
+        _;
+    }
+    
+    // 프로젝트 인플루언서 검증
+    modifier onlyProjectInfluencer(uint256 projectId) {
+        ProjectInfo storage project = projects[projectId];
+        require(project.influencer == msg.sender, "Only project influencer can perform this action");
+        _;
+    }
+    
+    // 프로젝트 존재 여부 검증
+    modifier projectExists(uint256 projectId) {
+        require(projects[projectId].influencer != address(0), "Project does not exist");
+        _;
+    }
+    
+    // 구매 요청 존재 여부 검증
+    modifier validPurchaseRequest(uint256 projectId, uint256 requestId) {
+        require(purchaseRequests[projectId][requestId].buyer != address(0), "Purchase request does not exist");
         _;
     }
     
@@ -63,8 +138,6 @@ contract MerchandiseFactory {
 
     // Merchandise 프로젝트 생성 (인플루언서만 가능)
     function createMerchandiseProject(
-        string memory name,
-        string memory symbol,
         string memory projectName,
         string memory productDescription,
         uint256 totalSupply,
@@ -72,7 +145,7 @@ contract MerchandiseFactory {
         uint256 brandIPNFTTokenId,
         uint256[] memory artistIPNFTTokenIds,
         string memory projectImageURI
-    ) external onlyInfluencer returns (address) {
+    ) external onlyInfluencer returns (uint256) {
         require(totalSupply > 0, "Total supply must be greater than 0");
         require(salePrice > 0, "Sale price must be greater than 0");
         require(brandIPNFTTokenId >= 0, "Brand IPNFT token ID is required");
@@ -81,49 +154,41 @@ contract MerchandiseFactory {
         require(bytes(productDescription).length > 0, "Product description is required");
         require(bytes(projectImageURI).length > 0, "Project image URI is required");
         
+        // IPNFT 컨트랙트 주소 조회
+        address ipnftFactoryAddr = platformRegistry.ipnftFactory();
+        address ipnftContractAddr = address(0);
+        if (ipnftFactoryAddr != address(0)) {
+            ipnftContractAddr = IIPNFTFactory(ipnftFactoryAddr).getIPNFTAddress();
+        }
+        
         // IPNFT 검증 (실제 구현에서는 IPNFT Factory와 연동)
         // validIPNFT(brandIPNFTTokenId);
         // for (uint i = 0; i < artistIPNFTTokenIds.length; i++) {
         //     validIPNFT(artistIPNFTTokenIds[i]);
         // }
         
-        // MerchandiseNFT 컨트랙트 생성
-        MerchandiseNFT nft = new MerchandiseNFT(
-            name,
-            symbol,
-            msg.sender, // influencer
-            projectName,
-            productDescription,
-            totalSupply,
-            salePrice,
-            brandIPNFTTokenId,
-            artistIPNFTTokenIds,
-            projectImageURI
-        );
-        
-        address merchandiseAddress = address(nft);
+        uint256 projectId = nextProjectId++;
         
         // 프로젝트 정보 저장
-        projects[merchandiseAddress] = ProjectInfo({
-            merchandiseContract: merchandiseAddress,
+        projects[projectId] = ProjectInfo({
             influencer: msg.sender,
             projectName: projectName,
+            productDescription: productDescription,
             brandIPNFTTokenId: brandIPNFTTokenId,
             artistIPNFTTokenIds: artistIPNFTTokenIds,
             totalSupply: totalSupply,
             salePrice: salePrice,
             isActive: false,
-            createdAt: block.timestamp
+            createdAt: block.timestamp,
+            projectImageURI: projectImageURI,
+            mintedCount: 0
         });
         
         // 인플루언서별 프로젝트 목록에 추가
-        influencerProjects[msg.sender].push(merchandiseAddress);
-        
-        // 전체 프로젝트 목록에 추가
-        allMerchandiseNFTs.push(merchandiseAddress);
+        influencerProjects[msg.sender].push(projectId);
         
         emit MerchandiseProjectCreated(
-            merchandiseAddress,
+            projectId,
             msg.sender,
             projectName,
             brandIPNFTTokenId,
@@ -132,91 +197,260 @@ contract MerchandiseFactory {
             salePrice
         );
         
-        return merchandiseAddress;
+        return projectId;
     }
     
-    // 프로젝트 활성화/비활성화 (인플루언서만)
-    function setProjectActive(address merchandiseContract, bool isActive) external {
-        ProjectInfo storage project = projects[merchandiseContract];
-        require(project.influencer == msg.sender, "Only project influencer can set status");
+    // 구매 요청 (사용자가 DP로 구매 신청)
+    function requestPurchase(uint256 projectId) external returns (uint256 requestId) {
+        ProjectInfo storage project = projects[projectId];
+        require(project.influencer != address(0), "Project does not exist");
+        require(project.isActive, "Project is not active");
         
-        MerchandiseNFT nft = MerchandiseNFT(merchandiseContract);
-        nft.setActive(isActive);
+        require(dpToken.transferFrom(msg.sender, address(this), project.salePrice), "DP payment failed");
+        
+        requestId = nextRequestId[projectId]++;
+        purchaseRequests[projectId][requestId] = PurchaseRequest({
+            buyer: msg.sender,
+            amount: project.salePrice,
+            timestamp: block.timestamp,
+            isConfirmed: false,
+            isCancelled: false,
+            tokenId: 0
+        });
+        
+        projectTotalRequests[projectId]++;
+        
+        emit PurchaseRequestCreated(projectId, requestId, msg.sender, project.salePrice);
+        
+        return requestId;
+    }
+    
+    // 구매 확정 (구매자가 확정)
+    function confirmPurchase(uint256 projectId, uint256 requestId) 
+        external 
+        validPurchaseRequest(projectId, requestId)
+    {
+        PurchaseRequest storage request = purchaseRequests[projectId][requestId];
+        require(!request.isConfirmed, "Purchase already confirmed");
+        require(!request.isCancelled, "Purchase already cancelled");
+        require(msg.sender == request.buyer, "Only buyer can confirm purchase");
+        
+        ProjectInfo storage project = projects[projectId];
+        require(project.mintedCount < project.totalSupply, "All merchandise sold out");
+        
+        uint256 tokenId = project.mintedCount;
+        project.mintedCount++;
+        
+        request.isConfirmed = true;
+        request.tokenId = tokenId;
+        
+        uint256 totalPrice = request.amount;
+        uint256 brandPrice = 0;
+        address brandOwner = address(0);
+        uint256[] memory artistPrices = new uint256[](project.artistIPNFTTokenIds.length);
+        address[] memory artistOwners = new address[](project.artistIPNFTTokenIds.length);
+        uint256 artistTotal = 0;
+        
+        if (project.brandIPNFTTokenId != 0) {
+            (
+                brandOwner, , , brandPrice, , , , 
+            ) = platformRegistry.getIPNFTInfo(project.brandIPNFTTokenId);
+        }
+        
+        for (uint i = 0; i < project.artistIPNFTTokenIds.length; i++) {
+            (
+                artistOwners[i], , , artistPrices[i], , , , 
+            ) = platformRegistry.getIPNFTInfo(project.artistIPNFTTokenIds[i]);
+            artistTotal += artistPrices[i];
+        }
+        
+        uint256 influencerMargin = totalPrice;
+        if (brandPrice > 0) {
+            influencerMargin -= brandPrice;
+        }
+        influencerMargin -= artistTotal;
+        require(influencerMargin >= 0, "Invalid margin");
+        
+        if (brandPrice > 0 && brandOwner != address(0)) {
+            uint256 brandFee = brandPrice / 100;
+            uint256 brandNet = brandPrice - brandFee;
+            require(dpToken.transfer(brandOwner, brandNet), "DP to brand owner failed");
+            require(dpToken.transfer(platformFeeCollector, brandFee), "DP to platform (brand) failed");
+        }
+        
+        for (uint i = 0; i < artistOwners.length; i++) {
+            if (artistPrices[i] > 0 && artistOwners[i] != address(0)) {
+                uint256 artistFee = artistPrices[i] / 100;
+                uint256 artistNet = artistPrices[i] - artistFee;
+                require(dpToken.transfer(artistOwners[i], artistNet), "DP to artist failed");
+                require(dpToken.transfer(platformFeeCollector, artistFee), "DP to platform (artist) failed");
+            }
+        }
+        
+        if (influencerMargin > 0) {
+            uint256 influencerFee = influencerMargin / 100;
+            uint256 influencerNet = influencerMargin - influencerFee;
+            require(dpToken.transfer(project.influencer, influencerNet), "DP to influencer failed");
+            require(dpToken.transfer(platformFeeCollector, influencerFee), "DP to platform (influencer) failed");
+        }
+        
+        emit PurchaseConfirmed(projectId, requestId, request.buyer, tokenId, request.amount);
+    }
+    
+    // 구매 취소 (구매자 또는 인플루언서가 취소)
+    function cancelPurchase(uint256 projectId, uint256 requestId) 
+        external 
+        validPurchaseRequest(projectId, requestId)
+    {
+        PurchaseRequest storage request = purchaseRequests[projectId][requestId];
+        require(!request.isConfirmed, "Purchase already confirmed");
+        require(!request.isCancelled, "Purchase already cancelled");
+        
+        ProjectInfo storage project = projects[projectId];
+        require(
+            msg.sender == request.buyer || msg.sender == project.influencer,
+            "Only buyer or influencer can cancel purchase"
+        );
+        
+        request.isCancelled = true;
+        
+        uint256 platformFee = (request.amount * platformFeePercentage) / 10000;
+        uint256 refundAmount = request.amount - platformFee;
+        
+        if (refundAmount > 0) {
+            require(
+                dpToken.transfer(request.buyer, refundAmount),
+                "Failed to refund DP to buyer"
+            );
+        }
+        
+        if (platformFee > 0) {
+            require(
+                dpToken.transfer(platformFeeCollector, platformFee),
+                "Failed to transfer platform fee"
+            );
+        }
+        
+        emit PurchaseCancelled(projectId, requestId, request.buyer, refundAmount, platformFee);
+    }
+    
+    // 프로젝트 활성화/비활성화 (브랜드 IPNFT 소유자만)
+    function setProjectActive(uint256 projectId, bool isActive) external {
+        ProjectInfo storage project = projects[projectId];
+        require(project.influencer != address(0), "Project does not exist");
+        
+        address ipnftFactoryAddr = platformRegistry.ipnftFactory();
+        address ipnftContractAddr = address(0);
+        if (ipnftFactoryAddr != address(0)) {
+            ipnftContractAddr = IIPNFTFactory(ipnftFactoryAddr).getIPNFTAddress();
+        }
+        require(ipnftContractAddr != address(0), "IPNFT contract not found");
+        
+        IIPNFT ipnftContract = IIPNFT(ipnftContractAddr);
+        address brandOwner = ipnftContract.ownerOf(project.brandIPNFTTokenId);
+        
+        bool isMatch = (brandOwner == msg.sender);
+        emit DebugAddress(brandOwner, msg.sender, project.brandIPNFTTokenId, isMatch);
+        
+        require(
+            brandOwner == msg.sender, 
+            "Only brand IPNFT owner can set status"
+        );
         
         project.isActive = isActive;
-        emit ProjectActivated(merchandiseContract, isActive);
+        emit ProjectActivated(projectId, isActive);
     }
     
-    // 수익 분배 설정 (인플루언서만)
-    function setProjectRevenueShares(
-        address merchandiseContract,
-        address[] memory recipients,
-        uint256[] memory shares
-    ) external {
-        ProjectInfo storage project = projects[merchandiseContract];
-        require(project.influencer == msg.sender, "Only project influencer can set revenue shares");
+    // 플랫폼 수수료 설정 (소유자만)
+    function setPlatformFeePercentage(uint256 newFeePercentage) external onlyOwner {
+        require(newFeePercentage <= 1000, "Platform fee cannot exceed 10%");
+        uint256 oldFee = platformFeePercentage;
+        platformFeePercentage = newFeePercentage;
+        emit PlatformFeeUpdated(oldFee, newFeePercentage);
+    }
+    
+    // 플랫폼 수수료 수취 주소 설정 (소유자만)
+    function setPlatformFeeCollector(address newCollector) external onlyOwner {
+        require(newCollector != address(0), "Invalid collector address");
+        address oldCollector = platformFeeCollector;
+        platformFeeCollector = newCollector;
+        emit PlatformFeeCollectorUpdated(oldCollector, newCollector);
+    }
+    
+    // 구매 요청 정보 조회
+    function getPurchaseRequest(uint256 projectId, uint256 requestId) 
+        external 
+        view 
+        returns (PurchaseRequest memory) 
+    {
+        return purchaseRequests[projectId][requestId];
+    }
+    
+    // 프로젝트별 구매 요청 목록 조회
+    function getProjectPurchaseRequests(uint256 projectId) 
+        external 
+        view 
+        returns (uint256[] memory) 
+    {
+        uint256 totalRequests = projectTotalRequests[projectId];
+        uint256[] memory requestIds = new uint256[](totalRequests);
         
-        MerchandiseNFT nft = MerchandiseNFT(merchandiseContract);
-        nft.setRevenueShares(recipients, shares);
-    }
-    
-    // 수익 분배 실행 (인플루언서만)
-    function distributeProjectRevenue(address merchandiseContract) external {
-        ProjectInfo storage project = projects[merchandiseContract];
-        require(project.influencer == msg.sender, "Only project influencer can distribute revenue");
+        for (uint256 i = 0; i < totalRequests; i++) {
+            requestIds[i] = i;
+        }
         
-        MerchandiseNFT nft = MerchandiseNFT(merchandiseContract);
-        nft.distributeRevenue();
-    }
-    
-    // 전체 Merchandise 프로젝트 목록 조회
-    function getAllMerchandiseNFTs() external view returns (address[] memory) {
-        return allMerchandiseNFTs;
+        return requestIds;
     }
     
     // 인플루언서별 프로젝트 목록 조회
-    function getInfluencerProjects(address influencer) external view returns (address[] memory) {
+    function getInfluencerProjects(address influencer) external view returns (uint256[] memory) {
         return influencerProjects[influencer];
     }
     
     // 프로젝트 정보 조회
-    function getProjectInfo(address merchandiseContract) external view returns (
+    function getProjectInfo(uint256 projectId) external view returns (
         address _influencer,
         string memory _projectName,
+        string memory _productDescription,
         uint256 _brandIPNFTTokenId,
         uint256[] memory _artistIPNFTTokenIds,
         uint256 _totalSupply,
         uint256 _salePrice,
         bool _isActive,
-        uint256 _createdAt
+        uint256 _createdAt,
+        string memory _projectImageURI,
+        uint256 _mintedCount
     ) {
-        ProjectInfo storage project = projects[merchandiseContract];
+        ProjectInfo storage project = projects[projectId];
         return (
             project.influencer,
             project.projectName,
+            project.productDescription,
             project.brandIPNFTTokenId,
             project.artistIPNFTTokenIds,
             project.totalSupply,
             project.salePrice,
             project.isActive,
-            project.createdAt
+            project.createdAt,
+            project.projectImageURI,
+            project.mintedCount
         );
     }
     
     // 활성화된 프로젝트 목록 조회
-    function getActiveProjects() external view returns (address[] memory) {
-        address[] memory activeProjects = new address[](allMerchandiseNFTs.length);
+    function getActiveProjects() external view returns (uint256[] memory) {
+        uint256[] memory activeProjects = new uint256[](nextProjectId);
         uint256 activeCount = 0;
         
-        for (uint i = 0; i < allMerchandiseNFTs.length; i++) {
-            if (projects[allMerchandiseNFTs[i]].isActive) {
-                activeProjects[activeCount] = allMerchandiseNFTs[i];
+        for (uint i = 0; i < nextProjectId; i++) {
+            if (projects[i].isActive) {
+                activeProjects[activeCount] = i;
                 activeCount++;
             }
         }
         
         // 정확한 크기로 배열 조정
-        address[] memory result = new address[](activeCount);
+        uint256[] memory result = new uint256[](activeCount);
         for (uint i = 0; i < activeCount; i++) {
             result[i] = activeProjects[i];
         }
@@ -226,7 +460,7 @@ contract MerchandiseFactory {
     
     // 프로젝트 수 조회
     function getProjectCount() external view returns (uint256) {
-        return allMerchandiseNFTs.length;
+        return nextProjectId;
     }
     
     // 인플루언서 프로젝트 수 조회

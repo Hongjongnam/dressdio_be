@@ -70,6 +70,11 @@ exports.mint = async (req, res) => {
       // 여러 파일 중 첫 번째 파일 사용
       const file = req.files[0];
       ipfsImage = await uploadFileToIPFS(file.buffer, file.originalname);
+      console.log("🌐 Upload to IPFS result:", ipfsImage);
+      console.log(
+        "🔗 View: https://chocolate-voluntary-raccoon-677.mypinata.cloud/ipfs/" +
+          ipfsImage.replace("ipfs://", "")
+      );
     } catch (err) {
       return res.status(500).json({
         success: false,
@@ -507,31 +512,45 @@ exports.list = async (req, res) => {
         const tokenInfo = await ipnftContract.methods
           .getTokenInfo(tokenId)
           .call();
+
+        // 객체 속성으로 getTokenInfo 반환값 접근
+        const {
+          0: tokenOwner,
+          1: name,
+          2: description,
+          3: price,
+          4: supplyPrice,
+          5: creator,
+          6: creatorSBTId,
+          7: imageUri,
+        } = tokenInfo;
+
         let creatorSBT = null;
 
         try {
-          logger.info(`Fetching SBT info for creator: ${tokenInfo.creator}`);
+          logger.info(`Fetching SBT info for creator: ${creator}`);
           const sbtInfoList = await creatorSBTContract.methods
-            .getSBTInfoByAddress(tokenInfo.creator)
+            .getSBTInfoByAddress(creator)
             .call();
 
           creatorSBT = sbtInfoList.find(
-            (sbt) => sbt.tokenId === tokenInfo.creatorSBTId
+            (sbt) => String(sbt.tokenId) === String(creatorSBTId)
           );
           logger.info(`Successfully retrieved SBT info:`, creatorSBT);
         } catch (e) {
-          logger.error(
-            `Failed to get SBT info for creator ${tokenInfo.creator}:`,
-            e
-          );
+          logger.error(`Failed to get SBT info for creator ${creator}:`, e);
         }
 
         result.push({
           contract: ipnftAddress,
           tokenId,
-          ...cleanTokenInfo(tokenInfo),
-          creator: tokenInfo.creator,
-          creatorSBTId: tokenInfo.creatorSBTId,
+          ipfsImage: imageUri,
+          name,
+          description,
+          price: web3.utils.fromWei(price, "ether"),
+          supplyPrice: web3.utils.fromWei(supplyPrice, "ether"),
+          creator,
+          creatorSBTId,
           creatorSBT: cleanSBT(creatorSBT),
           owner,
         });
@@ -596,31 +615,45 @@ exports.getMyIPNFTs = async (req, res) => {
         const tokenInfo = await ipnftContract.methods
           .getTokenInfo(tokenId)
           .call();
+
+        // 객체 속성으로 getTokenInfo 반환값 접근
+        const {
+          0: tokenOwner,
+          1: name,
+          2: description,
+          3: price,
+          4: supplyPrice,
+          5: creator,
+          6: creatorSBTId,
+          7: imageUri,
+        } = tokenInfo;
+
         let creatorSBT = null;
 
         try {
-          logger.info(`Fetching SBT info for creator: ${tokenInfo.creator}`);
+          logger.info(`Fetching SBT info for creator: ${creator}`);
           const sbtInfoList = await creatorSBTContract.methods
-            .getSBTInfoByAddress(tokenInfo.creator)
+            .getSBTInfoByAddress(creator)
             .call();
 
           creatorSBT = sbtInfoList.find(
-            (sbt) => sbt.tokenId === tokenInfo.creatorSBTId
+            (sbt) => String(sbt.tokenId) === String(creatorSBTId)
           );
           logger.info(`Successfully retrieved SBT info:`, creatorSBT);
         } catch (e) {
-          logger.error(
-            `Failed to get SBT info for creator ${tokenInfo.creator}:`,
-            e
-          );
+          logger.error(`Failed to get SBT info for creator ${creator}:`, e);
         }
 
         result.push({
           contract: ipnftAddress,
           tokenId,
-          ...cleanTokenInfo(tokenInfo),
-          creator: tokenInfo.creator,
-          creatorSBTId: tokenInfo.creatorSBTId,
+          ipfsImage: imageUri,
+          name,
+          description,
+          price: web3.utils.fromWei(price, "ether"),
+          supplyPrice: web3.utils.fromWei(supplyPrice, "ether"),
+          creator,
+          creatorSBTId,
           creatorSBT: cleanSBT(creatorSBT),
           owner,
         });

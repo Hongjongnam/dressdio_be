@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract MerchandiseNFT is ERC721, Ownable {
     using Strings for uint256;
@@ -40,6 +41,8 @@ contract MerchandiseNFT is ERC721, Ownable {
     event ProjectActivated(bool isActive);
     event RevenueShareUpdated(address recipient, uint256 share);
     
+    address public ipnftContract; // IPNFT 컨트랙트 주소 저장
+    
     constructor(
         string memory _name,
         string memory _symbol,
@@ -50,7 +53,8 @@ contract MerchandiseNFT is ERC721, Ownable {
         uint256 _salePrice,
         uint256 _brandIPNFTTokenId,
         uint256[] memory _artistIPNFTTokenIds,
-        string memory _projectImageURI
+        string memory _projectImageURI,
+        address _ipnftContract // 추가
     ) ERC721(_name, _symbol) Ownable(_influencer) {
         influencer = _influencer;
         projectName = _projectName;
@@ -62,11 +66,13 @@ contract MerchandiseNFT is ERC721, Ownable {
         projectImageURI = _projectImageURI;
         isActive = false; // 초기에는 비활성화
         soldCount = 0;
+        ipnftContract = _ipnftContract; // 저장
     }
     
-    // 판매 활성화/비활성화 (인플루언서만 가능)
+    // 판매 활성화/비활성화 (브랜드 IPNFT 소유자만 가능)
     function setActive(bool _isActive) external {
-        require(msg.sender == influencer, "Only influencer can set status");
+        address brandOwner = IERC721(ipnftContract).ownerOf(brandIPNFTTokenId);
+        require(msg.sender == brandOwner, "Only brand IPNFT owner can set status");
         isActive = _isActive;
         emit ProjectActivated(_isActive);
     }
@@ -106,6 +112,22 @@ contract MerchandiseNFT is ERC721, Ownable {
         soldCount++;
         
         emit MerchandiseMinted(tokenId, msg.sender, msg.value);
+    }
+    
+    // Factory에서 특정 주소로 NFT 민팅 (에스크로용)
+    function mintTo(address to) external returns (uint256 tokenId) {
+        require(msg.sender == owner(), "Only owner can mint to specific address");
+        require(isActive, "Project is not active");
+        require(soldCount < totalSupply, "All merchandise sold out");
+        
+        tokenId = nextTokenId++;
+        _mint(to, tokenId);
+        tokenExists[tokenId] = true;
+        soldCount++;
+        
+        emit MerchandiseMinted(tokenId, to, salePrice);
+        
+        return tokenId;
     }
     
     // 수익 분배 실행 (인플루언서만 가능)

@@ -1,0 +1,56 @@
+<h2>IPNFT System</h2>
+<div class="api-grid">
+  <fieldset>
+    <legend>1. IPNFT 민팅 (POST /api/nft/ip/mint)</legend>
+    <form id="mint-ipnft-form" enctype="multipart/form-data">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <label>Name <input type="text" name="name" required /></label>
+      <label
+        >Description <input type="text" name="description" required
+      /></label>
+      <label>Price (DP) <input type="text" name="price" required /></label>
+      <label
+        >Supply Price (DP) <input type="text" name="supplyPrice" required
+      /></label>
+      <label
+        >Creator Type <input type="text" name="creatorType" required
+      /></label>
+      <label>IPFS Image <input type="file" name="ipfsImage" /></label>
+      <button type="submit">Mint IPNFT</button>
+    </form>
+    <pre id="mint-ipnft-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>2. 내 IPNFT 조회 (GET /api/nft/ip/my)</legend>
+    <form id="my-ipnft-form">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <button type="submit">Get My IPNFTs</button>
+    </form>
+    <pre id="my-ipnft-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>3. 전체 IPNFT 조회 (GET /api/nft/ip/list)</legend>
+    <button id="get-all-ipnft-btn">Get All IPNFTs</button>
+    <pre id="all-ipnft-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>4. 민팅 수수료 조회 (GET /api/nft/ip/minting-fee)</legend>
+    <button id="get-minting-fee-btn">Get Minting Fee</button>
+    <pre id="minting-fee-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>5. 민팅 수수료 변경 (관리자) (POST /api/nft/ip/minting-fee)</legend>
+    <form id="set-minting-fee-form">
+      <label
+        >Access Token(관리자) <input type="text" name="accessToken" required
+      /></label>
+      <label>New Fee (DP) <input type="text" name="newFee" required /></label>
+      <button type="submit">Set Minting Fee</button>
+    </form>
+    <pre id="set-minting-fee-result"></pre>
+  </fieldset>
+</div>

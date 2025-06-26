@@ -1,0 +1,113 @@
+<h2>Auth & Wallet</h2>
+<div class="api-grid">
+  <fieldset>
+    <legend>1. 이메일 인증 (GET /api/auth/:email/verify-email)</legend>
+    <form id="verify-email-form">
+      <label>Email <input type="email" name="email" required /></label>
+      <button type="submit">Verify Email</button>
+    </form>
+    <pre id="verify-email-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>2. 인증코드 발송 (GET /api/auth/:email/send-code)</legend>
+    <form id="send-code-form">
+      <label>Email <input type="email" name="email" required /></label>
+      <label
+        >Language
+        <select name="lang">
+          <option value="ko">한국어</option>
+          <option value="en">English</option>
+        </select></label
+      >
+      <label
+        >Template
+        <select name="template" required>
+          <option value="register">회원가입</option>
+          <option value="reset">비밀번호 재설정</option>
+          <option value="login">로그인</option>
+        </select></label
+      >
+      <button type="submit">Send Code</button>
+    </form>
+    <pre id="send-code-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>3. 인증코드 확인 (POST /api/auth/:email/verify-code)</legend>
+    <form id="verify-code-form">
+      <label>Email <input type="email" name="email" required /></label>
+      <label
+        >Verification Code <input type="text" name="code" required
+      /></label>
+      <button type="submit">Verify Code</button>
+    </form>
+    <pre id="verify-code-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>4. 회원가입 (POST /api/auth/register)</legend>
+    <form id="register-form">
+      <label>Email <input type="email" name="email" required /></label>
+      <label>Password <input type="password" name="password" required /></label>
+      <label
+        >Verification Code <input type="text" name="code" required
+      /></label>
+      <label>Overage Agreement <input type="checkbox" name="overage" /></label>
+      <label>Terms Agreement <input type="checkbox" name="agree" /></label>
+      <label>Privacy Collection <input type="checkbox" name="collect" /></label>
+      <label
+        >Third Party Sharing <input type="checkbox" name="thirdParty"
+      /></label>
+      <label>Advertisement <input type="checkbox" name="advertise" /></label>
+      <button type="submit">Register</button>
+    </form>
+    <pre id="register-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>5. 로그인 (POST /api/auth/login)</legend>
+    <form id="login-form">
+      <label>Email <input type="email" name="email" required /></label>
+      <label>Password <input type="password" name="password" required /></label>
+      <button type="submit">Login</button>
+    </form>
+    <pre id="login-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>6. 토큰 리프레시 (POST /api/auth/refresh-token)</legend>
+    <form id="refresh-form">
+      <label
+        >Refresh Token <input type="text" name="refreshToken" required
+      /></label>
+      <button type="submit">Refresh</button>
+    </form>
+    <pre id="refresh-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>7. 비밀번호 재설정 (POST /api/auth/reset-password)</legend>
+    <form id="reset-password-form">
+      <label>Email <input type="email" name="email" required /></label>
+      <label
+        >New Password <input type="password" name="password" required
+      /></label>
+      <label
+        >Verification Code <input type="text" name="code" required
+      /></label>
+      <button type="submit">Reset Password</button>
+    </form>
+    <pre id="reset-password-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>8. 비밀번호 변경 (POST /api/auth/change-password)</legend>
+    <form id="change-password-form">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <label
+        >Current Password <input type="password" name="oldpassword" required
+      /></label>
+      <label
+        >New Password <input type="password" name="newpassword" required
+      /></label>
+      <button type="submit">Change Password</button>
+    </form>
+    <pre id="change-password-result"></pre>
+  </fieldset>
+</div>

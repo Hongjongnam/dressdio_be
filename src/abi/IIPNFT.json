@@ -10,6 +10,11 @@
     "name": "getTokenInfo",
     "outputs": [
       {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
         "internalType": "string",
         "name": "name",
         "type": "string"
@@ -30,9 +35,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "string",
-        "name": "creator",
-        "type": "string"
+        "internalType": "address",
+        "name": "creatorAddress",
+        "type": "address"
       },
       {
         "internalType": "uint256",

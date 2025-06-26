@@ -71,7 +71,26 @@ service.registerUser = async (userObj) => {
   const auth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
 
   try {
+    logger.info("registerUser called with:", {
+      email: userObj.email,
+      code: userObj.code,
+      overage: userObj.overage,
+      agree: userObj.agree,
+      collect: userObj.collect,
+      thirdParty: userObj.thirdParty,
+      advertise: userObj.advertise,
+      channelId: userObj.channelId,
+    });
+
+    logger.info("Environment variables check:");
+    logger.info("BASE_URL:", BASE_URL);
+    logger.info("CLIENT_ID:", CLIENT_ID ? "SET" : "NOT SET");
+    logger.info("CLIENT_SECRET:", CLIENT_SECRET ? "SET" : "NOT SET");
+    logger.info("SERVICE_ID:", SERVICE_ID);
+
     const urlStr = `${BASE_URL}/member/user-management/users/v2/adduser`;
+    logger.info("Calling ABC WAAS API:", urlStr);
+
     const formData = qs.stringify({
       username: userObj.email,
       password: userObj.encryptedPassword,
@@ -84,16 +103,33 @@ service.registerUser = async (userObj) => {
       serviceid: SERVICE_ID,
     });
 
-    await axios.post(urlStr, formData, {
+    logger.info("Request payload:", formData);
+
+    const response = await axios.post(urlStr, formData, {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Basic ${auth}`,
         "Secure-Channel": `${userObj.channelId}`,
       },
     });
+
+    logger.info("ABC WAAS API response status:", response.status);
+    logger.info("ABC WAAS API response data:", response.data);
   } catch (error) {
+    logger.error("ABC WAAS API error details:", {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        headers: error.config?.headers,
+      },
+    });
+
     if (axios.isAxiosError(error)) {
-      throw new Error(error.response?.data.msg);
+      throw new Error(error.response?.data?.msg || error.message);
     }
 
     throw new Error(`Problem while registering user`);

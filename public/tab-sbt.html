@@ -1,0 +1,39 @@
+<h2>SBT Management</h2>
+<div class="api-grid">
+  <fieldset>
+    <legend>1. SBT 발행 (관리자) (POST /api/nft/sbt/mint)</legend>
+    <form id="mint-sbt-form">
+      <label
+        >Access Token(관리자) <input type="text" name="accessToken" required
+      /></label>
+      <label
+        >Creator Wallet Address
+        <input type="text" name="creatorWalletAddress" required
+      /></label>
+      <label
+        >Creator Type <input type="text" name="creatorType" required
+      /></label>
+      <label
+        >Creator Name <input type="text" name="creatorName" required
+      /></label>
+      <label>Description <input type="text" name="description" /></label>
+      <button type="submit">Mint SBT</button>
+    </form>
+    <pre id="mint-sbt-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>2. 내 SBT 조회 (GET /api/nft/sbt/:walletAddress)</legend>
+    <form id="my-sbt-form">
+      <label
+        >Wallet Address <input type="text" name="walletAddress" required
+      /></label>
+      <button type="submit">Get My SBT</button>
+    </form>
+    <pre id="my-sbt-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>3. 전체 SBT 조회 (GET /api/nft/sbt)</legend>
+    <button id="get-all-sbt-btn">Get All SBTs</button>
+    <pre id="all-sbt-result"></pre>
+  </fieldset>
+</div>

@@ -18,11 +18,12 @@ interface IIPNFTFactory {
 interface IIPNFT {
     function ownerOf(uint256 tokenId) external view returns (address);
     function getTokenInfo(uint256 tokenId) external view returns (
+        address owner,
         string memory name,
         string memory description,
         uint256 price,
         uint256 supplyPrice,
-        string memory creator,
+        address creatorAddress,
         uint256 creatorSBTId,
         string memory imageUri
     );
@@ -85,7 +86,7 @@ contract PlatformRegistry is Ownable {
     }
     
     // IPNFT 토큰 ID 검증
-    function isValidIPNFTTokenId(uint256 tokenId) external view returns (bool) {
+    function isRegisteredIPNFT(uint256 tokenId) external view returns (bool) {
         return validIPNFTTokenIds[tokenId];
     }
     
@@ -134,16 +135,16 @@ contract PlatformRegistry is Ownable {
         address ipnftAddress = factory.getIPNFTAddress();
         IIPNFT ipnft = IIPNFT(ipnftAddress);
         
-        address owner = ipnft.ownerOf(tokenId);
+        address owner;
         string memory name;
         string memory description;
         uint256 price;
         uint256 supplyPrice;
-        string memory creatorString;
+        address creatorAddress;
         uint256 creatorSBTId;
         string memory imageUri;
         
-        (name, description, price, supplyPrice, creatorString, creatorSBTId, imageUri) = ipnft.getTokenInfo(tokenId);
+        (owner, name, description, price, supplyPrice, creatorAddress, creatorSBTId, imageUri) = ipnft.getTokenInfo(tokenId);
         
         return IPNFTInfo({
             owner: owner,
@@ -151,7 +152,7 @@ contract PlatformRegistry is Ownable {
             description: description,
             price: price,
             supplyPrice: supplyPrice,
-            creatorAddress: stringToAddress(creatorString),
+            creatorAddress: creatorAddress,
             creatorSBTId: creatorSBTId,
             imageUri: imageUri
         });

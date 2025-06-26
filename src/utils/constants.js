@@ -8,11 +8,11 @@ const CREATOR_TYPES = {
 // IPFS URIs for each creator type
 const IPFS_URIS = {
   [CREATOR_TYPES.ARTIST]:
-    "https://ipfs.io/ipfs/QmVjNKowy3nqoaA7atZe615R7XcVcu2eMPknmimHnbybyV",
+    "https://ipfs.io/ipfs/QmX2vnXSmdHR8uZQNduQUv8e4XdAb1hKFYahbrfELZuCUR",
   [CREATOR_TYPES.INFLUENCER]:
-    "https://ipfs.io/ipfs/QmWA53Ma6jos1SqWA8b8ZuRKJh2bm5U26YYE5soHmKR38T",
+    "https://ipfs.io/ipfs/QmSWVngpmwDBcUikQTUNWXKUxxKhcQDFPoP5UwqXUT5BhF",
   [CREATOR_TYPES.BRAND]:
-    "https://ipfs.io/ipfs/QmX39UUBB2KVGs27qXscrqZYLmibDcUSUx5pnf8MoFEDHC",
+    "https://ipfs.io/ipfs/QmZQ3jf6Gnbw1Ez8BrCzNbXxc1pQFh2qKXwu1FubrnPgQU",
 };
 
 module.exports = {
