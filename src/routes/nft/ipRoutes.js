@@ -16,8 +16,14 @@ router.get("/list", ipController.list);
 // GET /api/nft/ip/my - 내가 소유한 IPNFT 조회 (authenticated)
 router.get("/my", auth, ipController.getMyIPNFTs);
 
+// GET /api/nft/ip/info/:tokenId - 특정 IPNFT 정보 조회 (public)
+router.get("/info/:tokenId", ipController.getIPNFTInfo);
+
 // GET /api/nft/ip/minting-fee - 현재 민팅 수수료 조회 (public)
 router.get("/minting-fee", ipController.getMintingFee);
 
 // POST /api/nft/ip/minting-fee - 민팅 수수료 변경 (관리자 전용)
 router.post("/minting-fee", ipController.setMintingFee);
+
+// POST /api/nft/ip/transfer-ownership - IPNFTFactory 소유권 이전
+router.post("/transfer-ownership", ipController.transferIpnftFactoryOwnership);

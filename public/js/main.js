@@ -28,10 +28,10 @@ document.addEventListener("DOMContentLoaded", function () {
         registerAuthHandlers();
         break;
       case "sbt":
-        registerSbtHandlers();
+        registerSBTHandlers();
         break;
       case "ipnft":
-        registerIpnftHandlers();
+        registerIPNFTHandlers();
         break;
       case "merchandise":
         registerMerchandiseHandlers();
@@ -71,7 +71,7 @@ async function callAPI(
     headers: {},
   };
 
-  // Authorization 헤더 추가
+  // Authorization 헤더는 항상 추가
   if (accessToken) {
     options.headers["Authorization"] = `Bearer ${accessToken}`;
   }
@@ -81,6 +81,7 @@ async function callAPI(
     options.body = JSON.stringify(data);
   } else if (data && isFormData) {
     options.body = data;
+    // Content-Type은 직접 지정하지 않음
   }
 
   try {
@@ -234,8 +235,8 @@ function registerAuthHandlers() {
 }
 
 // SBT 핸들러들
-function registerSbtHandlers() {
-  // SBT 발행
+function registerSBTHandlers() {
+  // SBT 발급
   const mintSbtForm = document.getElementById("mint-sbt-form");
   if (mintSbtForm) {
     mintSbtForm.addEventListener("submit", async (e) => {
@@ -243,7 +244,13 @@ function registerSbtHandlers() {
       const formData = new FormData(mintSbtForm);
       const data = Object.fromEntries(formData);
 
-      const result = await callAPI("/nft/sbt/mint", "POST", data);
+      const result = await callAPI(
+        "/nft/sbt/mint",
+        "POST",
+        data,
+        false,
+        data.accessToken
+      );
       document.getElementById("mint-sbt-result").textContent = JSON.stringify(
         result,
         null,
@@ -252,52 +259,78 @@ function registerSbtHandlers() {
     });
   }
 
-  // 내 SBT 조회
-  const mySbtForm = document.getElementById("my-sbt-form");
-  if (mySbtForm) {
-    mySbtForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(mySbtForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(`/nft/sbt/${data.walletAddress}`, "GET");
-      document.getElementById("my-sbt-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 전체 SBT 조회
+  // 전체 SBT 목록 조회
   const getAllSbtBtn = document.getElementById("get-all-sbt-btn");
   if (getAllSbtBtn) {
     getAllSbtBtn.addEventListener("click", async () => {
       const result = await callAPI("/nft/sbt", "GET");
-      document.getElementById("all-sbt-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
+      document.getElementById("get-all-sbt-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // SBT 정보 조회
+  const getSbtInfoForm = document.getElementById("get-sbt-info-form");
+  if (getSbtInfoForm) {
+    getSbtInfoForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(getSbtInfoForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(`/nft/sbt/info/${data.sbtId}`, "GET");
+      document.getElementById("get-sbt-info-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // 주소별 SBT 목록 조회
+  const getSbtByAddressForm = document.getElementById(
+    "get-sbt-by-address-form"
+  );
+  if (getSbtByAddressForm) {
+    getSbtByAddressForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(getSbtByAddressForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(`/nft/sbt/${data.address}`, "GET");
+      document.getElementById("get-sbt-by-address-result").textContent =
+        JSON.stringify(result, null, 2);
     });
   }
 }
 
 // IPNFT 핸들러들
-function registerIpnftHandlers() {
-  // IPNFT 민팅
+function registerIPNFTHandlers() {
+  // IPNFT 발급
   const mintIpnftForm = document.getElementById("mint-ipnft-form");
+  const ipfsImageInput = document.getElementById("ipfsImageInput");
+  const ipfsImagePreview = document.getElementById("ipfsImagePreview");
+
+  // 이미지 미리보기 기능 추가
+  if (ipfsImageInput && ipfsImagePreview) {
+    ipfsImageInput.addEventListener("change", function () {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          ipfsImagePreview.src = e.target.result;
+          ipfsImagePreview.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+      } else {
+        ipfsImagePreview.src = "";
+        ipfsImagePreview.style.display = "none";
+      }
+    });
+  }
+
   if (mintIpnftForm) {
     mintIpnftForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(mintIpnftForm);
-
-      // accessToken을 별도로 추출
       const accessToken = formData.get("accessToken");
-
-      // accessToken을 FormData에서 제거 (헤더로 전송할 예정)
-      formData.delete("accessToken");
-
+      formData.delete("accessToken"); // FormData에서 제거
       const result = await callAPI(
         "/nft/ip/mint",
         "POST",
@@ -322,7 +355,7 @@ function registerIpnftHandlers() {
       const data = Object.fromEntries(formData);
 
       const result = await callAPI(
-        "/nft/ip/my",
+        `/nft/ip/my`,
         "GET",
         null,
         false,
@@ -346,6 +379,20 @@ function registerIpnftHandlers() {
         null,
         2
       );
+    });
+  }
+
+  // IPNFT 정보 조회
+  const getIpnftInfoForm = document.getElementById("get-ipnft-info-form");
+  if (getIpnftInfoForm) {
+    getIpnftInfoForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(getIpnftInfoForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(`/nft/ip/info/${data.tokenId}`, "GET");
+      document.getElementById("get-ipnft-info-result").textContent =
+        JSON.stringify(result, null, 2);
     });
   }
 
@@ -506,6 +553,62 @@ function registerMerchandiseHandlers() {
     });
   }
 
+  // 내가 소유한 NFT 조회
+  const myNftsForm = document.getElementById("my-nfts-form");
+  if (myNftsForm) {
+    myNftsForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(myNftsForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(
+        "/nft/merchandise/my-nfts",
+        "GET",
+        null,
+        false,
+        data.accessToken
+      );
+      document.getElementById("my-nfts-result").textContent = JSON.stringify(
+        result,
+        null,
+        2
+      );
+    });
+  }
+
+  // 전체 Merchandise NFT 조회
+  const allNftsBtn = document.getElementById("all-nfts-btn");
+  if (allNftsBtn) {
+    allNftsBtn.addEventListener("click", async () => {
+      const result = await callAPI("/nft/merchandise/all-nfts", "GET");
+      document.getElementById("all-nfts-result").textContent = JSON.stringify(
+        result,
+        null,
+        2
+      );
+    });
+  }
+
+  // 특정 NFT 상세 조회
+  const nftDetailForm = document.getElementById("nft-detail-form");
+  if (nftDetailForm) {
+    nftDetailForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(nftDetailForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(
+        `/nft/merchandise/nft/${data.tokenId}`,
+        "GET"
+      );
+      document.getElementById("nft-detail-result").textContent = JSON.stringify(
+        result,
+        null,
+        2
+      );
+    });
+  }
+
   // 구매 취소
   const cancelPurchaseForm = document.getElementById("cancel-purchase-form");
   if (cancelPurchaseForm) {
@@ -580,26 +683,6 @@ function registerMerchandiseHandlers() {
 
 // Platform 핸들러들
 function registerPlatformHandlers() {
-  // 소유권 이전
-  const transferOwnershipForm = document.getElementById(
-    "transfer-ownership-form"
-  );
-  if (transferOwnershipForm) {
-    transferOwnershipForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(transferOwnershipForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/platform/transfer-ownership",
-        "POST",
-        data
-      );
-      document.getElementById("transfer-ownership-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
   // 현재 소유자 조회
   const getOwnerBtn = document.getElementById("get-owner-btn");
   if (getOwnerBtn) {
@@ -613,7 +696,7 @@ function registerPlatformHandlers() {
     });
   }
 
-  // 상태 조회
+  // PlatformRegistry 상태 조회
   const getStatusBtn = document.getElementById("get-status-btn");
   if (getStatusBtn) {
     getStatusBtn.addEventListener("click", async () => {
@@ -634,13 +717,19 @@ function registerPlatformHandlers() {
       const formData = new FormData(setFactoryForm);
       const data = Object.fromEntries(formData);
 
-      const result = await callAPI("/nft/platform/set-factory", "POST", data);
+      const result = await callAPI(
+        "/nft/platform/set-factory",
+        "POST",
+        data,
+        false,
+        data.accessToken
+      );
       document.getElementById("set-factory-result").textContent =
         JSON.stringify(result, null, 2);
     });
   }
 
-  // 주소 조회
+  // 주요 컨트랙트 주소 조회
   const getAddressesBtn = document.getElementById("get-addresses-btn");
   if (getAddressesBtn) {
     getAddressesBtn.addEventListener("click", async () => {
@@ -649,6 +738,84 @@ function registerPlatformHandlers() {
         JSON.stringify(result, null, 2);
     });
   }
+
+  // 통합 소유권 이전
+  document
+    .getElementById("transferAllOwnershipForm")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const accessToken = formData.get("accessToken");
+
+      try {
+        const response = await fetch(
+          "/api/nft/platform/transfer-all-ownership",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              newOwner: formData.get("newOwner"),
+            }),
+          }
+        );
+
+        const result = await response.json();
+        const responseArea = document.getElementById(
+          "transferAllOwnershipResponse"
+        );
+        responseArea.innerHTML = `<pre>${JSON.stringify(
+          result,
+          null,
+          2
+        )}</pre>`;
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById(
+          "transferAllOwnershipResponse"
+        ).innerHTML = `<pre>Error: ${error.message}</pre>`;
+      }
+    });
+
+  // 개별 소유권 이전
+  document
+    .getElementById("transferOwnershipForm")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const accessToken = formData.get("accessToken");
+
+      try {
+        const response = await fetch("/api/nft/platform/transfer-ownership", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            contractType: formData.get("contractType"),
+            newOwner: formData.get("newOwner"),
+          }),
+        });
+
+        const result = await response.json();
+        const responseArea = document.getElementById(
+          "transferOwnershipResponse"
+        );
+        responseArea.innerHTML = `<pre>${JSON.stringify(
+          result,
+          null,
+          2
+        )}</pre>`;
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById(
+          "transferOwnershipResponse"
+        ).innerHTML = `<pre>Error: ${error.message}</pre>`;
+      }
+    });
 }
 
 // Blockchain 핸들러들
@@ -667,6 +834,38 @@ function registerBlockchainHandlers() {
         null,
         2
       );
+    });
+  }
+
+  // IPFS 파일 업로드
+  const ipfsUploadFileForm = document.getElementById("ipfs-upload-file-form");
+  if (ipfsUploadFileForm) {
+    ipfsUploadFileForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(ipfsUploadFileForm);
+
+      const result = await callAPI(
+        "/utils/ipfs/upload-file",
+        "POST",
+        formData,
+        true
+      );
+      document.getElementById("ipfs-upload-file-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // IPFS JSON 업로드
+  const ipfsUploadJsonForm = document.getElementById("ipfs-upload-json-form");
+  if (ipfsUploadJsonForm) {
+    ipfsUploadJsonForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(ipfsUploadJsonForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI("/utils/ipfs/upload-json", "POST", data);
+      document.getElementById("ipfs-upload-json-result").textContent =
+        JSON.stringify(result, null, 2);
     });
   }
 

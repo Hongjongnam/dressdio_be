@@ -17,7 +17,13 @@
       <label
         >Creator Type <input type="text" name="creatorType" required
       /></label>
-      <label>IPFS Image <input type="file" name="ipfsImage" /></label>
+      <label
+        >IPFS Image <input type="file" name="ipfsImage" id="ipfsImageInput"
+      /></label>
+      <img
+        id="ipfsImagePreview"
+        style="max-width: 200px; display: none; margin-top: 10px"
+      />
       <button type="submit">Mint IPNFT</button>
     </form>
     <pre id="mint-ipnft-result"></pre>
@@ -52,5 +58,13 @@
       <button type="submit">Set Minting Fee</button>
     </form>
     <pre id="set-minting-fee-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>5. IPNFT 정보 조회 (GET /api/nft/ip/info/:tokenId)</legend>
+    <form id="get-ipnft-info-form">
+      <label>Token ID <input type="text" name="tokenId" required /></label>
+      <button type="submit">Get IPNFT Info</button>
+    </form>
+    <pre id="get-ipnft-info-result"></pre>
   </fieldset>
 </div>

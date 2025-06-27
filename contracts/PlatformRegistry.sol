@@ -76,7 +76,7 @@ contract PlatformRegistry is Ownable {
         sbtContract = _sbt;
         emit SBTRegistered(_sbt);
     }
-    
+
     // IPNFT 토큰 ID 등록 (IPNFT Factory에서 호출)
     function registerIPNFTTokenId(uint256 tokenId, address owner, string memory creatorType) external onlyRegisteredContracts {
         validIPNFTTokenIds[tokenId] = true;

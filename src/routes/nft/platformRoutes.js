@@ -10,4 +10,11 @@ router.get("/status", platformController.getStatus);
 router.post("/set-factory", auth, platformController.setFactory);
 router.get("/addresses", platformController.getAddresses);
 
+// 통합 소유권 이전
+router.post(
+  "/transfer-all-ownership",
+  auth,
+  platformController.transferAllOwnership
+);
+
 module.exports = router;

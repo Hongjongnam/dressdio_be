@@ -1,17 +1,24 @@
 <h2>Platform Admin</h2>
 <div class="api-grid">
   <fieldset>
-    <legend>1. 소유권 이전 (POST /api/nft/platform/transfer-ownership)</legend>
-    <form id="transfer-ownership-form">
+    <legend>
+      1. 통합 소유권 이전 (POST /api/nft/platform/transfer-all-ownership)
+    </legend>
+    <p>
+      PlatformRegistry, SBT, IPNFTFactory, MerchandiseFactory의 소유권을 모두
+      새로운 주소로 이전합니다.
+    </p>
+    <form id="transferAllOwnershipForm">
       <label
         >Access Token <input type="text" name="accessToken" required
       /></label>
       <label
-        >New Owner Address <input type="text" name="newOwner" required
+        >새로운 소유자 주소
+        <input type="text" name="newOwner" placeholder="0x..." required
       /></label>
-      <button type="submit">Transfer Ownership</button>
+      <button type="submit">통합 소유권 이전</button>
     </form>
-    <pre id="transfer-ownership-result"></pre>
+    <pre id="transferAllOwnershipResponse"></pre>
   </fieldset>
   <fieldset>
     <legend>2. 현재 소유자 조회 (GET /api/nft/platform/owner)</legend>
@@ -51,5 +58,32 @@
     </legend>
     <button id="get-addresses-btn">Get Addresses</button>
     <pre id="get-addresses-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      6. 개별 소유권 이전 (POST /api/nft/platform/transfer-ownership)
+    </legend>
+    <p>특정 컨트랙트의 소유권을 새로운 주소로 이전합니다.</p>
+    <form id="transferOwnershipForm">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <label
+        >컨트랙트 타입
+        <select name="contractType" required>
+          <option value="">선택하세요</option>
+          <option value="platformRegistry">PlatformRegistry</option>
+          <option value="sbtContract">SBT Contract</option>
+          <option value="ipnftFactory">IPNFTFactory</option>
+          <option value="merchandiseFactory">MerchandiseFactory</option>
+        </select>
+      </label>
+      <label
+        >새로운 소유자 주소
+        <input type="text" name="newOwner" placeholder="0x..." required
+      /></label>
+      <button type="submit">개별 소유권 이전</button>
+    </form>
+    <pre id="transferOwnershipResponse"></pre>
   </fieldset>
 </div>

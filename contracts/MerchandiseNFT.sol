@@ -42,7 +42,7 @@ contract MerchandiseNFT is ERC721, Ownable {
     event RevenueShareUpdated(address recipient, uint256 share);
     
     address public ipnftContract; // IPNFT 컨트랙트 주소 저장
-    
+
     constructor(
         string memory _name,
         string memory _symbol,
@@ -76,7 +76,7 @@ contract MerchandiseNFT is ERC721, Ownable {
         isActive = _isActive;
         emit ProjectActivated(_isActive);
     }
-    
+
     // 수익 분배 대상 및 비율 설정 (인플루언서만 가능)
     function setRevenueShares(
         address[] memory _recipients,
@@ -129,7 +129,7 @@ contract MerchandiseNFT is ERC721, Ownable {
         
         return tokenId;
     }
-    
+
     // 수익 분배 실행 (인플루언서만 가능)
     function distributeRevenue() external {
         require(msg.sender == influencer, "Only influencer can distribute revenue");
