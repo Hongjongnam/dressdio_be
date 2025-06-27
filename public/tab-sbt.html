@@ -1,39 +1,66 @@
-<h2>SBT Management</h2>
+<h2>SBT (Soulbound Token)</h2>
 <div class="api-grid">
   <fieldset>
-    <legend>1. SBT 발행 (관리자) (POST /api/nft/sbt/mint)</legend>
+    <legend>1. SBT 발급 (POST /api/nft/sbt/mint)</legend>
     <form id="mint-sbt-form">
       <label
-        >Access Token(관리자) <input type="text" name="accessToken" required
+        >Access Token <input type="text" name="accessToken" required
       /></label>
       <label
         >Creator Wallet Address
-        <input type="text" name="creatorWalletAddress" required
+        <input
+          type="text"
+          name="creatorWalletAddress"
+          required
+          placeholder="0x..."
       /></label>
       <label
-        >Creator Type <input type="text" name="creatorType" required
-      /></label>
+        >Creator Type
+        <select name="creatorType" required>
+          <option value="">선택하세요</option>
+          <option value="brand">Brand</option>
+          <option value="artist">Artist</option>
+          <option value="influencer">Influencer</option>
+        </select>
+      </label>
       <label
         >Creator Name <input type="text" name="creatorName" required
       /></label>
-      <label>Description <input type="text" name="description" /></label>
+      <label
+        >Description <input type="text" name="description" required
+      /></label>
+      <small style="color: #666; display: block; margin-bottom: 10px">
+        💡 크리에이터 타입에 따라 자동으로 이미지 URI가 설정됩니다:
+        <br />• Brand:
+        https://ipfs.io/ipfs/QmZQ3jf6Gnbw1Ez8BrCzNbXxc1pQFh2qKXwu1FubrnPgQU
+        <br />• Artist:
+        https://ipfs.io/ipfs/QmX2vnXSmdHR8uZQNduQUv8e4XdAb1hKFYahbrfELZuCUR
+        <br />• Influencer:
+        https://ipfs.io/ipfs/QmSWVngpmwDBcUikQTUNWXKUxxKhcQDFPoP5UwqXUT5BhF
+      </small>
       <button type="submit">Mint SBT</button>
     </form>
     <pre id="mint-sbt-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>2. 내 SBT 조회 (GET /api/nft/sbt/:walletAddress)</legend>
-    <form id="my-sbt-form">
-      <label
-        >Wallet Address <input type="text" name="walletAddress" required
-      /></label>
-      <button type="submit">Get My SBT</button>
-    </form>
-    <pre id="my-sbt-result"></pre>
+    <legend>2. 전체 SBT 목록 조회 (GET /api/nft/sbt)</legend>
+    <button id="get-all-sbt-btn">Get All SBTs</button>
+    <pre id="get-all-sbt-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>3. 전체 SBT 조회 (GET /api/nft/sbt)</legend>
-    <button id="get-all-sbt-btn">Get All SBTs</button>
-    <pre id="all-sbt-result"></pre>
+    <legend>3. SBT 정보 조회 (GET /api/nft/sbt/info/:sbtId)</legend>
+    <form id="get-sbt-info-form">
+      <label>SBT ID <input type="text" name="sbtId" required /></label>
+      <button type="submit">Get SBT Info</button>
+    </form>
+    <pre id="get-sbt-info-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>4. 주소별 SBT 목록 조회 (GET /api/nft/sbt/:walletAddress)</legend>
+    <form id="get-sbt-by-address-form">
+      <label>Address <input type="text" name="address" required /></label>
+      <button type="submit">Get SBTs by Address</button>
+    </form>
+    <pre id="get-sbt-by-address-result"></pre>
   </fieldset>
 </div>

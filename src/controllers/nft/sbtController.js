@@ -73,10 +73,32 @@ exports.mintSbt = async (req, res) => {
   }
 
   // 2. 관리자 지갑 주소와 일치하는지 확인
-  const adminWalletAddress = (
-    process.env.PLATFORM_ADMIN_WALLET_ADDRESS || ""
-  ).toLowerCase();
-  console.log("[SBT/MINT] PLATFORM_ADMIN_WALLET_ADDRESS:", adminWalletAddress);
+  let adminWalletAddress;
+  try {
+    // PlatformRegistry의 현재 owner를 동적으로 조회
+    const { platformRegistryContract } = require("../../config/web3");
+    adminWalletAddress = (
+      await platformRegistryContract.methods.owner().call()
+    ).toLowerCase();
+    console.log(
+      "[SBT/MINT] PlatformRegistry current owner:",
+      adminWalletAddress
+    );
+  } catch (error) {
+    console.error("[SBT/MINT] Failed to get PlatformRegistry owner:", error);
+    // 폴백으로 환경 변수 사용
+    adminWalletAddress = (
+      process.env.PLATFORM_ADMIN_WALLET_ADDRESS || ""
+    ).toLowerCase();
+    console.log(
+      "[SBT/MINT] Using fallback PLATFORM_ADMIN_WALLET_ADDRESS:",
+      adminWalletAddress
+    );
+  }
+
+  console.log("[SBT/MINT] User wallet address:", userWalletAddress);
+  console.log("[SBT/MINT] Admin wallet address:", adminWalletAddress);
+
   if (userWalletAddress !== adminWalletAddress) {
     return res.status(403).json({
       status: "error",
@@ -116,7 +138,7 @@ exports.mintSbt = async (req, res) => {
     });
   }
 
-  // 6. SBT 발행을 위한 준비
+  // 6. SBT 발행을 위한 준비 - 크리에이터 타입에 따라 자동으로 이미지 URI 설정
   const tokenUri = IPFS_URIS[normalizedCreatorType];
   console.log("[SBT/MINT] mint params:", {
     to: creatorWalletAddress,
@@ -186,7 +208,15 @@ exports.mintSbt = async (req, res) => {
     const txHash = await blockchainService.sendTransaction(signedTx);
     console.log("[SBT/MINT] txHash:", txHash);
 
-    return res.status(200).json({ status: "success", data: { txHash } });
+    return res.status(200).json({
+      status: "success",
+      data: {
+        txHash,
+        creatorType: normalizedCreatorType,
+        imageUri: tokenUri,
+        message: `SBT minted successfully for ${creatorType} type with auto-assigned image URI`,
+      },
+    });
   } catch (error) {
     console.error("[SBT/MINT] error:", error);
     return res.status(500).json({
@@ -367,6 +397,181 @@ exports.getAllSBTs = async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to retrieve SBTs",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * SBT 정보 조회 (토큰 ID로)
+ * @param {Object} req - Express request object
+ * @param {string} req.params.sbtId - SBT 토큰 ID
+ * @param {Object} res - Express response object
+ */
+exports.getSbtInfo = async (req, res) => {
+  try {
+    const { sbtId } = req.params;
+
+    if (!sbtId || isNaN(sbtId)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Valid SBT ID is required",
+      });
+    }
+
+    const sbtInfo = await sbtContract.methods.getSBTInfoById(sbtId).call();
+
+    if (
+      !sbtInfo ||
+      !sbtInfo.owner ||
+      sbtInfo.owner === "0x0000000000000000000000000000000000000000"
+    ) {
+      return res.status(404).json({
+        status: "error",
+        message: "SBT not found",
+      });
+    }
+
+    const formattedSbtInfo = formatSbtInfo(sbtInfo);
+
+    res.status(200).json({
+      status: "success",
+      message: "SBT info retrieved successfully",
+      data: formattedSbtInfo,
+    });
+  } catch (error) {
+    logger.error("SBT info retrieval error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to retrieve SBT info",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * SBT 컨트랙트 소유권 이전
+ * @param {Object} req - Express request object
+ * @param {string} req.body.accessToken - Platform Admin access token
+ * @param {string} req.body.newOwner - 새로운 소유자 주소
+ * @param {Object} res - Express response object
+ */
+exports.transferSbtOwnership = async (req, res) => {
+  const accessToken = req.body.accessToken;
+  const newOwner = req.body.newOwner;
+
+  // 1. accessToken으로 walletService에서 직접 지갑 주소 조회
+  let userWalletAddress;
+  let email;
+  try {
+    const walletInfo = await walletService.getWallet(accessToken);
+    userWalletAddress = (walletInfo.address || "").toLowerCase();
+    email = walletInfo.email;
+    console.log(
+      "[SBT/TRANSFER_OWNERSHIP] accessToken wallet address:",
+      userWalletAddress
+    );
+  } catch (error) {
+    return res
+      .status(401)
+      .json({ status: "error", message: "Invalid or expired access token" });
+  }
+
+  // 2. SBT 컨트랙트의 현재 owner와 일치하는지 확인
+  let sbtOwnerAddress;
+  try {
+    sbtOwnerAddress = (await sbtContract.methods.owner().call()).toLowerCase();
+    console.log(
+      "[SBT/TRANSFER_OWNERSHIP] SBT contract current owner:",
+      sbtOwnerAddress
+    );
+  } catch (error) {
+    console.error(
+      "[SBT/TRANSFER_OWNERSHIP] Failed to get SBT contract owner:",
+      error
+    );
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to get SBT contract owner",
+    });
+  }
+
+  if (userWalletAddress !== sbtOwnerAddress) {
+    return res.status(403).json({
+      status: "error",
+      message: "Unauthorized: Only SBT contract owner can transfer ownership",
+    });
+  }
+
+  // 3. 새로운 소유자 주소 검증
+  if (!validateWalletAddress(newOwner)) {
+    return res.status(400).json({
+      status: "error",
+      message: "Invalid new owner address format",
+    });
+  }
+
+  // 4. SBT 컨트랙트 소유권 이전
+  try {
+    // 1) 보안 채널 생성
+    const secureChannelRes = await authService.createSecureChannel();
+    const encryptedDevicePassword = authService.encrypt(
+      secureChannelRes,
+      process.env.DEVICE_PASSWORD
+    );
+
+    // 2) 지갑 정보 조회 및 필요시 생성
+    let walletData = await walletService.getWallet(accessToken);
+    walletData = await walletService.createWallet(
+      email,
+      encryptedDevicePassword,
+      secureChannelRes.ChannelID,
+      accessToken
+    );
+
+    // 3) transferOwnership 함수 데이터 생성
+    const transferOwnershipData = web3.eth.abi.encodeFunctionCall(
+      {
+        name: "transferOwnership",
+        type: "function",
+        inputs: [{ type: "address", name: "newOwner" }],
+      },
+      [newOwner]
+    );
+
+    const txData = {
+      to: sbtContract.options.address,
+      data: transferOwnershipData,
+      value: "0",
+    };
+
+    console.log("[SBT/TRANSFER_OWNERSHIP] txData:", txData);
+
+    // 4) 트랜잭션 서명 및 전송
+    const signedTx = await blockchainService.signTransaction(
+      secureChannelRes,
+      walletData,
+      txData,
+      accessToken
+    );
+
+    const txHash = await blockchainService.sendTransaction(signedTx);
+    console.log("[SBT/TRANSFER_OWNERSHIP] txHash:", txHash);
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        txHash,
+        previousOwner: userWalletAddress,
+        newOwner: newOwner,
+        message: `SBT contract ownership transferred from ${userWalletAddress} to ${newOwner}`,
+      },
+    });
+  } catch (error) {
+    console.error("[SBT/TRANSFER_OWNERSHIP] error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to transfer SBT ownership",
       error: error.message,
     });
   }

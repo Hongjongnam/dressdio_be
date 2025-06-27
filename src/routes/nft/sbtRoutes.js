@@ -24,11 +24,25 @@ router.get("/admin/balance", sbtController.getAdminBalance);
 router.post("/mint", sbtController.mintSbt);
 
 /**
+ * @route POST /api/nft/sbt/transfer-ownership
+ * @desc Transfer SBT contract ownership
+ * @access Public
+ */
+router.post("/transfer-ownership", sbtController.transferSbtOwnership);
+
+/**
  * @route GET /api/nft/sbt/db/:walletAddress
  * @desc Get SBT information from database by wallet address
  * @access Public
  */
 router.get("/db/:walletAddress", sbtController.getSBT);
+
+/**
+ * @route GET /api/nft/sbt/info/:sbtId
+ * @desc Get SBT information by token ID
+ * @access Public
+ */
+router.get("/info/:sbtId", sbtController.getSbtInfo);
 
 /**
  * @route GET /api/nft/sbt/:walletAddress

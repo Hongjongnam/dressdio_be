@@ -3,16 +3,27 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "./PlatformRegistry.sol";
 import "./CreatorSBT.sol";
 
-contract MerchandiseFactory is Ownable {
+contract MerchandiseFactory is ERC721, Ownable {
+    using Strings for uint256;
+
     PlatformRegistry public platformRegistry;
     CreatorSBT public sbtContract;
     IERC20 public dpToken; // DP 토큰 컨트랙트
     
     // 프로젝트 ID 관리
     uint256 public nextProjectId;
+    
+    // NFT 메타데이터 관련
+    string public baseTokenURI;
+    mapping(uint256 => string) public tokenURIs; // 토큰별 메타데이터 URI
+    mapping(uint256 => uint256) public tokenToProject; // 토큰 ID -> 프로젝트 ID 매핑
+    mapping(uint256 => uint256) public projectToTokenStart; // 프로젝트별 시작 토큰 ID
+    uint256 private _nextTokenId; // 다음 토큰 ID
     
     // 프로젝트 정보 구조체
     struct ProjectInfo {
@@ -93,14 +104,14 @@ contract MerchandiseFactory is Ownable {
         address _platformRegistry, 
         address _sbtContract,
         address _dpToken
-    ) Ownable(msg.sender) {
+    ) ERC721("MerchandiseFactory", "MCF") Ownable(msg.sender) {
         platformRegistry = PlatformRegistry(_platformRegistry);
         sbtContract = CreatorSBT(_sbtContract);
         dpToken = IERC20(_dpToken);
         platformFeeCollector = msg.sender; // 초기에는 배포자가 수수료 수취
         nextProjectId = 0; // 프로젝트 ID는 0부터 시작
     }
-    
+
     // 인플루언서 SBT 검증
     modifier onlyInfluencer() {
         require(
@@ -128,7 +139,7 @@ contract MerchandiseFactory is Ownable {
         require(purchaseRequests[projectId][requestId].buyer != address(0), "Purchase request does not exist");
         _;
     }
-    
+
     // IPNFT 존재 여부 검증
     modifier validIPNFT(uint256 tokenId) {
         // IPNFT Factory에서 IPNFT 주소 조회 후 존재 여부 확인
@@ -184,6 +195,9 @@ contract MerchandiseFactory is Ownable {
             mintedCount: 0
         });
         
+        // 프로젝트별 토큰 ID 범위 설정
+        projectToTokenStart[projectId] = _nextTokenId;
+        
         // 인플루언서별 프로젝트 목록에 추가
         influencerProjects[msg.sender].push(projectId);
         
@@ -238,11 +252,26 @@ contract MerchandiseFactory is Ownable {
         ProjectInfo storage project = projects[projectId];
         require(project.mintedCount < project.totalSupply, "All merchandise sold out");
         
-        uint256 tokenId = project.mintedCount;
+        // NFT 민팅을 위한 토큰 ID 계산
+        uint256 actualTokenId = projectToTokenStart[projectId] + project.mintedCount;
         project.mintedCount++;
         
         request.isConfirmed = true;
-        request.tokenId = tokenId;
+        request.tokenId = actualTokenId;
+        
+        // NFT 민팅 실행
+        _mint(request.buyer, actualTokenId);
+        tokenToProject[actualTokenId] = projectId;
+        
+        // 토큰 메타데이터 URI 설정
+        string memory metadataURI = string(abi.encodePacked(
+            project.projectImageURI,
+            "?tokenId=",
+            actualTokenId.toString(),
+            "&projectId=",
+            projectId.toString()
+        ));
+        tokenURIs[actualTokenId] = metadataURI;
         
         uint256 totalPrice = request.amount;
         uint256 brandPrice = 0;
@@ -272,7 +301,7 @@ contract MerchandiseFactory is Ownable {
         require(influencerMargin >= 0, "Invalid margin");
         
         if (brandPrice > 0 && brandOwner != address(0)) {
-            uint256 brandFee = brandPrice / 100;
+            uint256 brandFee = (brandPrice * platformFeePercentage) / 10000; // 1% 수수료
             uint256 brandNet = brandPrice - brandFee;
             require(dpToken.transfer(brandOwner, brandNet), "DP to brand owner failed");
             require(dpToken.transfer(platformFeeCollector, brandFee), "DP to platform (brand) failed");
@@ -280,7 +309,7 @@ contract MerchandiseFactory is Ownable {
         
         for (uint i = 0; i < artistOwners.length; i++) {
             if (artistPrices[i] > 0 && artistOwners[i] != address(0)) {
-                uint256 artistFee = artistPrices[i] / 100;
+                uint256 artistFee = (artistPrices[i] * platformFeePercentage) / 10000; // 1% 수수료
                 uint256 artistNet = artistPrices[i] - artistFee;
                 require(dpToken.transfer(artistOwners[i], artistNet), "DP to artist failed");
                 require(dpToken.transfer(platformFeeCollector, artistFee), "DP to platform (artist) failed");
@@ -288,13 +317,13 @@ contract MerchandiseFactory is Ownable {
         }
         
         if (influencerMargin > 0) {
-            uint256 influencerFee = influencerMargin / 100;
+            uint256 influencerFee = (influencerMargin * platformFeePercentage) / 10000; // 1% 수수료
             uint256 influencerNet = influencerMargin - influencerFee;
             require(dpToken.transfer(project.influencer, influencerNet), "DP to influencer failed");
             require(dpToken.transfer(platformFeeCollector, influencerFee), "DP to platform (influencer) failed");
         }
         
-        emit PurchaseConfirmed(projectId, requestId, request.buyer, tokenId, request.amount);
+        emit PurchaseConfirmed(projectId, requestId, request.buyer, actualTokenId, request.amount);
     }
     
     // 구매 취소 (구매자 또는 인플루언서가 취소)
@@ -472,5 +501,60 @@ contract MerchandiseFactory is Ownable {
     function setSBTContract(address _sbtContract) external {
         require(msg.sender == platformRegistry.owner(), "Only platform registry owner can set SBT contract");
         sbtContract = CreatorSBT(_sbtContract);
+    }
+    
+    // 토큰 URI 조회
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        require(_exists(tokenId), "Token does not exist");
+        
+        if (bytes(tokenURIs[tokenId]).length > 0) {
+            return tokenURIs[tokenId];
+        }
+        
+        // 기본 URI가 설정되어 있으면 사용
+        if (bytes(baseTokenURI).length > 0) {
+            return string(abi.encodePacked(baseTokenURI, tokenId.toString()));
+        }
+        
+        // 프로젝트 정보에서 기본 이미지 반환
+        uint256 projectId = tokenToProject[tokenId];
+        if (projectId < nextProjectId) {
+            return projects[projectId].projectImageURI;
+    }
+
+        return "";
+    }
+    
+    // 토큰별 프로젝트 ID 조회
+    function getTokenProject(uint256 tokenId) external view returns (uint256) {
+        require(_exists(tokenId), "Token does not exist");
+        return tokenToProject[tokenId];
+    }
+    
+    // 프로젝트별 토큰 시작 ID 조회
+    function getProjectTokenStart(uint256 projectId) external view returns (uint256) {
+        require(projectId < nextProjectId, "Project does not exist");
+        return projectToTokenStart[projectId];
+    }
+    
+    // 기본 URI 설정 (소유자만)
+    function setBaseTokenURI(string memory _baseTokenURI) external onlyOwner {
+        baseTokenURI = _baseTokenURI;
+    }
+    
+    // 토큰별 URI 설정 (소유자만)
+    function setTokenURI(uint256 tokenId, string memory _tokenURI) external onlyOwner {
+        require(_exists(tokenId), "Token does not exist");
+        tokenURIs[tokenId] = _tokenURI;
+    }
+    
+    // 토큰 존재 여부 확인 (내부 함수)
+    function _exists(uint256 tokenId) internal view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+    
+    // 토큰 존재 여부 확인 (공개 함수)
+    function exists(uint256 tokenId) public view returns (bool) {
+        return _exists(tokenId);
     }
 }

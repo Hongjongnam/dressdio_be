@@ -14,7 +14,38 @@
     <pre id="faucet-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>2. 내 계정 정보 (GET /api/auth/account)</legend>
+    <legend>2. IPFS 파일 업로드 (POST /api/utils/ipfs/upload-file)</legend>
+    <form id="ipfs-upload-file-form">
+      <label
+        >File
+        <input
+          type="file"
+          name="file"
+          accept="image/*,video/*,audio/*,application/*"
+          required
+      /></label>
+      <button type="submit">Upload File to IPFS</button>
+    </form>
+    <pre id="ipfs-upload-file-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>3. IPFS JSON 업로드 (POST /api/utils/ipfs/upload-json)</legend>
+    <form id="ipfs-upload-json-form">
+      <label
+        >JSON Data
+        <textarea
+          name="jsonData"
+          rows="5"
+          placeholder='{"name": "example", "description": "test"}'
+          required
+        ></textarea>
+      </label>
+      <button type="submit">Upload JSON to IPFS</button>
+    </form>
+    <pre id="ipfs-upload-json-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>4. 내 계정 정보 (GET /api/auth/account)</legend>
     <form id="account-form">
       <label
         >Access Token <input type="text" name="accessToken" required
@@ -24,7 +55,7 @@
     <pre id="account-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>3. 잔액 조회 (GET /api/auth/balance)</legend>
+    <legend>5. 잔액 조회 (GET /api/auth/balance)</legend>
     <form id="balance-form">
       <label
         >Access Token <input type="text" name="accessToken" required
@@ -35,7 +66,7 @@
   </fieldset>
   <fieldset>
     <legend>
-      4. 트랜잭션 서명 (POST /api/auth/blockchain/sign/transaction)
+      6. 트랜잭션 서명 (POST /api/auth/blockchain/sign/transaction)
     </legend>
     <form id="sign-tx-form">
       <label
@@ -50,7 +81,7 @@
     <pre id="sign-tx-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>5. 트랜잭션 전송 (POST /api/auth/blockchain/raw-tx/send)</legend>
+    <legend>7. 트랜잭션 전송 (POST /api/auth/blockchain/raw-tx/send)</legend>
     <form id="send-tx-form">
       <label
         >Signed Serialized Tx

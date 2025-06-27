@@ -55,4 +55,13 @@ router.get(
   merchandiseController.getBrandPendingProjects
 );
 
+// GET /api/nft/merchandise/my-nfts - 내가 소유한 Merchandise NFT 목록 조회
+router.get("/my-nfts", auth, merchandiseController.getMyMerchandiseNFTs);
+
+// GET /api/nft/merchandise/all-nfts - 전체 Merchandise NFT 목록 조회 (관리자용)
+router.get("/all-nfts", merchandiseController.getAllMerchandiseNFTs);
+
+// GET /api/nft/merchandise/nft/:tokenId - 특정 Merchandise NFT 정보 조회
+router.get("/nft/:tokenId", merchandiseController.getMerchandiseNFTInfo);
+
 module.exports = router;

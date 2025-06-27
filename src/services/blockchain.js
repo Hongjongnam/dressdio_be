@@ -80,9 +80,13 @@ service.signTransaction = async (
       });
       console.log("GAS PRICE: " + gasPrice);
       console.log("GAS ESTIMATE: " + gasEstimate);
-    } catch (_) {}
+    } catch (error) {
+      console.log("가스 추정 실패, 기본값 사용:", error.message);
+      // 복잡한 스마트 컨트랙트 함수의 경우 더 높은 가스 한도 사용
+      gasEstimate = 2000000; // 2M 가스로 증가
+    }
 
-    let gasLimit = Math.floor(parseInt(gasEstimate) * 1.2); // Adding 20% buffer
+    let gasLimit = Math.floor(parseInt(gasEstimate) * 1.5); // 50% 버퍼로 증가
 
     // Convert value from ETH to wei first, then to BigInt
     const valueInWei =

@@ -102,7 +102,34 @@
     <pre id="confirm-purchase-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>9. 구매 취소 (POST /api/nft/merchandise/cancel-purchase)</legend>
+    <legend>9. 내가 소유한 NFT 조회 (GET /api/nft/merchandise/my-nfts)</legend>
+    <form id="my-nfts-form">
+      <label
+        >Access Token <input type="text" name="accessToken" required
+      /></label>
+      <button type="submit">Get My NFTs</button>
+    </form>
+    <pre id="my-nfts-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      10. 전체 Merchandise NFT 조회 (GET /api/nft/merchandise/all-nfts)
+    </legend>
+    <button id="all-nfts-btn">Get All NFTs</button>
+    <pre id="all-nfts-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      11. 특정 NFT 상세 조회 (GET /api/nft/merchandise/nft/:tokenId)
+    </legend>
+    <form id="nft-detail-form">
+      <label>Token ID <input type="text" name="tokenId" required /></label>
+      <button type="submit">Get NFT Details</button>
+    </form>
+    <pre id="nft-detail-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>12. 구매 취소 (POST /api/nft/merchandise/cancel-purchase)</legend>
     <form id="cancel-purchase-form">
       <label
         >Access Token <input type="text" name="accessToken" required
@@ -115,7 +142,7 @@
   </fieldset>
   <fieldset>
     <legend>
-      10. 프로젝트별 구매 요청 목록 (GET
+      13. 프로젝트별 구매 요청 목록 (GET
       /api/nft/merchandise/purchase-requests/:projectId)
     </legend>
     <form id="project-purchase-requests-form">
@@ -126,7 +153,7 @@
   </fieldset>
   <fieldset>
     <legend>
-      11. 플랫폼 수수료 정보 (GET /api/nft/merchandise/platform-fee-info)
+      14. 플랫폼 수수료 정보 (GET /api/nft/merchandise/platform-fee-info)
     </legend>
     <button id="platform-fee-info-btn">Get Platform Fee Info</button>
     <pre id="platform-fee-info-result"></pre>
