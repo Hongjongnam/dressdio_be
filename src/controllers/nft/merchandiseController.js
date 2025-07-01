@@ -1017,9 +1017,35 @@ const requestPurchase = async (req, res) => {
 // 구매 확정 (구매자가 확정)
 const confirmPurchase = async (req, res) => {
   const accessToken = req.token;
-  const { projectId, requestId } = req.body;
+  let { projectId, requestId } = req.body;
 
-  if (!projectId || requestId === undefined) {
+  // 타입 체크 및 변환
+  if (typeof projectId === "string" && projectId.match(/^\d+$/))
+    projectId = Number(projectId);
+  if (typeof requestId === "string" && requestId.match(/^\d+$/))
+    requestId = Number(requestId);
+
+  // 잘못된 타입 방어
+  if (
+    typeof projectId !== "number" ||
+    typeof requestId !== "number" ||
+    isNaN(projectId) ||
+    isNaN(requestId)
+  ) {
+    console.warn(
+      "[confirmPurchase] projectId/requestId 타입 오류:",
+      projectId,
+      requestId,
+      typeof projectId,
+      typeof requestId
+    );
+    return res.status(400).json({
+      success: false,
+      message: "projectId와 requestId는 숫자여야 합니다.",
+    });
+  }
+
+  if (projectId === undefined || requestId === undefined) {
     return res.status(400).json({
       success: false,
       message: "프로젝트 ID와 요청 ID를 입력해주세요.",
@@ -1059,10 +1085,24 @@ const confirmPurchase = async (req, res) => {
     }
 
     // 3. 구매 요청 정보 확인
+    console.log("[confirmPurchase] 구매 요청 조회 파라미터:");
+    console.log(
+      "- 조회할 projectId:",
+      projectId,
+      "(타입:",
+      typeof projectId,
+      ")"
+    );
+    console.log(
+      "- 조회할 requestId:",
+      requestId,
+      "(타입:",
+      typeof requestId,
+      ")"
+    );
     const purchaseRequest = await merchandiseFactoryContract.methods
       .getPurchaseRequest(projectId, requestId)
       .call();
-
     console.log("[confirmPurchase] 구매 요청 정보:", purchaseRequest);
 
     if (
@@ -1252,30 +1292,33 @@ const confirmPurchase = async (req, res) => {
       console.log("platformFeePercentage:", platformFeePercentage.toString());
       if (brandPrice > 0n) {
         const brandFee = (brandPrice * platformFeePercentage) / 10000n;
+        const brandNet = brandPrice - brandFee;
         console.log(
           "brandFee:",
           brandFee.toString(),
           "brandNet:",
-          (brandPrice - brandFee).toString()
+          brandNet.toString()
         );
       }
       for (let i = 0; i < artistPrices.length; i++) {
         const artistFee = (artistPrices[i] * platformFeePercentage) / 10000n;
+        const artistNet = artistPrices[i] - artistFee;
         console.log(
           `artist[${i}] fee:`,
           artistFee.toString(),
           "net:",
-          (artistPrices[i] - artistFee).toString()
+          artistNet.toString()
         );
       }
       if (influencerMargin > 0n) {
         const influencerFee =
           (influencerMargin * platformFeePercentage) / 10000n;
+        const influencerNet = influencerMargin - influencerFee;
         console.log(
           "influencerFee:",
           influencerFee.toString(),
           "influencerNet:",
-          (influencerMargin - influencerFee).toString()
+          influencerNet.toString()
         );
       }
       console.log("=====================");
@@ -1285,6 +1328,11 @@ const confirmPurchase = async (req, res) => {
 
     // ABC 서버를 통한 트랜잭션 실행
     try {
+      // 디버깅: 실제 전달되는 값들 확인
+      console.log("[confirmPurchase] 함수 호출 파라미터:");
+      console.log("- projectId:", projectId, "(타입:", typeof projectId, ")");
+      console.log("- requestId:", requestId, "(타입:", typeof requestId, ")");
+
       // MerchandiseFactory 컨트랙트의 confirmPurchase 함수 호출을 위한 데이터 생성
       const confirmPurchaseData = merchandiseFactoryContract.methods
         .confirmPurchase(projectId, requestId)
@@ -1632,6 +1680,21 @@ const confirmPurchase = async (req, res) => {
         `- 인플루언서 (${projectInfo._influencer}) 컨트랙트 여부:`,
         influencerCode !== "0x"
       );
+
+      // 추가 디버깅: 실제 전달된 파라미터와 컨트랙트 상태 확인
+      console.log("[confirmPurchase] 추가 디버깅 정보:");
+      console.log("- 실제 전달된 projectId:", projectId);
+      console.log("- 실제 전달된 requestId:", requestId);
+
+      // 구매 요청이 실제로 존재하는지 다시 확인
+      try {
+        const actualRequest = await merchandiseFactoryContract.methods
+          .getPurchaseRequest(projectId, requestId)
+          .call();
+        console.log("- 실제 구매 요청 정보:", actualRequest);
+      } catch (reqError) {
+        console.log("- 구매 요청 조회 실패:", reqError.message);
+      }
 
       throw error; // 에러를 다시 던져서 catch 블록에서 처리
     }
