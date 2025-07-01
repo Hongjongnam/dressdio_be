@@ -99,6 +99,15 @@ contract MerchandiseFactory is ERC721, Ownable {
     
     // 디버깅용 이벤트
     event DebugAddress(address brandOwner, address msgSender, uint256 brandTokenId, bool isMatch);
+    event DebugDistribution(
+        string role,
+        address recipient,
+        uint256 beforeBalance,
+        uint256 afterBalance,
+        uint256 expectedAmount,
+        uint256 fee,
+        uint256 netAmount
+    );
 
     constructor(
         address _platformRegistry, 
@@ -280,11 +289,8 @@ contract MerchandiseFactory is ERC721, Ownable {
         address[] memory artistOwners = new address[](project.artistIPNFTTokenIds.length);
         uint256 artistTotal = 0;
         
-        if (project.brandIPNFTTokenId != 0) {
-            (
-                brandOwner, , , brandPrice, , , , 
-            ) = platformRegistry.getIPNFTInfo(project.brandIPNFTTokenId);
-        }
+        // 브랜드 분배 정보 조회 (tokenId가 0이어도 분배)
+        (brandOwner, , , brandPrice, , , , ) = platformRegistry.getIPNFTInfo(project.brandIPNFTTokenId);
         
         for (uint i = 0; i < project.artistIPNFTTokenIds.length; i++) {
             (
@@ -300,26 +306,36 @@ contract MerchandiseFactory is ERC721, Ownable {
         influencerMargin -= artistTotal;
         require(influencerMargin >= 0, "Invalid margin");
         
+        // 브랜드 분배
         if (brandPrice > 0 && brandOwner != address(0)) {
+            uint256 before = dpToken.balanceOf(brandOwner);
             uint256 brandFee = (brandPrice * platformFeePercentage) / 10000; // 1% 수수료
             uint256 brandNet = brandPrice - brandFee;
             require(dpToken.transfer(brandOwner, brandNet), "DP to brand owner failed");
+            uint256 afterB = dpToken.balanceOf(brandOwner);
+            emit DebugDistribution("brand", brandOwner, before, afterB, brandPrice, brandFee, brandNet);
             require(dpToken.transfer(platformFeeCollector, brandFee), "DP to platform (brand) failed");
         }
-        
+        // 아티스트 분배
         for (uint i = 0; i < artistOwners.length; i++) {
             if (artistPrices[i] > 0 && artistOwners[i] != address(0)) {
+                uint256 before = dpToken.balanceOf(artistOwners[i]);
                 uint256 artistFee = (artistPrices[i] * platformFeePercentage) / 10000; // 1% 수수료
                 uint256 artistNet = artistPrices[i] - artistFee;
                 require(dpToken.transfer(artistOwners[i], artistNet), "DP to artist failed");
+                uint256 afterB = dpToken.balanceOf(artistOwners[i]);
+                emit DebugDistribution("artist", artistOwners[i], before, afterB, artistPrices[i], artistFee, artistNet);
                 require(dpToken.transfer(platformFeeCollector, artistFee), "DP to platform (artist) failed");
             }
         }
-        
+        // 인플루언서 분배
         if (influencerMargin > 0) {
+            uint256 before = dpToken.balanceOf(project.influencer);
             uint256 influencerFee = (influencerMargin * platformFeePercentage) / 10000; // 1% 수수료
             uint256 influencerNet = influencerMargin - influencerFee;
             require(dpToken.transfer(project.influencer, influencerNet), "DP to influencer failed");
+            uint256 afterB = dpToken.balanceOf(project.influencer);
+            emit DebugDistribution("influencer", project.influencer, before, afterB, influencerMargin, influencerFee, influencerNet);
             require(dpToken.transfer(platformFeeCollector, influencerFee), "DP to platform (influencer) failed");
         }
         

@@ -8,12 +8,32 @@ const {
   ipnftFactoryAddress,
   platformRegistryAddress,
 } = require("../../config/web3");
-const { uploadFileToIPFS } = require("../../services/upload");
+const {
+  uploadFileToIPFS,
+  uploadBase64ImageToIPFS,
+} = require("../../services/upload");
 const authService = require("../../services/auth");
 const walletService = require("../../services/wallet");
 const blockchainService = require("../../services/blockchain");
+const receiptGenerator = require("../../utils/receiptGenerator");
+const pdfReceiptGenerator = require("../../utils/pdfReceiptGenerator");
 const logger = require("../../utils/logger");
 const { stringifyBigInts } = require("../../utils/utils");
+
+// base64 파싱 유틸 함수
+function parseBase64(base64String) {
+  const matches = base64String.match(/^data:(.+);base64,(.+)$/);
+  if (matches) {
+    return {
+      mimeType: matches[1],
+      base64: matches[2],
+    };
+  }
+  return {
+    mimeType: "image/png",
+    base64: base64String,
+  };
+}
 
 // 상품 프로젝트 생성
 const createProject = async (req, res) => {
@@ -85,7 +105,7 @@ const createProject = async (req, res) => {
     });
   }
 
-  // 1. 파일이 첨부된 경우 IPFS 업로드
+  // 1. 파일이 첨부된 경우 IPFS 업로드 또는 base64 string 처리
   if (req.files && req.files.length > 0) {
     try {
       console.log("파일 업로드 시작:", req.files[0].originalname);
@@ -100,14 +120,33 @@ const createProject = async (req, res) => {
         error: err.message,
       });
     }
+  } else if (req.body.base64Image) {
+    // base64 string 처리 (data:...;base64,... 또는 순수 base64)
+    try {
+      console.log("base64 이미지 업로드 시작");
+      let { mimeType, base64 } = parseBase64(req.body.base64Image);
+      let fileName = `upload_${Date.now()}.${mimeType.split("/")[1] || "png"}`;
+      projectImageUri = await uploadBase64ImageToIPFS(
+        base64,
+        fileName,
+        mimeType
+      );
+      console.log("IPFS 업로드 완료:", projectImageUri);
+    } catch (err) {
+      console.error("base64 IPFS 업로드 실패:", err);
+      return res.status(500).json({
+        success: false,
+        message: "base64 IPFS upload failed",
+        error: err.message,
+      });
+    }
   }
-
   // projectImageUri가 없으면 오류
   if (!projectImageUri) {
     return res.status(400).json({
       success: false,
       message:
-        "프로젝트 이미지를 업로드해주세요. (image 파일 또는 projectImageUri)",
+        "프로젝트 이미지를 업로드해주세요. (image 파일, base64Image, 또는 projectImageUri)",
     });
   }
 
@@ -975,7 +1014,7 @@ const requestPurchase = async (req, res) => {
   }
 };
 
-// 구매 확정 (인플루언서가 확정)
+// 구매 확정 (구매자가 확정)
 const confirmPurchase = async (req, res) => {
   const accessToken = req.token;
   const { projectId, requestId } = req.body;
@@ -1188,6 +1227,62 @@ const confirmPurchase = async (req, res) => {
     // 7. 구매 확정 실행
     console.log("[confirmPurchase] 구매 확정 실행 시작...");
 
+    // 분배 디버깅 로그 추가
+    try {
+      // 분배 관련 값 미리 계산 (스마트컨트랙트와 동일하게)
+      const totalPrice = BigInt(purchaseRequest.amount);
+      const brandPrice = BigInt(brandIPNFTInfo.price || 0);
+      const artistPrices = artistIPNFTInfos.map((info) =>
+        BigInt(info.price || 0)
+      );
+      const artistTotal = artistPrices.reduce((a, b) => a + b, 0n);
+      let influencerMargin = totalPrice;
+      if (brandPrice > 0n) influencerMargin -= brandPrice;
+      influencerMargin -= artistTotal;
+      const platformFeePercentage = 100n; // 1% (basis point)
+      console.log("==== [분배 디버깅] ====");
+      console.log("totalPrice:", totalPrice.toString());
+      console.log("brandPrice:", brandPrice.toString());
+      console.log(
+        "artistPrices:",
+        artistPrices.map((p) => p.toString())
+      );
+      console.log("artistTotal:", artistTotal.toString());
+      console.log("influencerMargin:", influencerMargin.toString());
+      console.log("platformFeePercentage:", platformFeePercentage.toString());
+      if (brandPrice > 0n) {
+        const brandFee = (brandPrice * platformFeePercentage) / 10000n;
+        console.log(
+          "brandFee:",
+          brandFee.toString(),
+          "brandNet:",
+          (brandPrice - brandFee).toString()
+        );
+      }
+      for (let i = 0; i < artistPrices.length; i++) {
+        const artistFee = (artistPrices[i] * platformFeePercentage) / 10000n;
+        console.log(
+          `artist[${i}] fee:`,
+          artistFee.toString(),
+          "net:",
+          (artistPrices[i] - artistFee).toString()
+        );
+      }
+      if (influencerMargin > 0n) {
+        const influencerFee =
+          (influencerMargin * platformFeePercentage) / 10000n;
+        console.log(
+          "influencerFee:",
+          influencerFee.toString(),
+          "influencerNet:",
+          (influencerMargin - influencerFee).toString()
+        );
+      }
+      console.log("=====================");
+    } catch (e) {
+      console.log("[분배 디버깅] 계산 중 오류:", e);
+    }
+
     // ABC 서버를 통한 트랜잭션 실행
     try {
       // MerchandiseFactory 컨트랙트의 confirmPurchase 함수 호출을 위한 데이터 생성
@@ -1237,6 +1332,139 @@ const confirmPurchase = async (req, res) => {
       );
 
       console.log("[confirmPurchase] 트랜잭션 영수증:", receipt);
+
+      // DebugDistribution 이벤트 로그 확인
+      console.log("=== DP 토큰 분배 로그 ===");
+      const debugDistributionSignature = web3.utils.keccak256(
+        "DebugDistribution(string,address,uint256,uint256,uint256,uint256,uint256)"
+      );
+
+      const debugEvents = receipt.logs.filter(
+        (log) => log.topics[0] === debugDistributionSignature
+      );
+
+      if (debugEvents.length > 0) {
+        console.log(`총 ${debugEvents.length}개의 분배 이벤트 발견`);
+
+        debugEvents.forEach((event, index) => {
+          try {
+            const decodedEvent = web3.eth.abi.decodeLog(
+              [
+                { type: "string", name: "role" },
+                { type: "address", name: "recipient" },
+                { type: "uint256", name: "beforeBalance" },
+                { type: "uint256", name: "afterBalance" },
+                { type: "uint256", name: "expectedAmount" },
+                { type: "uint256", name: "fee" },
+                { type: "uint256", name: "netAmount" },
+              ],
+              event.data,
+              event.topics.slice(1)
+            );
+
+            const actualIncrease =
+              BigInt(decodedEvent.afterBalance) -
+              BigInt(decodedEvent.beforeBalance);
+            const expectedNet = BigInt(decodedEvent.netAmount);
+
+            console.log(
+              `[${index + 1}] ${decodedEvent.role.toUpperCase()} 분배:`
+            );
+            console.log(`  - 수령자: ${decodedEvent.recipient}`);
+            console.log(
+              `  - 분배 전 잔액: ${web3.utils.fromWei(
+                decodedEvent.beforeBalance,
+                "ether"
+              )} DP`
+            );
+            console.log(
+              `  - 분배 후 잔액: ${web3.utils.fromWei(
+                decodedEvent.afterBalance,
+                "ether"
+              )} DP`
+            );
+            console.log(
+              `  - 기대 분배액: ${web3.utils.fromWei(
+                decodedEvent.expectedAmount,
+                "ether"
+              )} DP`
+            );
+            console.log(
+              `  - 수수료: ${web3.utils.fromWei(decodedEvent.fee, "ether")} DP`
+            );
+            console.log(
+              `  - 예상 수령액: ${web3.utils.fromWei(
+                decodedEvent.netAmount,
+                "ether"
+              )} DP`
+            );
+            console.log(
+              `  - 실제 증가량: ${web3.utils.fromWei(
+                actualIncrease.toString(),
+                "ether"
+              )} DP`
+            );
+            console.log(
+              `  - 일치 여부: ${
+                actualIncrease === expectedNet ? "✅ 일치" : "❌ 불일치"
+              }`
+            );
+            console.log("---");
+          } catch (decodeError) {
+            console.log(
+              `이벤트 ${index + 1} 디코딩 실패:`,
+              decodeError.message
+            );
+          }
+        });
+      } else {
+        console.log("DebugDistribution 이벤트를 찾을 수 없습니다.");
+      }
+      console.log("=========================");
+
+      // 영수증 생성을 위한 분배 데이터 수집
+      const distributionData = [];
+      if (debugEvents.length > 0) {
+        debugEvents.forEach((event) => {
+          try {
+            const decodedEvent = web3.eth.abi.decodeLog(
+              [
+                { type: "string", name: "role" },
+                { type: "address", name: "recipient" },
+                { type: "uint256", name: "beforeBalance" },
+                { type: "uint256", name: "afterBalance" },
+                { type: "uint256", name: "expectedAmount" },
+                { type: "uint256", name: "fee" },
+                { type: "uint256", name: "netAmount" },
+              ],
+              event.data,
+              event.topics.slice(1)
+            );
+
+            const actualIncrease =
+              BigInt(decodedEvent.afterBalance) -
+              BigInt(decodedEvent.beforeBalance);
+            const expectedNet = BigInt(decodedEvent.netAmount);
+
+            distributionData.push({
+              role: decodedEvent.role,
+              recipient: decodedEvent.recipient,
+              expectedAmount: decodedEvent.expectedAmount,
+              fee: decodedEvent.fee,
+              netAmount: decodedEvent.netAmount,
+              beforeBalance: decodedEvent.beforeBalance,
+              afterBalance: decodedEvent.afterBalance,
+              actualIncrease: actualIncrease.toString(),
+              isMatched: actualIncrease === expectedNet,
+            });
+          } catch (decodeError) {
+            console.log(
+              "분배 데이터 수집 중 디코딩 실패:",
+              decodeError.message
+            );
+          }
+        });
+      }
 
       // 확정된 구매 정보 추출 (이벤트에서)
       const expectedEventSignature = web3.utils.keccak256(
@@ -1302,6 +1530,45 @@ const confirmPurchase = async (req, res) => {
       console.log("[confirmPurchase] 구매자:", buyer);
       console.log("[confirmPurchase] 금액:", amount);
 
+      // 영수증 생성
+      let receiptId = null;
+      try {
+        const purchaseData = {
+          projectId: projectId,
+          requestId: requestId,
+          buyer: buyer,
+          tokenId: confirmedTokenId.toString(),
+          amount: amount.toString(),
+          amountInDP: web3.utils.fromWei(amount.toString() || "0", "ether"),
+          projectName: projectInfo._projectName,
+          description: projectInfo._productDescription,
+          imageUri: projectInfo._projectImageUri,
+          tokenUri: "", // NFT 토큰 URI는 별도로 조회 필요
+        };
+
+        const transactionData = {
+          hash: transactionHash.transactionHash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed,
+          timestamp: new Date().toISOString(),
+        };
+
+        const receiptResult = await receiptGenerator.generateReceipt(
+          purchaseData,
+          distributionData,
+          transactionData
+        );
+
+        if (receiptResult.success) {
+          receiptId = receiptResult.receiptId;
+          console.log("영수증 생성 완료:", receiptId);
+        } else {
+          console.log("영수증 생성 실패:", receiptResult.error);
+        }
+      } catch (receiptError) {
+        console.log("영수증 생성 중 오류:", receiptError.message);
+      }
+
       logger.info("구매 확정 완료", {
         influencerAddress: walletInfo.address,
         projectId: projectId,
@@ -1322,6 +1589,7 @@ const confirmPurchase = async (req, res) => {
           tokenId: confirmedTokenId.toString(),
           amount: web3.utils.fromWei(amount.toString() || "0", "ether"),
           txHash: transactionHash.transactionHash,
+          receiptId: receiptId,
         },
       });
     } catch (error) {
@@ -2574,6 +2842,235 @@ const getMerchandiseNFTInfo = async (req, res) => {
   }
 };
 
+// 영수증 조회 API들
+const getAllReceipts = async (req, res) => {
+  try {
+    const result = await receiptGenerator.getAllReceipts();
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: "영수증 목록을 성공적으로 조회했습니다.",
+        data: {
+          totalCount: result.receipts.length,
+          receipts: result.receipts,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: "영수증 목록 조회 중 오류가 발생했습니다.",
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    logger.error("영수증 목록 조회 실패", error);
+    res.status(500).json({
+      success: false,
+      message: "영수증 목록 조회 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+const getReceiptById = async (req, res) => {
+  const { receiptId } = req.params;
+
+  if (!receiptId) {
+    return res.status(400).json({
+      success: false,
+      message: "영수증 ID를 입력해주세요.",
+    });
+  }
+
+  try {
+    const result = await receiptGenerator.getReceipt(receiptId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: "영수증을 성공적으로 조회했습니다.",
+        data: result.receipt,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "영수증을 찾을 수 없습니다.",
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    logger.error("영수증 조회 실패", error);
+    res.status(500).json({
+      success: false,
+      message: "영수증 조회 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+const getReceiptsByProject = async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!projectId) {
+    return res.status(400).json({
+      success: false,
+      message: "프로젝트 ID를 입력해주세요.",
+    });
+  }
+
+  try {
+    const result = await receiptGenerator.getReceiptsByProject(projectId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: "프로젝트 영수증 목록을 성공적으로 조회했습니다.",
+        data: {
+          projectId: projectId,
+          totalCount: result.receipts.length,
+          receipts: result.receipts,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: "프로젝트 영수증 목록 조회 중 오류가 발생했습니다.",
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    logger.error("프로젝트 영수증 목록 조회 실패", error);
+    res.status(500).json({
+      success: false,
+      message: "프로젝트 영수증 목록 조회 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+// PDF 영수증 다운로드
+const downloadPDFReceipt = async (req, res) => {
+  const { receiptId } = req.params;
+
+  if (!receiptId) {
+    return res.status(400).json({
+      success: false,
+      message: "영수증 ID를 입력해주세요.",
+    });
+  }
+
+  try {
+    // 1. 영수증 JSON 데이터 조회
+    const receiptResult = await receiptGenerator.getReceipt(receiptId);
+
+    if (!receiptResult.success) {
+      return res.status(404).json({
+        success: false,
+        message: "영수증을 찾을 수 없습니다.",
+        error: receiptResult.error,
+      });
+    }
+
+    const receiptData = receiptResult.receipt;
+
+    // 2. PDF 생성 (없는 경우에만)
+    const pdfResult = await pdfReceiptGenerator.generatePDFIfNotExists(
+      receiptData
+    );
+
+    if (!pdfResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: "PDF 생성 중 오류가 발생했습니다.",
+        error: pdfResult.error,
+      });
+    }
+
+    // 3. PDF 파일 전송
+    const pdfPath = pdfResult.pdfPath;
+    const fileName = pdfResult.pdfFileName;
+
+    // 파일 존재 확인
+    const fs = require("fs");
+    if (!fs.existsSync(pdfPath)) {
+      return res.status(404).json({
+        success: false,
+        message: "PDF 파일을 찾을 수 없습니다.",
+      });
+    }
+
+    // PDF 파일 전송
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+  } catch (error) {
+    logger.error("PDF 영수증 다운로드 실패", error);
+    res.status(500).json({
+      success: false,
+      message: "PDF 영수증 다운로드 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+// PDF 영수증 생성 (JSON 데이터 기반)
+const generatePDFReceipt = async (req, res) => {
+  const { receiptId } = req.params;
+
+  if (!receiptId) {
+    return res.status(400).json({
+      success: false,
+      message: "영수증 ID를 입력해주세요.",
+    });
+  }
+
+  try {
+    // 1. 영수증 JSON 데이터 조회
+    const receiptResult = await receiptGenerator.getReceipt(receiptId);
+
+    if (!receiptResult.success) {
+      return res.status(404).json({
+        success: false,
+        message: "영수증을 찾을 수 없습니다.",
+        error: receiptResult.error,
+      });
+    }
+
+    const receiptData = receiptResult.receipt;
+
+    // 2. PDF 생성
+    const pdfResult = await pdfReceiptGenerator.generatePDFReceipt(receiptData);
+
+    if (!pdfResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: "PDF 생성 중 오류가 발생했습니다.",
+        error: pdfResult.error,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "PDF 영수증이 성공적으로 생성되었습니다.",
+      data: {
+        receiptId: receiptId,
+        pdfFileName: pdfResult.pdfFileName,
+        pdfPath: pdfResult.pdfPath,
+      },
+    });
+  } catch (error) {
+    logger.error("PDF 영수증 생성 실패", error);
+    res.status(500).json({
+      success: false,
+      message: "PDF 영수증 생성 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createProject,
   getProjects,
@@ -2592,4 +3089,9 @@ module.exports = {
   getMyMerchandiseNFTs,
   getMerchandiseNFTInfo,
   getAllMerchandiseNFTs,
+  getAllReceipts,
+  getReceiptById,
+  getReceiptsByProject,
+  downloadPDFReceipt,
+  generatePDFReceipt,
 };

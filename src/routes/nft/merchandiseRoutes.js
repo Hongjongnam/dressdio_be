@@ -64,4 +64,27 @@ router.get("/all-nfts", merchandiseController.getAllMerchandiseNFTs);
 // GET /api/nft/merchandise/nft/:tokenId - 특정 Merchandise NFT 정보 조회
 router.get("/nft/:tokenId", merchandiseController.getMerchandiseNFTInfo);
 
+// 영수증 관련 라우트
+// GET /api/nft/merchandise/receipts - 모든 영수증 목록 조회
+router.get("/receipts", merchandiseController.getAllReceipts);
+
+// GET /api/nft/merchandise/receipt/:receiptId - 특정 영수증 조회
+router.get("/receipt/:receiptId", merchandiseController.getReceiptById);
+
+// GET /api/nft/merchandise/receipts/project/:projectId - 프로젝트별 영수증 목록 조회
+router.get(
+  "/receipts/project/:projectId",
+  merchandiseController.getReceiptsByProject
+);
+
+// PDF 영수증 관련 라우트
+// GET /api/nft/merchandise/receipt/:receiptId/pdf - PDF 영수증 다운로드
+router.get("/receipt/:receiptId/pdf", merchandiseController.downloadPDFReceipt);
+
+// POST /api/nft/merchandise/receipt/:receiptId/generate-pdf - PDF 영수증 생성
+router.post(
+  "/receipt/:receiptId/generate-pdf",
+  merchandiseController.generatePDFReceipt
+);
+
 module.exports = router;

@@ -18,19 +18,24 @@ exports.faucet = async (req, res) => {
   }
   faucetLock = true;
   try {
-    const { walletAddress } = req.body;
+    const { walletAddress, amount } = req.body;
     if (!walletAddress || !web3.utils.isAddress(walletAddress)) {
       return res
         .status(400)
         .json({ success: false, message: "유효한 지갑 주소를 입력하세요." });
     }
-
-    // 10 DP (10 * 10^18 wei)
-    const amount = web3.utils.toWei("10", "ether");
+    const dpAmount = Number(amount);
+    if (!dpAmount || dpAmount < 1 || dpAmount > 10000) {
+      return res
+        .status(400)
+        .json({ success: false, message: "1~10,000 DP만 요청할 수 있습니다." });
+    }
+    // amount(DP)를 wei로 변환
+    const weiAmount = web3.utils.toWei(dpAmount.toString(), "ether");
 
     // 트랜잭션 데이터 생성 (ERC20 transfer)
     const data = dpTokenContract.methods
-      .transfer(walletAddress, amount)
+      .transfer(walletAddress, weiAmount)
       .encodeABI();
 
     // 최신 web3 및 EIP-1559 호환 트랜잭션 옵션
@@ -61,7 +66,7 @@ exports.faucet = async (req, res) => {
     return res.json({
       success: true,
       txHash: receipt.transactionHash,
-      message: "DP 토큰이 성공적으로 지급되었습니다.",
+      message: `${dpAmount} DP 토큰이 성공적으로 지급되었습니다.`,
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

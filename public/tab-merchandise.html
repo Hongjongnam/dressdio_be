@@ -21,6 +21,15 @@
         <input type="text" name="ipnftTokenIds" required
       /></label>
       <label>Project Image <input type="file" name="projectImage" /></label>
+      <!-- <label
+        >Base64 Image (data:image/png;base64,...)<br />
+        <textarea
+          name="base64Image"
+          rows="3"
+          cols="60"
+          placeholder="여기에 base64 string을 붙여넣으세요"
+        ></textarea>
+      </label> -->
       <button type="submit">Create Project</button>
     </form>
     <pre id="create-project-result"></pre>
@@ -37,8 +46,11 @@
   </fieldset>
   <fieldset>
     <legend>3. 전체 프로젝트 목록 (GET /api/nft/merchandise/list)</legend>
-    <button id="get-all-projects-btn">Get All Projects</button>
-    <pre id="all-projects-result"></pre>
+    <button id="load-projects-btn">프로젝트 목록 불러오기</button>
+    <div
+      id="project-list"
+      style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px"
+    ></div>
   </fieldset>
   <fieldset>
     <legend>
@@ -157,5 +169,52 @@
     </legend>
     <button id="platform-fee-info-btn">Get Platform Fee Info</button>
     <pre id="platform-fee-info-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>15. 모든 영수증 목록 (GET /api/nft/merchandise/receipts)</legend>
+    <button id="all-receipts-btn">Get All Receipts</button>
+    <pre id="all-receipts-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      16. 특정 영수증 조회 (GET /api/nft/merchandise/receipt/:receiptId)
+    </legend>
+    <form id="receipt-detail-form">
+      <label>Receipt ID <input type="text" name="receiptId" required /></label>
+      <button type="submit">Get Receipt Details</button>
+    </form>
+    <pre id="receipt-detail-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      17. 프로젝트별 영수증 목록 (GET
+      /api/nft/merchandise/receipts/project/:projectId)
+    </legend>
+    <form id="project-receipts-form">
+      <label>Project ID <input type="text" name="projectId" required /></label>
+      <button type="submit">Get Project Receipts</button>
+    </form>
+    <pre id="project-receipts-result"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>
+      18. PDF 영수증 다운로드 (GET /api/nft/merchandise/receipt/:receiptId/pdf)
+    </legend>
+    <form id="pdf-download-form">
+      <label>Receipt ID <input type="text" name="receiptId" required /></label>
+      <button type="submit">Download PDF Receipt</button>
+    </form>
+    <div id="pdf-download-result"></div>
+  </fieldset>
+  <fieldset>
+    <legend>
+      19. PDF 영수증 생성 (POST
+      /api/nft/merchandise/receipt/:receiptId/generate-pdf)
+    </legend>
+    <form id="pdf-generate-form">
+      <label>Receipt ID <input type="text" name="receiptId" required /></label>
+      <button type="submit">Generate PDF Receipt</button>
+    </form>
+    <pre id="pdf-generate-result"></pre>
   </fieldset>
 </div>
