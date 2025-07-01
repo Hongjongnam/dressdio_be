@@ -1,0 +1,75 @@
+{
+  "receiptId": "receipt_0_10_1751344750672",
+  "timestamp": "2025-07-01T04:39:10.672Z",
+  "purchase": {
+    "projectId": "0",
+    "requestId": "10",
+    "buyer": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "tokenId": "8",
+    "amount": "15000000000000000000",
+    "amountInDP": "15"
+  },
+  "distribution": [
+    {
+      "role": "brand",
+      "recipient": "0x25D96413E62A8A51eB31fd12fFA281Ca9c86A029",
+      "expectedAmount": "5000000000000000000",
+      "fee": "50000000000000000",
+      "netAmount": "4950000000000000000",
+      "beforeBalance": "68300000000000000000",
+      "afterBalance": "73250000000000000000",
+      "actualIncrease": "4950000000000000000",
+      "isMatched": true
+    },
+    {
+      "role": "artist",
+      "recipient": "0xd0Db6aA1a206e36158c6F6055B4a17394c4e3cF7",
+      "expectedAmount": "5000000000000000000",
+      "fee": "50000000000000000",
+      "netAmount": "4950000000000000000",
+      "beforeBalance": "332100000000000000000",
+      "afterBalance": "337050000000000000000",
+      "actualIncrease": "4950000000000000000",
+      "isMatched": true
+    },
+    {
+      "role": "artist",
+      "recipient": "0x6F17D0D4D06D1737e403d484D4353D591e8Fb901",
+      "expectedAmount": "3000000000000000000",
+      "fee": "30000000000000000",
+      "netAmount": "2970000000000000000",
+      "beforeBalance": "76490000000000000000",
+      "afterBalance": "79460000000000000000",
+      "actualIncrease": "2970000000000000000",
+      "isMatched": true
+    },
+    {
+      "role": "influencer",
+      "recipient": "0xd122561B32cb19c2b7AF431b892d0f9a7A62fFBC",
+      "expectedAmount": "2000000000000000000",
+      "fee": "20000000000000000",
+      "netAmount": "1980000000000000000",
+      "beforeBalance": "112740000000000000000",
+      "afterBalance": "114720000000000000000",
+      "actualIncrease": "1980000000000000000",
+      "isMatched": true
+    }
+  ],
+  "transaction": {
+    "hash": "0x9d2a501ccdb31d4acbb78638eaff03c2086165f0a416f14fc45497e084bbda28",
+    "blockNumber": "10078803",
+    "gasUsed": "428249",
+    "timestamp": "2025-07-01T04:39:10.672Z"
+  },
+  "nft": {
+    "projectName": "merchanTEST",
+    "description": "테스트중",
+    "tokenUri": ""
+  },
+  "summary": {
+    "totalAmount": "15000000000000000000",
+    "totalFees": "150000000000000000",
+    "totalNetDistribution": "14850000000000000000",
+    "participants": 4
+  }
+}

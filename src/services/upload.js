@@ -1,5 +1,10 @@
 const pinataSDK = require("@pinata/sdk");
 const streamifier = require("streamifier");
+const axios = require("axios");
+const FormData = require("form-data");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 // Pinata API keys (환경변수로 관리하는 것이 안전합니다)
 const PINATA_API_KEY = process.env.PINATA_API_KEY;
@@ -49,7 +54,34 @@ async function uploadFileToIPFS(fileBuffer, fileName) {
   }
 }
 
+/**
+ * Uploads a base64 image buffer to Pinata (IPFS) via temp file for correct Content-Type
+ * @param {string} base64 - base64 string (순수 base64)
+ * @param {string} fileName - 파일명 (확장자 포함)
+ * @param {string} mimeType - 예: 'image/png'
+ * @returns {Promise<string>} ipfs:// URI
+ */
+async function uploadBase64ImageToIPFS(
+  base64,
+  fileName,
+  mimeType = "image/png"
+) {
+  const buffer = Buffer.from(base64, "base64");
+  const tempDir = os.tmpdir();
+  const tempPath = path.join(tempDir, fileName);
+  fs.writeFileSync(tempPath, buffer);
+  try {
+    const ipfsUri = await uploadFileToIPFS(fs.readFileSync(tempPath), fileName);
+    return ipfsUri;
+  } finally {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch (e) {}
+  }
+}
+
 module.exports = {
   uploadJSONToIPFS,
   uploadFileToIPFS,
+  uploadBase64ImageToIPFS,
 };

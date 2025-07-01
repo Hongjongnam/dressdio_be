@@ -232,6 +232,50 @@ function registerAuthHandlers() {
         JSON.stringify(result, null, 2);
     });
   }
+
+  // 내 계정 정보
+  const accountForm = document.getElementById("account-form");
+  if (accountForm) {
+    accountForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(accountForm);
+      const data = Object.fromEntries(formData);
+      const result = await callAPI(
+        "/auth/account",
+        "GET",
+        null,
+        false,
+        data.accessToken
+      );
+      document.getElementById("account-result").textContent = JSON.stringify(
+        result,
+        null,
+        2
+      );
+    });
+  }
+
+  // 잔액 조회
+  const balanceForm = document.getElementById("balance-form");
+  if (balanceForm) {
+    balanceForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(balanceForm);
+      const data = Object.fromEntries(formData);
+      const result = await callAPI(
+        "/auth/balance",
+        "GET",
+        null,
+        false,
+        data.accessToken
+      );
+      document.getElementById("balance-result").textContent = JSON.stringify(
+        result,
+        null,
+        2
+      );
+    });
+  }
 }
 
 // SBT 핸들러들
@@ -463,15 +507,73 @@ function registerMerchandiseHandlers() {
     });
   }
 
-  // 전체 프로젝트 목록
-  const getAllProjectsBtn = document.getElementById("get-all-projects-btn");
-  if (getAllProjectsBtn) {
-    getAllProjectsBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/merchandise/list", "GET");
-      document.getElementById("all-projects-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
+  // 3. 전체 프로젝트 목록 카드 렌더링 함수
+  async function renderMerchandiseProjects() {
+    try {
+      const res = await fetch("/api/nft/merchandise/list");
+      const result = await res.json();
+      // 응답 구조에 따라 아래 라인 조정 (data.data 또는 data)
+      const list = result.data?.data || result.data || [];
+      const container = document.getElementById("project-list");
+      if (!container) return;
+      container.innerHTML = "";
+      if (!Array.isArray(list) || list.length === 0) {
+        container.innerHTML =
+          '<div style="color:#888;padding:2em;">No projects found.</div>';
+        return;
+      }
+      list.forEach((project) => {
+        const card = document.createElement("div");
+        card.style.border = "1px solid #ddd";
+        card.style.borderRadius = "8px";
+        card.style.padding = "16px";
+        card.style.width = "280px";
+        card.style.background = "#fafbfc";
+        card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)";
+        card.style.marginBottom = "8px";
+        card.innerHTML = `
+          <div style="text-align:center;">
+            <img src="${
+              project.projectImageURI || ""
+            }" alt="project image" style="max-width:100%;max-height:160px;border-radius:6px;object-fit:cover;background:#eee;">
+          </div>
+          <h3 style="margin:12px 0 4px 0;">${project.projectName || ""}</h3>
+          <div style="color:#666;font-size:13px;margin-bottom:8px;">${
+            project.description || ""
+          }</div>
+          <div><b>Project ID:</b> ${project.projectId ?? ""}</div>
+          <div><b>Influencer:</b> ${project.influencer || ""}</div>
+          <div><b>Brand IPNFT:</b> ${project.brandIPNFTTokenId ?? ""}</div>
+          <div><b>Artist IPNFTs:</b> ${(project.artistIPNFTTokenIds || []).join(
+            ", "
+          )}</div>
+          <div><b>Total Supply:</b> ${project.totalSupply ?? ""}</div>
+          <div><b>Sale Price:</b> ${project.salePrice ?? ""} DP</div>
+          <div><b>Minted:</b> ${project.mintedCount ?? ""}</div>
+          <div><b>Active:</b> ${project.isActive ? "✅" : "❌"}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:6px;">Created: ${
+            project.createdAt
+              ? new Date(Number(project.createdAt) * 1000).toLocaleString()
+              : ""
+          }</div>
+        `;
+        container.appendChild(card);
+      });
+    } catch (e) {
+      const container = document.getElementById("project-list");
+      if (container)
+        container.innerHTML =
+          '<div style="color:red;">Error loading projects</div>';
+    }
   }
+
+  // 3. 전체 프로젝트 목록 버튼 이벤트 등록
+  const loadProjectsBtn = document.getElementById("load-projects-btn");
+  if (loadProjectsBtn) {
+    loadProjectsBtn.onclick = renderMerchandiseProjects;
+  }
+  // 외부에서 호출 가능하도록 window에 등록
+  window.renderMerchandiseProjects = renderMerchandiseProjects;
 
   // 브랜드 활성화 대기 프로젝트
   const brandPendingForm = document.getElementById("brand-pending-form");
@@ -676,6 +778,111 @@ function registerMerchandiseHandlers() {
     platformFeeInfoBtn.addEventListener("click", async () => {
       const result = await callAPI("/nft/merchandise/platform-fee-info", "GET");
       document.getElementById("platform-fee-info-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // 모든 영수증 목록
+  const allReceiptsBtn = document.getElementById("all-receipts-btn");
+  if (allReceiptsBtn) {
+    allReceiptsBtn.addEventListener("click", async () => {
+      const result = await callAPI("/nft/merchandise/receipts", "GET");
+      document.getElementById("all-receipts-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // 특정 영수증 조회
+  const receiptDetailForm = document.getElementById("receipt-detail-form");
+  if (receiptDetailForm) {
+    receiptDetailForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(receiptDetailForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(
+        `/nft/merchandise/receipt/${data.receiptId}`,
+        "GET"
+      );
+      document.getElementById("receipt-detail-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // 프로젝트별 영수증 목록
+  const projectReceiptsForm = document.getElementById("project-receipts-form");
+  if (projectReceiptsForm) {
+    projectReceiptsForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(projectReceiptsForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(
+        `/nft/merchandise/receipts/project/${data.projectId}`,
+        "GET"
+      );
+      document.getElementById("project-receipts-result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  }
+
+  // PDF 영수증 다운로드
+  const pdfDownloadForm = document.getElementById("pdf-download-form");
+  if (pdfDownloadForm) {
+    pdfDownloadForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(pdfDownloadForm);
+      const data = Object.fromEntries(formData);
+
+      try {
+        const response = await fetch(
+          `/api/nft/merchandise/receipt/${data.receiptId}/pdf`,
+          {
+            method: "GET",
+          }
+        );
+
+        if (response.ok) {
+          // PDF 파일 다운로드
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${data.receiptId}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+
+          document.getElementById("pdf-download-result").innerHTML =
+            '<div style="color: green;">PDF 영수증이 성공적으로 다운로드되었습니다!</div>';
+        } else {
+          const errorData = await response.json();
+          document.getElementById(
+            "pdf-download-result"
+          ).innerHTML = `<div style="color: red;">다운로드 실패: ${errorData.message}</div>`;
+        }
+      } catch (error) {
+        document.getElementById(
+          "pdf-download-result"
+        ).innerHTML = `<div style="color: red;">오류: ${error.message}</div>`;
+      }
+    });
+  }
+
+  // PDF 영수증 생성
+  const pdfGenerateForm = document.getElementById("pdf-generate-form");
+  if (pdfGenerateForm) {
+    pdfGenerateForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(pdfGenerateForm);
+      const data = Object.fromEntries(formData);
+
+      const result = await callAPI(
+        `/nft/merchandise/receipt/${data.receiptId}/generate-pdf`,
+        "POST"
+      );
+      document.getElementById("pdf-generate-result").textContent =
         JSON.stringify(result, null, 2);
     });
   }
