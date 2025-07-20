@@ -1,1033 +1,509 @@
-const { uploadFileToIPFS } = require("../../services/upload");
 const {
   web3,
-  ipnftFactoryContract,
-  creatorSBTContract,
   dpTokenContract,
-  ipnftFactoryAddress,
-  creatorSBTAddress,
-  dpTokenAddress,
-  devicePassword,
-  IPNFTFactoryABI,
-  CreatorSBTABI,
-  DPTokenABI,
-  IPNFTABI,
-  web3Config,
+  creatorSBTContract,
+  getIpNftContract,
+  ipnftFactoryContract,
 } = require("../../config/web3");
-const { stringifyBigInts } = require("../../utils/utils");
-const authService = require("../../services/auth");
-const walletService = require("../../services/wallet");
-const blockchainService = require("../../services/blockchain");
 const logger = require("../../utils/logger");
-
-// IPNFT 민팅 시 필요한 DP 금액 (컨트랙트와 동기화)
-let mintingFee = "1";
-
-// 서버 시작 시 컨트랙트에서 현재 수수료 가져오기
-const initializeMintingFee = async () => {
-  try {
-    // 새로운 컨트랙트가 배포되지 않았을 경우를 대비해 안전하게 처리
-    if (ipnftFactoryContract.methods.getMintingFee) {
-      const contractFee = await ipnftFactoryContract.methods
-        .getMintingFee()
-        .call();
-      mintingFee = web3.utils.fromWei(contractFee, "ether");
-      logger.info(`Initialized minting fee from contract: ${mintingFee} DP`);
-    } else {
-      logger.warn(
-        "getMintingFee method not found in contract. Using default fee: 1 DP"
-      );
-      mintingFee = "1";
-    }
-  } catch (error) {
-    logger.error("Failed to initialize minting fee from contract:", error);
-    logger.warn("Using default minting fee: 1 DP");
-    // 기본값 사용
-    mintingFee = "1";
-  }
-};
-
-// 서버 시작 시 수수료 초기화
-initializeMintingFee();
-
-/**
- * IPNFT 민팅 (WaaS)
- * @route POST /api/nft/ip/mint
- * @desc 사용자의 accessToken을 사용하여 DP 토큰을 approve하고 IPNFT를 민팅합니다.
- */
-exports.mint = async (req, res) => {
-  const accessToken = req.token;
-  let ipfsImage = req.body.ipfsImage;
-  const { name, description, price, supplyPrice, creatorType } = req.body;
-
-  // DP 단위를 wei로 변환 (1 DP = 10^18 wei)
-  const priceInWei = web3.utils.toWei(String(price), "ether");
-  const supplyPriceInWei = web3.utils.toWei(String(supplyPrice), "ether");
-
-  // 1. 파일이 첨부된 경우 IPFS 업로드
-  console.log("req.files:", req.files);
-  console.log("req.body:", req.body);
-  if (req.files && req.files.length > 0) {
-    try {
-      // 여러 파일 중 첫 번째 파일 사용
-      const file = req.files[0];
-      const ipfsUri = await uploadFileToIPFS(file.buffer, file.originalname);
-      ipfsImage = ipfsUri;
-      console.log("🌐 Upload to IPFS result:", ipfsImage);
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: "IPFS upload failed",
-        error: err.message,
-      });
-    }
-  } else {
-    console.log("파일 업로드 분기 미진입, ipfsImage:", ipfsImage);
-  }
-
-  if (
-    !ipfsImage ||
-    !name ||
-    !description ||
-    price === undefined ||
-    supplyPrice === undefined ||
-    !creatorType
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
-
-  // ipfsImage 방어 코드 추가
-  if (typeof ipfsImage !== "string" || !ipfsImage.startsWith("ipfs://")) {
-    return res.status(400).json({
-      success: false,
-      message: "ipfsImage must be a valid IPFS URI string.",
-    });
-  }
-
-  // 가격 유효성 검사 추가
-  if (isNaN(price) || price <= 0 || isNaN(supplyPrice) || supplyPrice <= 0) {
-    return res.status(400).json({
-      success: false,
-      message:
-        "Invalid price or supply price. Prices must be positive numbers.",
-    });
-  }
-
-  // 공급 가격이 판매 가격보다 높으면 안됨
-  if (Number(supplyPrice) >= Number(price)) {
-    return res.status(400).json({
-      success: false,
-      message: "Supply price must be less than selling price",
-    });
-  }
-
-  if (!ipnftFactoryAddress || !dpTokenAddress || !devicePassword) {
-    return res.status(500).json({
-      success: false,
-      message:
-        "Server configuration error: contract addresses or device password not set.",
-    });
-  }
-
-  try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
-    const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      devicePassword
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
-
-    // 2. 사용자의 SBT 목록을 조회하고 artist 또는 brand 타입의 SBT가 있는지 확인
-    const sbtInfoList = await creatorSBTContract.methods
-      .getSBTInfoByAddress(walletInfo.address)
-      .call();
-
-    console.log("[IPNFT/MINT] SBT Info List:", sbtInfoList);
-    console.log("[IPNFT/MINT] User address:", walletInfo.address);
-
-    // DP 토큰 잔액 확인 (동적 mintingFee 사용)
-    const mintingFeeWei = web3.utils.toWei(mintingFee, "ether");
-    const dpBalance = await dpTokenContract.methods
-      .balanceOf(walletInfo.address)
-      .call();
-    if (BigInt(dpBalance) < BigInt(mintingFeeWei)) {
-      return res.status(403).json({
-        success: false,
-        message: `DP 토큰 잔액이 부족합니다. 현재 잔액: ${web3.utils.fromWei(
-          dpBalance,
-          "ether"
-        )} DP, 필요한 금액: ${mintingFee} DP`,
-        code: "INSUFFICIENT_DP_BALANCE",
-      });
-    }
-
-    let creatorSBTId = null;
-    const allowedTypes = ["artist", "brand"];
-
-    // 입력된 creatorType을 정규화 (따옴표 제거 및 소문자 변환)
-    const normalizedCreatorType = creatorType
-      .toLowerCase()
-      .replace(/['"]+/g, "");
-
-    console.log("[IPNFT/MINT] Requested creatorType:", creatorType);
-    console.log("[IPNFT/MINT] Normalized creatorType:", normalizedCreatorType);
-
-    // 먼저 요청한 creatorType이 허용된 타입인지 확인
-    if (!allowedTypes.includes(normalizedCreatorType)) {
-      return res.status(403).json({
-        success: false,
-        message: `Invalid creator type. Only ${allowedTypes.join(
-          " or "
-        )} can mint IPNFT.`,
-      });
-    }
-
-    // 요청한 creatorType의 SBT를 가지고 있는지 확인
-    for (const sbtInfo of sbtInfoList) {
-      console.log("[IPNFT/MINT] Checking SBT:", sbtInfo);
-      console.log("[IPNFT/MINT] SBT creatorType:", sbtInfo.creatorType);
-      console.log("[IPNFT/MINT] SBT tokenId:", sbtInfo.tokenId);
-
-      if (sbtInfo.creatorType.toLowerCase() === normalizedCreatorType) {
-        creatorSBTId = sbtInfo.tokenId;
-        console.log(
-          "[IPNFT/MINT] Found matching SBT, creatorSBTId:",
-          creatorSBTId
-        );
-        break;
-      }
-    }
-
-    console.log("[IPNFT/MINT] Final creatorSBTId:", creatorSBTId);
-
-    if (creatorSBTId === null) {
-      return res.status(403).json({
-        success: false,
-        message: `You don't have the required ${normalizedCreatorType} SBT to mint this IPNFT. Only artist or brand SBT holders can mint IPNFT.`,
-      });
-    }
-
-    // 3. DP 토큰 Approve 트랜잭션 처리 (동적 mintingFee 사용)
-    logger.info(
-      `Approving ${mintingFee} DP token for ${walletInfo.address}...`
-    );
-    const approveTxData = dpTokenContract.methods
-      .approve(ipnftFactoryAddress, mintingFeeWei)
-      .encodeABI();
-
-    const approveTx = {
-      to: dpTokenContract.options.address,
-      value: "0",
-      data: approveTxData,
-    };
-
-    const signedApproveTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      approveTx,
-      accessToken
-    );
-    const approveReceipt = await web3.eth.sendSignedTransaction(
-      signedApproveTx
-    );
-    logger.info(
-      `DP Token approved. Tx Hash: ${approveReceipt.transactionHash}`
-    );
-
-    // 4. IPNFT 토큰 생성 트랜잭션 처리
-    logger.info(`Creating token for ${walletInfo.address}...`);
-
-    console.log("[IPNFT/MINT] createToken parameters:");
-    console.log("  ipfsImage:", ipfsImage);
-    console.log("  name:", name);
-    console.log("  description:", description);
-    console.log("  priceInWei:", priceInWei);
-    console.log("  supplyPriceInWei:", supplyPriceInWei);
-    console.log("  creatorSBTId:", creatorSBTId);
-    console.log("  creatorSBTId type:", typeof creatorSBTId);
-
-    const createTokenTxData = ipnftFactoryContract.methods
-      .createToken(
-        ipfsImage,
-        name,
-        description,
-        priceInWei,
-        supplyPriceInWei,
-        creatorSBTId.toString()
-      )
-      .encodeABI();
-
-    const createTokenTx = {
-      to: ipnftFactoryAddress,
-      value: "0",
-      data: createTokenTxData,
-    };
-
-    const signedCreateTokenTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      createTokenTx,
-      accessToken
-    );
-    const createTokenReceipt = await web3.eth.sendSignedTransaction(
-      signedCreateTokenTx
-    );
-    logger.info(
-      `Token created. Tx Hash: ${createTokenReceipt.transactionHash}`
-    );
-
-    // 5. 결과 반환 (이벤트에서 tokenId 추출)
-    const decodedLogs = await ipnftFactoryContract.getPastEvents(
-      "TokenMinted",
-      {
-        fromBlock: createTokenReceipt.blockNumber,
-        toBlock: createTokenReceipt.blockNumber,
-      }
-    );
-
-    // 직접 트랜잭션 영수증에서 이벤트 로그 확인
-    let tokenId = null;
-    if (decodedLogs.length === 0) {
-      // 트랜잭션 영수증에서 직접 이벤트 로그 파싱
-      const logs = createTokenReceipt.logs;
-      for (const log of logs) {
-        if (log.address.toLowerCase() === ipnftFactoryAddress.toLowerCase()) {
-          try {
-            const decodedLog = web3.eth.abi.decodeLog(
-              [
-                {
-                  type: "uint256",
-                  name: "tokenId",
-                  indexed: true,
-                },
-                {
-                  type: "address",
-                  name: "creator",
-                  indexed: true,
-                },
-                {
-                  type: "uint256",
-                  name: "creatorSBTId",
-                },
-                {
-                  type: "string",
-                  name: "name",
-                },
-                {
-                  type: "string",
-                  name: "symbol",
-                },
-              ],
-              log.data,
-              log.topics.slice(1) // 첫 번째 topic은 이벤트 시그니처
-            );
-            tokenId = decodedLog.tokenId;
-            break;
-          } catch (e) {
-            console.log("Failed to decode log:", e);
-          }
-        }
-      }
-    } else {
-      tokenId = decodedLogs[0].returnValues.tokenId;
-    }
-
-    const ipnftAddress = await ipnftFactoryContract.methods
-      .getIPNFTAddress()
-      .call();
-
-    if (!tokenId) {
-      // 토큰 ID를 찾을 수 없는 경우, 현재 토큰 ID를 조회
-      const ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
-      const currentTokenId = await ipnftContract.methods
-        .getCurrentTokenId()
-        .call();
-      tokenId = String(Number(currentTokenId) - 1);
-    }
-
-    // BigInt를 문자열로 변환
-    tokenId = String(tokenId);
-
-    return res.json({
-      success: true,
-      ipnftAddress,
-      tokenId,
-      txHash: createTokenReceipt.transactionHash,
-      message: "IPNFT token successfully created",
-    });
-  } catch (error) {
-    logger.error("IPNFT mint error:", error);
-
-    if (error.code === "TOKEN_EXPIRED") {
-      return res.status(401).json({
-        success: false,
-        code: "TOKEN_EXPIRED",
-        message:
-          "Access token has expired. Please refresh your token and try again.",
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to mint IPNFT",
-    });
-  }
-};
-
-/**
- * 현재 IPNFT 민팅 수수료 조회
- * @route GET /api/nft/ip/minting-fee
- * @desc 현재 설정된 IPNFT 민팅 시 필요한 DP 금액을 조회합니다.
- */
-exports.getMintingFee = async (req, res) => {
-  try {
-    // 컨트랙트에서 최신 수수료 가져오기
-    const contractFee = await ipnftFactoryContract.methods
-      .getMintingFee()
-      .call();
-    const currentFee = web3.utils.fromWei(contractFee, "ether");
-
-    // 백엔드 변수도 업데이트
-    mintingFee = currentFee;
-
-    return res.json({
-      success: true,
-      data: {
-        mintingFee: mintingFee,
-        unit: "DP",
-        description: "IPNFT 민팅 시 필요한 DP 토큰 수량",
-      },
-    });
-  } catch (error) {
-    logger.error("Get minting fee error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to get minting fee",
-    });
-  }
-};
-
-/**
- * IPNFT 민팅 수수료 변경 (관리자 전용)
- * @route POST /api/nft/ip/minting-fee
- * @desc IPNFT 민팅 시 필요한 DP 금액을 변경합니다. (관리자 전용)
- */
-exports.setMintingFee = async (req, res) => {
-  try {
-    const accessToken = req.body.accessToken || req.token;
-    const { newFee } = req.body;
-
-    // 입력값 검증
-    if (!newFee || isNaN(newFee) || Number(newFee) <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "유효한 수수료를 입력해주세요. (양수여야 합니다.)",
-      });
-    }
-
-    // 관리자 권한 체크
-    let walletData = await walletService.getWallet(accessToken);
-    let factoryOwnerAddress;
-    try {
-      factoryOwnerAddress = (
-        await ipnftFactoryContract.methods.owner().call()
-      ).toLowerCase();
-      console.log(
-        "[IPNFT/SET_MINTING_FEE] IPNFTFactory current owner:",
-        factoryOwnerAddress
-      );
-    } catch (error) {
-      console.error(
-        "[IPNFT/SET_MINTING_FEE] Failed to get IPNFTFactory owner:",
-        error
-      );
-      factoryOwnerAddress = (web3Config.platformAdmin || "").toLowerCase();
-      console.log(
-        "[IPNFT/SET_MINTING_FEE] Using fallback platformAdmin:",
-        factoryOwnerAddress
-      );
-    }
-
-    const userAddress = (walletData.address || "").toLowerCase();
-    console.log("[IPNFT/SET_MINTING_FEE] User address:", userAddress);
-    console.log(
-      "[IPNFT/SET_MINTING_FEE] Factory owner address:",
-      factoryOwnerAddress
-    );
-
-    if (userAddress !== factoryOwnerAddress) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "권한 부족: IPNFTFactory 소유자만 민팅 수수료를 변경할 수 있습니다.",
-        code: "NOT_ADMIN",
-      });
-    }
-
-    // 기존 수수료 저장
-    const oldFee = mintingFee;
-
-    // 새로운 수수료를 wei로 변환
-    const newFeeWei = web3.utils.toWei(String(newFee), "ether");
-
-    // 컨트랙트에서 수수료 변경 트랜잭션 데이터 생성
-    const setFeeTxData = ipnftFactoryContract.methods
-      .setMintingFee(newFeeWei)
-      .encodeABI();
-
-    // ABC WaaS 방식으로 트랜잭션 생성/서명/전송
-    // 1. 보안 채널 생성
-    const secureChannelRes = await authService.createSecureChannel();
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannelRes,
-      devicePassword
-    );
-
-    // 2. 지갑 정보 조회 및 필요시 생성
-    let email = walletData.email;
-    walletData = await walletService.createWallet(
-      email,
-      encryptedDevicePassword,
-      secureChannelRes.ChannelID,
-      accessToken
-    );
-
-    // 3. 트랜잭션 데이터 준비
-    const txData = {
-      to: ipnftFactoryAddress,
-      data: setFeeTxData,
-      value: "0",
-    };
-
-    // 4. 트랜잭션 서명 및 전송 (ABC Server에 위임)
-    const signedTx = await blockchainService.signTransaction(
-      secureChannelRes,
-      walletData,
-      txData,
-      accessToken
-    );
-    const receipt = await web3.eth.sendSignedTransaction(signedTx);
-
-    // 백엔드 변수도 업데이트
-    mintingFee = String(newFee);
-
-    logger.info(
-      `IPNFT minting fee changed from ${oldFee} DP to ${mintingFee} DP. Tx Hash: ${receipt.transactionHash}`
-    );
-
-    return res.json({
-      success: true,
-      data: {
-        oldFee: oldFee,
-        newFee: mintingFee,
-        unit: "DP",
-        txHash: receipt.transactionHash,
-        message: `IPNFT 민팅 수수료가 ${oldFee} DP에서 ${mintingFee} DP로 변경되었습니다.`,
-      },
-    });
-  } catch (error) {
-    logger.error("Set minting fee error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to set minting fee",
-    });
-  }
-};
-
-/**
- * IPNFT 전체 목록 조회
- * @route GET /api/nft/ip/list
- * @desc 모든 IPNFT를 조회
- */
-exports.list = async (req, res) => {
-  try {
-    // IPNFT 컨트랙트 주소 조회
-    const ipnftAddress = await ipnftFactoryContract.methods
-      .getIPNFTAddress()
-      .call();
-    const ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
-
-    // 현재 토큰 ID 조회
-    const currentTokenId = await ipnftContract.methods
-      .getCurrentTokenId()
-      .call();
-
-    let result = [];
-    for (let tokenId = 0; tokenId < Number(currentTokenId); tokenId++) {
-      try {
-        // 토큰이 존재하는지 확인
-        const exists = await ipnftContract.methods
-          ._existsPublic(tokenId)
-          .call();
-        if (!exists) continue;
-
-        const owner = await ipnftContract.methods.ownerOf(tokenId).call();
-        const tokenInfo = await ipnftContract.methods
-          .getTokenInfo(tokenId)
-          .call();
-
-        // 객체 속성으로 getTokenInfo 반환값 접근
-        const {
-          0: tokenOwner,
-          1: name,
-          2: description,
-          3: price,
-          4: supplyPrice,
-          5: creator,
-          6: creatorSBTId,
-          7: imageUri,
-        } = tokenInfo;
-
-        let creatorSBT = null;
-
-        try {
-          logger.info(`Fetching SBT info for creator: ${creator}`);
-          const sbtInfoList = await creatorSBTContract.methods
-            .getSBTInfoByAddress(creator)
-            .call();
-
-          creatorSBT = sbtInfoList.find(
-            (sbt) => String(sbt.tokenId) === String(creatorSBTId)
-          );
-          logger.info(`Successfully retrieved SBT info:`, creatorSBT);
-        } catch (e) {
-          logger.error(`Failed to get SBT info for creator ${creator}:`, e);
-        }
-
-        result.push({
-          contract: ipnftAddress,
-          tokenId,
-          ipfsImage: imageUri.startsWith("ipfs://")
-            ? imageUri.replace("ipfs://", "https://ipfs.io/ipfs/")
-            : imageUri,
-          name,
-          description,
-          price: web3.utils.fromWei(price, "ether"),
-          supplyPrice: web3.utils.fromWei(supplyPrice, "ether"),
-          creator,
-          creatorSBTId,
-          creatorSBT: cleanSBT(creatorSBT),
-          owner,
-        });
-      } catch (e) {
-        logger.error(`Failed to get token info for tokenId ${tokenId}:`, e);
-        continue;
-      }
-    }
-
-    return res.json({ success: true, data: stringifyBigInts(result) });
-  } catch (err) {
-    logger.error("IPNFT list error:", err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-/**
- * 내가 소유한 IPNFT 목록 조회
- * @route GET /api/nft/ip/my
- * @desc 현재 로그인한 사용자가 소유한 IPNFT만 조회
- */
-exports.getMyIPNFTs = async (req, res) => {
-  try {
-    // accessToken에서 walletAddress 추출
-    const walletInfo = await walletService.getWallet(req.token);
-    const walletAddress = walletInfo.address;
-
-    if (!walletAddress) {
-      return res.status(401).json({
-        success: false,
-        message: "No wallet address found from accessToken.",
-      });
-    }
-
-    // IPNFT 컨트랙트 주소 조회
-    const ipnftAddress = await ipnftFactoryContract.methods
-      .getIPNFTAddress()
-      .call();
-    const ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
-
-    // 현재 토큰 ID 조회
-    const currentTokenId = await ipnftContract.methods
-      .getCurrentTokenId()
-      .call();
-
-    let result = [];
-    for (let tokenId = 0; tokenId < Number(currentTokenId); tokenId++) {
-      try {
-        // 토큰이 존재하는지 확인
-        const exists = await ipnftContract.methods
-          ._existsPublic(tokenId)
-          .call();
-        if (!exists) continue;
-
-        const owner = await ipnftContract.methods.ownerOf(tokenId).call();
-
-        // 현재 사용자가 소유한 토큰만 필터링
-        if (owner.toLowerCase() !== walletAddress.toLowerCase()) {
-          continue;
-        }
-
-        const tokenInfo = await ipnftContract.methods
-          .getTokenInfo(tokenId)
-          .call();
-
-        // 객체 속성으로 getTokenInfo 반환값 접근
-        const {
-          0: tokenOwner,
-          1: name,
-          2: description,
-          3: price,
-          4: supplyPrice,
-          5: creator,
-          6: creatorSBTId,
-          7: imageUri,
-        } = tokenInfo;
-
-        let creatorSBT = null;
-
-        try {
-          logger.info(`Fetching SBT info for creator: ${creator}`);
-          const sbtInfoList = await creatorSBTContract.methods
-            .getSBTInfoByAddress(creator)
-            .call();
-
-          creatorSBT = sbtInfoList.find(
-            (sbt) => String(sbt.tokenId) === String(creatorSBTId)
-          );
-          logger.info(`Successfully retrieved SBT info:`, creatorSBT);
-        } catch (e) {
-          logger.error(`Failed to get SBT info for creator ${creator}:`, e);
-        }
-
-        result.push({
-          contract: ipnftAddress,
-          tokenId,
-          ipfsImage: imageUri.startsWith("ipfs://")
-            ? imageUri.replace("ipfs://", "https://ipfs.io/ipfs/")
-            : imageUri,
-          name,
-          description,
-          price: web3.utils.fromWei(price, "ether"),
-          supplyPrice: web3.utils.fromWei(supplyPrice, "ether"),
-          creator,
-          creatorSBTId,
-          creatorSBT: cleanSBT(creatorSBT),
-          owner,
-        });
-      } catch (e) {
-        logger.error(`Failed to get token info for tokenId ${tokenId}:`, e);
-        continue;
-      }
-    }
-
-    return res.json({ success: true, data: stringifyBigInts(result) });
-  } catch (err) {
-    logger.error("IPNFT list error:", err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-/**
- * 특정 IPNFT 정보 조회
- * @route GET /api/nft/ip/info/:tokenId
- * @desc 특정 토큰 ID의 IPNFT 정보를 조회
- */
-exports.getIPNFTInfo = async (req, res) => {
-  try {
-    const { tokenId } = req.params;
-
-    if (!tokenId || isNaN(tokenId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid token ID is required",
-      });
-    }
-
-    // IPNFT 컨트랙트 주소 조회
-    const ipnftAddress = await ipnftFactoryContract.methods
-      .getIPNFTAddress()
-      .call();
-    const ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
-
-    // 토큰이 존재하는지 확인
-    const exists = await ipnftContract.methods._existsPublic(tokenId).call();
-
-    if (!exists) {
-      return res.status(404).json({
-        success: false,
-        message: "IPNFT not found",
-      });
-    }
-
-    const owner = await ipnftContract.methods.ownerOf(tokenId).call();
-    const tokenInfo = await ipnftContract.methods.getTokenInfo(tokenId).call();
-
-    // 객체 속성으로 getTokenInfo 반환값 접근
-    const {
-      0: tokenOwner,
-      1: name,
-      2: description,
-      3: price,
-      4: supplyPrice,
-      5: creator,
-      6: creatorSBTId,
-      7: imageUri,
-    } = tokenInfo;
-
-    let creatorSBT = null;
-
-    try {
-      logger.info(`Fetching SBT info for creator: ${creator}`);
-      const sbtInfoList = await creatorSBTContract.methods
-        .getSBTInfoByAddress(creator)
-        .call();
-
-      creatorSBT = sbtInfoList.find(
-        (sbt) => String(sbt.tokenId) === String(creatorSBTId)
-      );
-      logger.info(`Successfully retrieved SBT info:`, creatorSBT);
-    } catch (e) {
-      logger.error(`Failed to get SBT info for creator ${creator}:`, e);
-    }
-
-    const result = {
-      contract: ipnftAddress,
-      tokenId: Number(tokenId),
-      ipfsImage: imageUri.startsWith("ipfs://")
-        ? imageUri.replace("ipfs://", "https://ipfs.io/ipfs/")
-        : imageUri,
-      name,
-      description,
-      price: web3.utils.fromWei(price, "ether"),
-      supplyPrice: web3.utils.fromWei(supplyPrice, "ether"),
-      creator,
-      creatorSBTId,
-      creatorSBT: cleanSBT(creatorSBT),
-      owner,
-    };
-
-    return res.json({ success: true, data: stringifyBigInts(result) });
-  } catch (err) {
-    logger.error("IPNFT info error:", err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// TokenInfo 정보 정리
-function cleanTokenInfo(tokenInfo) {
-  // 앞뒤에 쌍따옴표가 있으면 제거
-  const stripQuotes = (v) =>
-    typeof v === "string" && v.startsWith('"') && v.endsWith('"')
-      ? v.slice(1, -1)
-      : v;
-
-  // IPFS URI를 HTTP URL로 변환
-  const convertIpfsUri = (uri) => {
-    if (!uri) return uri;
-    if (uri.startsWith("ipfs://")) {
-      return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
-    }
+const { stringifyBigInts } = require("../../utils/utils");
+const { uploadJSONToIPFS, uploadFileToIPFS } = require("../../services/upload");
+const walletService = require("../../services/wallet");
+const mpcService = require("../../services/blockchainMPC");
+const axios = require("axios");
+const path = require("path");
+
+const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+
+// Helper function to build full IPFS URL
+const toIpfsUrl = (uri) => {
+  if (!uri || !uri.startsWith("ipfs://")) {
     return uri;
-  };
+  }
+  return uri.replace("ipfs://", IPFS_GATEWAY);
+};
 
-  // BigInt를 문자열로 변환
-  const convertBigInt = (value) => {
-    if (typeof value === "bigint" || value?._isBigNumber) {
-      return String(value);
+// Helper function to clean struct from contract call
+const _cleanStruct = (struct) => {
+  if (!struct || typeof struct !== "object") {
+    return struct;
+  }
+  const newObj = {};
+  Object.keys(struct).forEach((key) => {
+    if (isNaN(parseInt(key, 10))) {
+      newObj[key] = struct[key];
     }
-    return value;
+  });
+  delete newObj["__length__"];
+  return newObj;
+};
+
+// Helper function to format IPNFT data consistently
+const _formatIpNftData = async (tokenInfo, tokenId) => {
+  if (
+    !tokenInfo ||
+    !tokenInfo.creator ||
+    tokenInfo.creator === "0x0000000000000000000000000000000000000000"
+  ) {
+    return null;
+  }
+
+  let sbtInfo = null;
+  try {
+    const rawSbtInfo = await creatorSBTContract.methods
+      .getSBTInfoById(tokenInfo.creatorSBTId)
+      .call();
+    sbtInfo = _cleanStruct(rawSbtInfo);
+  } catch (e) {
+    logger.warn(
+      `Could not fetch SBT info for SBT ID ${tokenInfo.creatorSBTId}: ${e.message}`
+    );
+  }
+
+  const formatted = {
+    tokenId: tokenId.toString(),
+    creator: tokenInfo.creator,
+    owner: tokenInfo.owner,
+    creatorSBTId: tokenInfo.creatorSBTId.toString(),
+    name: tokenInfo.name,
+    description: tokenInfo.description,
+    image: toIpfsUrl(tokenInfo.ipfsImage),
+    price: web3.utils.fromWei(tokenInfo.price.toString(), "ether"),
+    supplyPrice: web3.utils.fromWei(tokenInfo.supplyPrice.toString(), "ether"),
+    creatorSBT: sbtInfo ? stringifyBigInts(sbtInfo) : null,
   };
-
-  // wei -> DP(ether) 변환
-  const toDP = (wei) => {
-    try {
-      return web3.utils.fromWei(wei.toString(), "ether");
-    } catch {
-      return wei;
-    }
-  };
-
-  return {
-    ipfsImage: convertIpfsUri(tokenInfo.ipfsImage),
-    name: stripQuotes(tokenInfo.name),
-    description: stripQuotes(tokenInfo.description),
-    price: toDP(tokenInfo.price),
-    supplyPrice: toDP(tokenInfo.supplyPrice),
-    createdAt: convertBigInt(tokenInfo.createdAt),
-  };
-}
-
-// SBT 정보 정리
-function cleanSBT(sbt) {
-  if (!sbt) return null;
-
-  const normalizedCreatorType = sbt.creatorType
-    ? sbt.creatorType.toLowerCase().replace(/['"]+/g, "")
-    : null;
-
-  // BigInt를 문자열로 변환
-  const convertBigInt = (value) => {
-    if (typeof value === "bigint" || value?._isBigNumber) {
-      return String(value);
-    }
-    return value;
-  };
-
-  return {
-    tokenId: convertBigInt(sbt.tokenId),
-    owner: sbt.owner,
-    creatorType: normalizedCreatorType,
-    creatorName: sbt.creatorName,
-    description: sbt.description,
-    tokenUri: sbt.tokenUri,
-    useCount: convertBigInt(sbt.useCount),
-  };
-}
+  return stringifyBigInts(formatted);
+};
 
 /**
- * IPNFTFactory 컨트랙트 소유권 이전
+ * IPNFT 발행 (DP 소모)
  * @param {Object} req - Express request object
- * @param {string} req.body.accessToken - IPNFTFactory 소유자 access token
- * @param {string} req.body.newOwner - 새로운 소유자 주소
+ * @param {string} req.body.accessToken - 액세스 토큰
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {string} req.body.ipfsImage - IPFS 이미지 URL
+ * @param {string} req.body.name - IPNFT 이름
+ * @param {string} req.body.description - IPNFT 설명
+ * @param {string} req.body.price - 가격 (DP)
+ * @param {string} req.body.supplyPrice - 공급 가격 (DP)
+ * @param {string} req.body.creatorType - 크리에이터 타입
  * @param {Object} res - Express response object
  */
-exports.transferIpnftFactoryOwnership = async (req, res) => {
+const mintIpNft = async (req, res) => {
+  const {
+    accessToken,
+    devicePassword,
+    storedWalletData,
+    ipfsImage,
+    name,
+    description,
+    price,
+    supplyPrice,
+    creatorType,
+  } = req.body;
+
   try {
-    const accessToken = req.body.accessToken;
-    const newOwner = req.body.newOwner;
-
-    // 1. accessToken으로 walletService에서 직접 지갑 주소 조회
-    let userWalletAddress;
-    let email;
-    try {
-      const walletInfo = await walletService.getWallet(accessToken);
-      userWalletAddress = (walletInfo.address || "").toLowerCase();
-      email = walletInfo.email;
-      console.log(
-        "[IPNFT/TRANSFER_OWNERSHIP] accessToken wallet address:",
-        userWalletAddress
-      );
-    } catch (error) {
-      return res
-        .status(401)
-        .json({ status: "error", message: "Invalid or expired access token" });
-    }
-
-    // 2. IPNFTFactory 컨트랙트의 현재 owner와 일치하는지 확인
-    let factoryOwnerAddress;
-    try {
-      factoryOwnerAddress = (
-        await ipnftFactoryContract.methods.owner().call()
-      ).toLowerCase();
-      console.log(
-        "[IPNFT/TRANSFER_OWNERSHIP] IPNFTFactory current owner:",
-        factoryOwnerAddress
-      );
-    } catch (error) {
-      console.error(
-        "[IPNFT/TRANSFER_OWNERSHIP] Failed to get IPNFTFactory owner:",
-        error
-      );
-      return res.status(500).json({
-        status: "error",
-        message: "Failed to get IPNFTFactory owner",
-      });
-    }
-
-    if (userWalletAddress !== factoryOwnerAddress) {
-      return res.status(403).json({
-        status: "error",
-        message: "Unauthorized: Only IPNFTFactory owner can transfer ownership",
-      });
-    }
-
-    // 3. 새로운 소유자 주소 검증
-    if (!web3.utils.isAddress(newOwner)) {
+    // 1. 필수 파라미터 검증
+    if (
+      !accessToken ||
+      !devicePassword ||
+      !storedWalletData ||
+      !name ||
+      !description ||
+      !price ||
+      !supplyPrice ||
+      !creatorType
+    ) {
       return res.status(400).json({
-        status: "error",
-        message: "Invalid new owner address format",
+        success: false,
+        message: "All fields are required.",
       });
     }
 
-    // 4. IPNFTFactory 컨트랙트 소유권 이전
-    try {
-      // 1) 보안 채널 생성
-      const secureChannelRes = await authService.createSecureChannel();
-      const encryptedDevicePassword = authService.encrypt(
-        secureChannelRes,
-        devicePassword
-      );
+    const ipnftContract = getIpNftContract();
+    const userWalletAddress = storedWalletData.sid;
 
-      // 2) 지갑 정보 조회 및 필요시 생성
-      let walletData = await walletService.getWallet(accessToken);
-      walletData = await walletService.createWallet(
-        email,
-        encryptedDevicePassword,
-        secureChannelRes.ChannelID,
-        accessToken
-      );
+    // 2. 사용자 SBT 확인
+    const sbtInfoList = await creatorSBTContract.methods
+      .getSBTInfoByAddress(userWalletAddress)
+      .call();
 
-      // 3) transferOwnership 함수 데이터 생성
-      const transferOwnershipData = web3.eth.abi.encodeFunctionCall(
-        {
-          name: "transferOwnership",
-          type: "function",
-          inputs: [{ type: "address", name: "newOwner" }],
-        },
-        [newOwner]
-      );
+    const normalizedCreatorType = creatorType.toLowerCase();
+    const creatorSbt = sbtInfoList.find(
+      (sbt) => sbt.creatorType.toLowerCase() === normalizedCreatorType
+    );
 
-      const txData = {
-        to: ipnftFactoryAddress,
-        data: transferOwnershipData,
-        value: "0",
-      };
-
-      console.log("[IPNFT/TRANSFER_OWNERSHIP] txData:", txData);
-
-      // 4) 트랜잭션 서명 및 전송
-      const signedTx = await blockchainService.signTransaction(
-        secureChannelRes,
-        walletData,
-        txData,
-        accessToken
-      );
-
-      const txHash = await blockchainService.sendTransaction(signedTx);
-      console.log("[IPNFT/TRANSFER_OWNERSHIP] txHash:", txHash);
-
-      return res.status(200).json({
-        status: "success",
-        data: {
-          txHash,
-          previousOwner: userWalletAddress,
-          newOwner: newOwner,
-          message: `IPNFTFactory contract ownership transferred from ${userWalletAddress} to ${newOwner}`,
-        },
-      });
-    } catch (error) {
-      console.error("[IPNFT/TRANSFER_OWNERSHIP] error:", error);
-      return res.status(500).json({
-        status: "error",
-        message: "Failed to transfer IPNFTFactory ownership",
-        error: error.message,
+    if (!creatorSbt) {
+      return res.status(404).json({
+        success: false,
+        message: `User does not own a '${normalizedCreatorType}' type SBT.`,
       });
     }
+    const creatorSBTId = creatorSbt.tokenId;
+
+    // 3. 이미지 재업로드 (IPFS 최적화)
+    const imageResponse = await axios.get(ipfsImage, {
+      responseType: "arraybuffer",
+    });
+    const imageBuffer = Buffer.from(imageResponse.data, "binary");
+    const imageUrlObject = new URL(ipfsImage);
+    const imageName = path.basename(imageUrlObject.pathname);
+    const newImageIpfsUri = await uploadFileToIPFS(imageBuffer, imageName);
+
+    // 4. 메타데이터 업로드
+    const metadata = { name, description, image: newImageIpfsUri };
+    const tokenURI = await uploadJSONToIPFS(metadata);
+
+    const priceInWei = web3.utils.toWei(price.toString(), "ether");
+    const supplyPriceInWei = web3.utils.toWei(supplyPrice.toString(), "ether");
+
+    // 5. 민팅 수수료 확인 및 승인
+    const mintFee = await ipnftFactoryContract.methods.getMintingFee().call();
+    const dpBalance = await dpTokenContract.methods
+      .balanceOf(userWalletAddress)
+      .call();
+
+    if (BigInt(dpBalance) < BigInt(mintFee)) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient DP balance for minting fee. Required: ${web3.utils.fromWei(
+          mintFee,
+          "ether"
+        )} DP`,
+      });
+    }
+
+    const approveTxData = {
+      to: dpTokenContract.options.address,
+      data: dpTokenContract.methods
+        .approve(ipnftFactoryContract.options.address, mintFee)
+        .encodeABI(),
+      value: "0",
+    };
+
+    const approveReceipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      approveTxData,
+      accessToken
+    );
+    logger.info(
+      `[IPNFT Mint] Fee approval transaction hash: ${approveReceipt.transactionHash}`
+    );
+
+    // 6. IPNFT 민팅
+    const mintTxData = {
+      to: ipnftFactoryContract.options.address,
+      data: ipnftFactoryContract.methods
+        .createToken(
+          newImageIpfsUri,
+          name,
+          description,
+          priceInWei,
+          supplyPriceInWei,
+          creatorSBTId
+        )
+        .encodeABI(),
+      value: "0",
+    };
+
+    const mintReceipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      mintTxData,
+      accessToken
+    );
+
+    // 7. TokenID 파싱
+    const tokenMintedEventABI = ipnftFactoryContract.options.jsonInterface.find(
+      (e) => e.name === "TokenMinted" && e.type === "event"
+    );
+    let tokenId = null;
+    if (tokenMintedEventABI) {
+      const eventLog = mintReceipt.logs.find(
+        (log) => log.topics[0] === tokenMintedEventABI.signature
+      );
+      if (eventLog) {
+        const decodedLog = web3.eth.abi.decodeLog(
+          tokenMintedEventABI.inputs,
+          eventLog.data,
+          eventLog.topics.slice(1)
+        );
+        tokenId = decodedLog.tokenId.toString();
+      }
+    }
+
+    const metadataForResponse = {
+      ...metadata,
+      image: toIpfsUrl(newImageIpfsUri),
+    };
+
+    res.json({
+      success: true,
+      message: "IPNFT minted successfully!",
+      txHash: mintReceipt.transactionHash,
+      tokenId: tokenId,
+      tokenURI: toIpfsUrl(tokenURI),
+      metadata: metadataForResponse,
+    });
   } catch (error) {
-    console.error("[IPNFT/TRANSFER_OWNERSHIP] error:", error);
+    logger.error("Error minting IPNFT:", error);
     return res.status(500).json({
-      status: "error",
-      message: "Failed to transfer IPNFTFactory ownership",
+      success: false,
+      message: "Failed to mint IPNFT.",
       error: error.message,
     });
   }
+};
+
+/**
+ * 전체 IPNFT 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getAllIpNfts = async (req, res) => {
+  try {
+    const ipnftContract = getIpNftContract();
+    const totalSupply = await ipnftContract.methods.getCurrentTokenId().call();
+
+    const tokenPromises = [];
+    for (let i = 0; i < totalSupply; i++) {
+      tokenPromises.push(
+        ipnftContract.methods
+          .getTokenInfo(i)
+          .call()
+          .then((tokenInfo) => _formatIpNftData(tokenInfo, i))
+      );
+    }
+
+    const allTokens = (await Promise.all(tokenPromises)).filter(
+      (t) => t !== null
+    );
+
+    res.json({ success: true, nfts: allTokens.reverse() });
+  } catch (error) {
+    logger.error("Error fetching all IPNFTs:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get all IPNFTs",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 내 IPNFT 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getMyIpNfts = async (req, res) => {
+  const accessToken = req.token;
+
+  try {
+    if (!accessToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Access token is required.",
+      });
+    }
+
+    const walletInfo = await walletService.getWallet(accessToken);
+    const userWalletAddress = walletInfo.address;
+
+    if (!userWalletAddress) {
+      return res.status(404).json({
+        success: false,
+        message: "Wallet not found for this user.",
+      });
+    }
+
+    const ipnftContract = getIpNftContract();
+    const totalSupply = await ipnftContract.methods.getCurrentTokenId().call();
+
+    const tokenPromises = [];
+    for (let i = 0; i < totalSupply; i++) {
+      tokenPromises.push(ipnftContract.methods.getTokenInfo(i).call());
+    }
+    const allTokensInfo = await Promise.all(tokenPromises);
+
+    const myTokens = [];
+    for (let i = 0; i < allTokensInfo.length; i++) {
+      const tokenInfo = allTokensInfo[i];
+      if (
+        tokenInfo &&
+        tokenInfo.owner &&
+        tokenInfo.owner.toLowerCase() === userWalletAddress.toLowerCase()
+      ) {
+        const formatted = await _formatIpNftData(tokenInfo, i);
+        if (formatted) {
+          myTokens.push(formatted);
+        }
+      }
+    }
+
+    res.json({ success: true, nfts: myTokens.reverse() });
+  } catch (error) {
+    logger.error("Error fetching my IPNFTs:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get your IPNFTs.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * IPNFT 정보 조회 (Token ID로)
+ * @param {Object} req - Express request object
+ * @param {string} req.params.tokenId - 토큰 ID
+ * @param {Object} res - Express response object
+ */
+const getIpNftInfo = async (req, res) => {
+  const { tokenId } = req.params;
+
+  try {
+    if (!tokenId) {
+      return res.status(400).json({
+        success: false,
+        message: "Token ID is required.",
+      });
+    }
+
+    const ipnftContract = getIpNftContract();
+    const tokenInfo = await ipnftContract.methods.getTokenInfo(tokenId).call();
+    const nftData = await _formatIpNftData(tokenInfo, tokenId);
+
+    if (!nftData) {
+      return res.status(404).json({
+        success: false,
+        message: "IPNFT not found.",
+      });
+    }
+
+    res.json({ success: true, nft: nftData });
+  } catch (error) {
+    logger.error(`Error fetching IPNFT info for token ${tokenId}:`, error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get IPNFT information.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * IPNFT 발행 수수료 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getMintingFee = async (req, res) => {
+  try {
+    const fee = await ipnftFactoryContract.methods.getMintingFee().call();
+    res.json({
+      success: true,
+      fee: web3.utils.fromWei(fee.toString(), "ether"),
+      unit: "DP",
+    });
+  } catch (error) {
+    logger.error("Error fetching minting fee:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get minting fee.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * IPNFT 발행 수수료 변경 (Owner Only)
+ * @param {Object} req - Express request object
+ * @param {string} req.body.accessToken - 액세스 토큰
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {string} req.body.newFee - 새로운 수수료
+ * @param {Object} res - Express response object
+ */
+const setMintingFee = async (req, res) => {
+  const { accessToken, devicePassword, storedWalletData, newFee } = req.body;
+
+  try {
+    if (!accessToken || !devicePassword || !storedWalletData || !newFee) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required.",
+      });
+    }
+
+    const newFeeInWei = web3.utils.toWei(newFee.toString(), "ether");
+    const txData = {
+      to: ipnftFactoryContract.options.address,
+      data: ipnftFactoryContract.methods.setMintingFee(newFeeInWei).encodeABI(),
+      value: "0",
+    };
+
+    const receipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      txData,
+      accessToken
+    );
+
+    res.json({
+      success: true,
+      message: "Minting fee updated successfully.",
+      txHash: receipt.transactionHash,
+    });
+  } catch (error) {
+    logger.error("Error setting minting fee:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to set minting fee.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 이미지 업로드 후 IPFS URI 반환
+ * @param {Object} req - Express request object
+ * @param {Object} req.file - 업로드된 파일
+ * @param {Object} res - Express response object
+ */
+const uploadImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded.",
+      });
+    }
+
+    const ipfsUri = await uploadFileToIPFS(
+      req.file.buffer,
+      req.file.originalname
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "File uploaded to IPFS successfully.",
+      ipfsUri: ipfsUri,
+      ipfsUrl: toIpfsUrl(ipfsUri),
+    });
+  } catch (error) {
+    logger.error("Error uploading image to IPFS:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+module.exports = {
+  mintIpNft,
+  getAllIpNfts,
+  getMyIpNfts,
+  getIpNftInfo,
+  getMintingFee,
+  setMintingFee,
+  uploadImage,
 };

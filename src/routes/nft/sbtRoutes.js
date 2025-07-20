@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const sbtController = require("../../controllers/nft/sbtController");
+const auth = require("../../middleware/auth");
 
 /**
- * @route GET /api/nft/sbt
+ * @route GET /api/nft/sbt/list
  * @desc Get all SBTs from database
  * @access Public
  */
-router.get("/", sbtController.getAllSBTs);
+router.get("/list", sbtController.getAllSBTs);
 
 /**
  * @route GET /api/nft/sbt/admin/balance
@@ -21,21 +22,14 @@ router.get("/admin/balance", sbtController.getAdminBalance);
  * @desc Mint a new SBT
  * @access Public
  */
-router.post("/mint", sbtController.mintSbt);
+router.post("/mint", auth, sbtController.mintSbt);
 
 /**
  * @route POST /api/nft/sbt/transfer-ownership
  * @desc Transfer SBT contract ownership
- * @access Public
+ * @access Protected
  */
-router.post("/transfer-ownership", sbtController.transferSbtOwnership);
-
-/**
- * @route GET /api/nft/sbt/db/:walletAddress
- * @desc Get SBT information from database by wallet address
- * @access Public
- */
-router.get("/db/:walletAddress", sbtController.getSBT);
+router.post("/transfer-ownership", auth, sbtController.transferSbtOwnership);
 
 /**
  * @route GET /api/nft/sbt/info/:sbtId
@@ -43,12 +37,5 @@ router.get("/db/:walletAddress", sbtController.getSBT);
  * @access Public
  */
 router.get("/info/:sbtId", sbtController.getSbtInfo);
-
-/**
- * @route GET /api/nft/sbt/:walletAddress
- * @desc Get SBT information from blockchain by wallet address
- * @access Public
- */
-router.get("/:walletAddress", sbtController.getSbtByWalletAddress);
 
 module.exports = router;

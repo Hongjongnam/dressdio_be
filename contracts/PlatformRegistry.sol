@@ -3,6 +3,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IIPNFT.sol"; // 최신 IIPNFT 인터페이스 import
 
 interface ICreatorSBT {
     function ownerOf(uint256 tokenId) external view returns (address);
@@ -13,20 +14,6 @@ interface ICreatorSBT {
 
 interface IIPNFTFactory {
     function getIPNFTAddress() external view returns (address);
-}
-
-interface IIPNFT {
-    function ownerOf(uint256 tokenId) external view returns (address);
-    function getTokenInfo(uint256 tokenId) external view returns (
-        address owner,
-        string memory name,
-        string memory description,
-        uint256 price,
-        uint256 supplyPrice,
-        address creatorAddress,
-        uint256 creatorSBTId,
-        string memory imageUri
-    );
 }
 
 contract PlatformRegistry is Ownable {
@@ -49,6 +36,7 @@ contract PlatformRegistry is Ownable {
     event SBTUseCountIncremented(uint256 sbtId);
     event IPNFTValidated(uint256 tokenId, address owner, string creatorType);
     event MerchandiseProjectRegistered(address project, address influencer);
+    // event DebugValidation(string functionName, uint256 tokenId); // 디버그 이벤트 삭제
 
     constructor() Ownable(msg.sender) {
     }
@@ -90,74 +78,6 @@ contract PlatformRegistry is Ownable {
         return validIPNFTTokenIds[tokenId];
     }
     
-    // IPNFT 정보 구조체
-    struct IPNFTInfo {
-        address owner;
-        string name;
-        string description;
-        uint256 price;
-        uint256 supplyPrice;
-        address creatorAddress;
-        uint256 creatorSBTId;
-        string imageUri;
-    }
-    
-    // IPNFT 소유자 및 정보 조회
-    function getIPNFTInfo(uint256 tokenId) external view returns (
-        address owner,
-        string memory name,
-        string memory description,
-        uint256 price,
-        uint256 supplyPrice,
-        address creatorAddress,
-        uint256 creatorSBTId,
-        string memory imageUri
-    ) {
-        IPNFTInfo memory info = _getIPNFTInfoInternal(tokenId);
-        return (
-            info.owner,
-            info.name,
-            info.description,
-            info.price,
-            info.supplyPrice,
-            info.creatorAddress,
-            info.creatorSBTId,
-            info.imageUri
-        );
-    }
-    
-    // 내부 IPNFT 정보 조회 함수
-    function _getIPNFTInfoInternal(uint256 tokenId) internal view returns (IPNFTInfo memory) {
-        require(validIPNFTTokenIds[tokenId], "Invalid IPNFT token ID");
-        require(ipnftFactory != address(0), "IPNFT factory not set");
-        
-        IIPNFTFactory factory = IIPNFTFactory(ipnftFactory);
-        address ipnftAddress = factory.getIPNFTAddress();
-        IIPNFT ipnft = IIPNFT(ipnftAddress);
-        
-        address owner;
-        string memory name;
-        string memory description;
-        uint256 price;
-        uint256 supplyPrice;
-        address creatorAddress;
-        uint256 creatorSBTId;
-        string memory imageUri;
-        
-        (owner, name, description, price, supplyPrice, creatorAddress, creatorSBTId, imageUri) = ipnft.getTokenInfo(tokenId);
-        
-        return IPNFTInfo({
-            owner: owner,
-            name: name,
-            description: description,
-            price: price,
-            supplyPrice: supplyPrice,
-            creatorAddress: creatorAddress,
-            creatorSBTId: creatorSBTId,
-            imageUri: imageUri
-        });
-    }
-    
     // 문자열을 주소로 변환하는 헬퍼 함수
     function stringToAddress(string memory _address) internal pure returns (address) {
         bytes memory tempBytes = bytes(_address);
@@ -177,45 +97,31 @@ contract PlatformRegistry is Ownable {
     }
     
     // 브랜드 IPNFT 검증 (creatorType이 "brand"인 IPNFT)
-    function validateBrandIPNFT(uint256 tokenId) external view returns (bool) {
+    function validateBrandIPNFT(uint256 tokenId) external view returns (bool) { // view 복원
+        // emit DebugValidation("validateBrandIPNFT", tokenId); // 디버그 이벤트 삭제
         if (!validIPNFTTokenIds[tokenId]) return false;
         
-        try this.getIPNFTInfo(tokenId) returns (
-            address _owner,
-            string memory _name,
-            string memory _description,
-            uint256 _price,
-            uint256 _supplyPrice,
-            address creatorAddress,
-            uint256 creatorSBTId,
-            string memory _imageUri
-        ) {
-            // SBT에서 creatorType이 "brand"인지 확인
-            return validateCreatorSBT(creatorAddress, creatorSBTId, "brand");
-        } catch {
-            return false;
-        }
+        IIPNFTFactory factory = IIPNFTFactory(ipnftFactory);
+        address ipnftAddress = factory.getIPNFTAddress();
+        if (ipnftAddress == address(0)) return false;
+        IIPNFT ipnft = IIPNFT(ipnftAddress);
+
+        IIPNFT.TokenInfo memory info = ipnft.getTokenInfo(tokenId);
+        return validateCreatorSBT(info.creator, info.creatorSBTId, "brand");
     }
     
     // 아티스트 IPNFT 검증 (creatorType이 "artist"인 IPNFT)
-    function validateArtistIPNFT(uint256 tokenId) external view returns (bool) {
+    function validateArtistIPNFT(uint256 tokenId) external view returns (bool) { // view 복원
+        // emit DebugValidation("validateArtistIPNFT", tokenId); // 디버그 이벤트 삭제
         if (!validIPNFTTokenIds[tokenId]) return false;
-        
-        try this.getIPNFTInfo(tokenId) returns (
-            address _owner,
-            string memory _name,
-            string memory _description,
-            uint256 _price,
-            uint256 _supplyPrice,
-            address creatorAddress,
-            uint256 creatorSBTId,
-            string memory _imageUri
-        ) {
-            // SBT에서 creatorType이 "artist"인지 확인
-            return validateCreatorSBT(creatorAddress, creatorSBTId, "artist");
-        } catch {
-            return false;
-        }
+
+        IIPNFTFactory factory = IIPNFTFactory(ipnftFactory);
+        address ipnftAddress = factory.getIPNFTAddress();
+        if (ipnftAddress == address(0)) return false;
+        IIPNFT ipnft = IIPNFT(ipnftAddress);
+
+        IIPNFT.TokenInfo memory info = ipnft.getTokenInfo(tokenId);
+        return validateCreatorSBT(info.creator, info.creatorSBTId, "artist");
     }
 
     // SBT 검증 함수 (기존 함수 개선)

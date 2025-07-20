@@ -1,15 +1,27 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
-const upload = multer({ storage: multer.memoryStorage() });
-
-const faucetRouter = require("./faucet");
 const utilController = require("../../controllers/utils/utilController");
+const authMiddleware = require("../../middleware/auth");
+const { upload } = require("../../services/upload"); // upload 객체를 직접 import
 
-router.use("/faucet", faucetRouter);
+// DP Faucet route (테스트용이므로 인증 없음)
+router.post("/faucet", utilController.faucet);
 
-// IPFS 업로드 라우트
-router.post("/ipfs/upload-file", upload.any(), utilController.uploadFileToIPFS);
+// File upload to IPFS (테스트용이므로 인증 없음)
+router.post(
+  "/ipfs/upload-file",
+  upload.single("file"), // upload.single() 사용
+  utilController.uploadFileToIPFS
+);
+
+// JSON upload to IPFS (테스트용이므로 인증 없음)
 router.post("/ipfs/upload-json", utilController.uploadJSONToIPFS);
+
+// Debugging route for IPNFT state
+router.get(
+  "/debug/ipnft/:tokenId",
+  authMiddleware,
+  utilController.debugIpNftState
+);
 
 module.exports = router;

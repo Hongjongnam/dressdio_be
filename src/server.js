@@ -1,12 +1,11 @@
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-const sequelize = require("./config/database");
 const logger = require("./utils/logger");
 const authRouter = require("./routes/auth/auth.js");
 const nftRouter = require("./routes/nft");
-const blockchainRouter = require("./routes/auth/blockchain.js");
 const utilsRouter = require("./routes/utils");
+const { initializeWeb3 } = require("./config/web3");
 const path = require("path");
 
 // Load environment variables
@@ -31,27 +30,11 @@ app.use(express.static(path.join(__dirname, "../public")));
 // Mount routes
 app.use("/api/auth", authRouter);
 app.use("/api/nft", nftRouter);
-app.use("/api/auth/blockchain", blockchainRouter);
 app.use("/api/utils", utilsRouter);
-
-// Initialize database
-const initializeDatabase = async () => {
-  try {
-    await sequelize.authenticate();
-    logger.info("Database connection has been established successfully.");
-
-    // alter: true로 변경하여 기존 테이블 구조를 수정
-    await sequelize.sync({ alter: true });
-    logger.info("Database tables have been synchronized.");
-  } catch (error) {
-    logger.error("Unable to connect to the database:", error);
-    process.exit(1);
-  }
-};
 
 // Basic route
 app.get("/", (req, res) => {
-  res.json({ message: "Welcome to DressDio API" });
+  res.sendFile(path.join(__dirname, "../public/index.html"));
 });
 
 // Error handling middleware
@@ -63,9 +46,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
-  await initializeDatabase();
-  logger.info(`Server is running on port ${PORT}`);
-});
+// Start server function
+const startServer = async () => {
+  try {
+    // Web3 초기화가 완료될 때까지 기다립니다.
+    await initializeWeb3();
+    logger.info("✅ Web3 & Contracts initialized successfully.");
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      logger.info(`🚀 Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    logger.error("💥 Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+// 서버 시작
+startServer();

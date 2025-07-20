@@ -10,7 +10,8 @@ contract IPNFT is ERC721, Ownable {
     address public factory;
 
     struct TokenInfo {
-        address creator;
+        address owner; // 현재 소유자
+        address creator; // 원작자
         uint256 creatorSBTId;
         string ipfsImage;
         string name;
@@ -66,6 +67,7 @@ contract IPNFT is ERC721, Ownable {
         _mint(to, tokenId);
         
         tokenInfo[tokenId] = TokenInfo({
+            owner: to, // owner 필드 추가
             creator: creator,
             creatorSBTId: creatorSBTId,
             ipfsImage: ipfsImage,
@@ -108,28 +110,12 @@ contract IPNFT is ERC721, Ownable {
         emit TokenPriceUpdated(tokenId, newPrice, newSupplyPrice);
     }
 
-    function getTokenInfo(uint256 tokenId) external view returns (
-        address owner,
-        string memory name,
-        string memory description,
-        uint256 price,
-        uint256 supplyPrice,
-        address creatorAddress,
-        uint256 creatorSBTId,
-        string memory imageUri
-    ) {
+    // IIPNFT 인터페이스와 호환되도록 TokenInfo 구조체 사용 및 owner 정보 추가
+    function getTokenInfo(uint256 tokenId) external view returns (TokenInfo memory) {
         require(_exists(tokenId), "Token does not exist");
-        TokenInfo storage info = tokenInfo[tokenId];
-        return (
-            _ownerOf(tokenId),
-            info.name,
-            info.description,
-            info.price,
-            info.supplyPrice,
-            info.creator,
-            info.creatorSBTId,
-            info.ipfsImage
-        );
+        TokenInfo memory info = tokenInfo[tokenId];
+        info.owner = _ownerOf(tokenId); // 최신 소유자 정보 업데이트
+        return info;
     }
 
     // 주소를 string으로 변환하는 유틸리티 함수
@@ -165,9 +151,5 @@ contract IPNFT is ERC721, Ownable {
 
     function _exists(uint256 tokenId) internal view returns (bool) {
         return _ownerOf(tokenId) != address(0);
-    }
-
-    function _existsPublic(uint256 tokenId) public view returns (bool) {
-        return _exists(tokenId);
     }
 }

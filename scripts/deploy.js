@@ -24,47 +24,43 @@ async function main() {
   await sbt.waitForDeployment();
   console.log("SBT deployed to:", sbt.target);
 
-  // 2. PlatformRegistry 배포
+  // 2. PlatformRegistry 배포 (이제 MerchandiseFactory는 의존하지 않음)
   const PlatformRegistry = await ethers.getContractFactory("PlatformRegistry");
   const registry = await PlatformRegistry.deploy();
   await registry.waitForDeployment();
   console.log("Registry deployed to:", registry.target);
 
-  // 3. Registry에 SBT 주소 등록 (MerchandiseFactory 배포 전에 필요)
-  console.log("Registering SBT contract in PlatformRegistry...");
-  await registry.setSBTContract(sbt.target);
-  console.log("✅ SBT contract registered in PlatformRegistry.");
+  // 3. IPNFTFactory 배포 (가장 먼저 배포하여 IPNFT 주소를 확보)
+  const IPNFTFactory = await ethers.getContractFactory("IPNFTFactory");
+  const ipnftFactory = await IPNFTFactory.deploy(
+    "Dressdio IP NFT",
+    "DIPNFT",
+    registry.target,
+    dpTokenAddress,
+    {}
+  );
+  await ipnftFactory.waitForDeployment();
+  console.log("IPNFTFactory deployed to:", ipnftFactory.target);
 
-  // 4. MerchandiseFactory 배포 (PlatformRegistry, SBT, DP 토큰 주소 필요)
+  // 4. IPNFT 컨트랙트 주소 가져오기
+  const ipnftAddress = await ipnftFactory.getIPNFTAddress();
+  console.log("IPNFT deployed to:", ipnftAddress);
+
+  // 5. MerchandiseFactory 배포 (IPNFT, SBT, DP 토큰 주소 전달)
   const MerchandiseFactory = await ethers.getContractFactory(
     "MerchandiseFactory"
   );
   const merchFactory = await MerchandiseFactory.deploy(
-    registry.target,
+    ipnftAddress, // IPNFT 주소 직접 전달
     sbt.target,
     dpTokenAddress
   );
   await merchFactory.waitForDeployment();
   console.log("MerchandiseFactory deployed to:", merchFactory.target);
 
-  // 5. IPNFTFactory 배포 (name, symbol, PlatformRegistry, DP 토큰 주소 필요)
-  const IPNFTFactory = await ethers.getContractFactory("IPNFTFactory");
-  const ipnftFactory = await IPNFTFactory.deploy(
-    "Dressdio IP NFT", // name
-    "DIPNFT", // symbol
-    registry.target, // platformRegistry address
-    dpTokenAddress, // DP token address
-    {} // ethers v6: overrides 파라미터 추가
-  );
-  await ipnftFactory.waitForDeployment();
-  console.log("IPNFTFactory deployed to:", ipnftFactory.target);
-
-  // IPNFT 컨트랙트 주소 가져오기
-  const ipnftAddress = await ipnftFactory.getIPNFTAddress();
-  console.log("IPNFT deployed to:", ipnftAddress);
-
-  // 6. Registry에 나머지 주소 등록
-  console.log("Registering remaining contracts in PlatformRegistry...");
+  // 6. Registry에 모든 컨트랙트 주소 등록
+  console.log("Registering all contracts in PlatformRegistry...");
+  await registry.setSBTContract(sbt.target);
   await registry.setMerchandiseFactory(merchFactory.target);
   await registry.setIPNFTFactory(ipnftFactory.target);
   console.log("✅ All contracts registered in PlatformRegistry.");

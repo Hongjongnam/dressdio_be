@@ -1,0 +1,43 @@
+{
+  "receiptId": "receipt_1_2_1752994742114",
+  "timestamp": "2025-07-20T06:59:02.114Z",
+  "purchase": {
+    "projectId": "1",
+    "requestId": "2",
+    "buyer": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "tokenId": "8",
+    "amount": "333000000000000000000",
+    "amountInDP": "333"
+  },
+  "distribution": [
+    {
+      "role": "Platform Fee",
+      "recipient": "Platform",
+      "expectedAmount": "0",
+      "fee": "0",
+      "netAmount": "0",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "0",
+      "isMatched": true
+    }
+  ],
+  "transaction": {
+    "hash": "0x430533ad08f557a725f566e2a1a549d7c9f4bdb8c166427559b8fa0980ed77a8",
+    "blockNumber": "11728796",
+    "gasUsed": "326031",
+    "timestamp": "2025-07-20T06:59:02.114Z"
+  },
+  "nft": {
+    "projectName": "merchanTEST",
+    "description": "ttttt",
+    "imageUri": "ipfs://QmaJ3A3fVvXQpF7YAHjSDRA6itmxHtQwkubo8NKSGzUqj9",
+    "tokenUri": ""
+  },
+  "summary": {
+    "totalAmount": "333000000000000000000",
+    "totalFees": "0",
+    "totalNetDistribution": "0",
+    "participants": 1
+  }
+}

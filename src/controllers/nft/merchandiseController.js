@@ -1,225 +1,448 @@
 const {
   web3,
   merchandiseFactoryContract,
+  dpTokenContract,
   creatorSBTContract,
-  ipnftFactoryContract,
-  merchandiseFactoryAddress,
-  creatorSBTAddress,
-  ipnftFactoryAddress,
-  platformRegistryAddress,
+  platformRegistryContract,
 } = require("../../config/web3");
-const {
-  uploadFileToIPFS,
-  uploadBase64ImageToIPFS,
-} = require("../../services/upload");
-const authService = require("../../services/auth");
+const { uploadFileToIPFS } = require("../../services/upload");
 const walletService = require("../../services/wallet");
-const blockchainService = require("../../services/blockchain");
 const receiptGenerator = require("../../utils/receiptGenerator");
 const pdfReceiptGenerator = require("../../utils/pdfReceiptGenerator");
 const logger = require("../../utils/logger");
 const { stringifyBigInts } = require("../../utils/utils");
+const mpcService = require("../../services/blockchainMPC");
+const axios = require("axios");
 
-// base64 파싱 유틸 함수
-function parseBase64(base64String) {
-  const matches = base64String.match(/^data:(.+);base64,(.+)$/);
-  if (matches) {
-    return {
-      mimeType: matches[1],
-      base64: matches[2],
-    };
-  }
-  return {
-    mimeType: "image/png",
-    base64: base64String,
-  };
-}
+/**
+ * 프로젝트의 실제 분배 데이터를 계산하는 함수
+ * @param {string} projectId - 프로젝트 ID
+ * @param {string} totalAmount - 총 판매 금액 (Wei)
+ * @returns {Array} 분배 데이터 배열
+ */
+const calculateDistributionData = async (projectId, totalAmount) => {
+  try {
+    const distributionData = [];
+    const totalAmountWei = BigInt(totalAmount);
+    const totalAmountDP = web3.utils.fromWei(totalAmount, "ether");
 
-// 상품 프로젝트 생성
-const createProject = async (req, res) => {
-  const accessToken = req.token;
-  let projectImageUri = req.body.projectImageUri;
+    logger.info(
+      `[calculateDistributionData] 총 금액: ${totalAmountWei} Wei (${totalAmountDP} DP)`
+    );
 
-  // 데이터 정리 (따옴표 제거)
-  const cleanData = (value) => {
-    if (typeof value === "string") {
-      return value.replace(/^["']|["']$/g, "");
+    // 프로젝트 정보 조회
+    const projectInfo = await merchandiseFactoryContract.methods
+      .getProjectInfo(projectId)
+      .call();
+
+    // IPNFT 컨트랙트 주소 (MerchandiseFactory에서 참조)
+    const ipnftContractAddress = await merchandiseFactoryContract.methods
+      .ipnftContract()
+      .call();
+
+    // IPNFT 컨트랙트 ABI (실제 ABI 사용)
+    const ipnftAbi = require("../../abi/IPNFT.json");
+
+    const ipnftContract = new web3.eth.Contract(ipnftAbi, ipnftContractAddress);
+
+    // 플랫폼 수수료 비율 조회
+    const platformFeePercentage = await merchandiseFactoryContract.methods
+      .platformFeePercentage()
+      .call();
+
+    logger.info(
+      `[calculateDistributionData] 플랫폼 수수료 비율: ${platformFeePercentage} basis points`
+    );
+
+    // 브랜드 IPNFT 정보 조회
+    const brandTokenId = projectInfo._brandIPNFTTokenId;
+    logger.info(`[calculateDistributionData] 브랜드 토큰 ID: ${brandTokenId}`);
+
+    const brandInfo = await ipnftContract.methods
+      .getTokenInfo(brandTokenId)
+      .call();
+    const brandPrice = BigInt(brandInfo.price || "0");
+    const brandOwner = brandInfo.owner;
+
+    logger.info(
+      `[calculateDistributionData] 브랜드 정보: price=${brandPrice}, owner=${brandOwner}`
+    );
+
+    // 브랜드 분배 계산
+    if (
+      brandPrice > 0 &&
+      brandOwner !== "0x0000000000000000000000000000000000000000"
+    ) {
+      const brandFee =
+        (brandPrice * BigInt(platformFeePercentage)) / BigInt(10000);
+      const brandNet = brandPrice - brandFee;
+
+      const brandPriceDP = web3.utils.fromWei(brandPrice.toString(), "ether");
+      const brandFeeDP = web3.utils.fromWei(brandFee.toString(), "ether");
+      const brandNetDP = web3.utils.fromWei(brandNet.toString(), "ether");
+
+      distributionData.push({
+        role: "Brand Owner",
+        recipient: brandOwner,
+        expectedAmount: brandPriceDP,
+        fee: brandFeeDP,
+        netAmount: brandNetDP,
+        beforeBalance: "0", // 실제 잔액은 별도 조회 필요
+        afterBalance: "0",
+        actualIncrease: brandNetDP,
+        isMatched: true,
+      });
+
+      // 플랫폼 수수료 (브랜드)
+      distributionData.push({
+        role: "Platform Fee (Brand)",
+        recipient: "Platform",
+        expectedAmount: brandFeeDP,
+        fee: brandFeeDP,
+        netAmount: brandFeeDP,
+        beforeBalance: "0",
+        afterBalance: "0",
+        actualIncrease: brandFeeDP,
+        isMatched: true,
+      });
     }
-    return value;
-  };
 
-  const projectName = cleanData(req.body.projectName);
-  const description = cleanData(req.body.description);
-  const quantity = cleanData(req.body.quantity);
-  const salePrice = cleanData(req.body.salePrice);
-  const ipnftTokenIds = cleanData(req.body.ipnftTokenIds);
+    // 아티스트 IPNFT 정보 조회 및 분배 계산
+    const artistTokenIds = projectInfo._artistIPNFTTokenIds;
+    let artistTotalPrice = BigInt(0);
 
-  console.log("정리된 데이터:", {
+    logger.info(
+      `[calculateDistributionData] 아티스트 토큰 수: ${artistTokenIds.length}`
+    );
+
+    for (let i = 0; i < artistTokenIds.length; i++) {
+      const artistTokenId = artistTokenIds[i];
+      logger.info(
+        `[calculateDistributionData] 아티스트 ${
+          i + 1
+        } 토큰 ID: ${artistTokenId}`
+      );
+
+      const artistInfo = await ipnftContract.methods
+        .getTokenInfo(artistTokenId)
+        .call();
+      const artistPrice = BigInt(artistInfo.price || "0");
+      const artistOwner = artistInfo.owner;
+
+      logger.info(
+        `[calculateDistributionData] 아티스트 ${
+          i + 1
+        } 정보: price=${artistPrice}, owner=${artistOwner}`
+      );
+
+      artistTotalPrice += artistPrice;
+
+      if (
+        artistPrice > 0 &&
+        artistOwner !== "0x0000000000000000000000000000000000000000"
+      ) {
+        const artistFee =
+          (artistPrice * BigInt(platformFeePercentage)) / BigInt(10000);
+        const artistNet = artistPrice - artistFee;
+
+        const artistPriceDP = web3.utils.fromWei(
+          artistPrice.toString(),
+          "ether"
+        );
+        const artistFeeDP = web3.utils.fromWei(artistFee.toString(), "ether");
+        const artistNetDP = web3.utils.fromWei(artistNet.toString(), "ether");
+
+        distributionData.push({
+          role: `Artist ${i + 1}`,
+          recipient: artistOwner,
+          expectedAmount: artistPriceDP,
+          fee: artistFeeDP,
+          netAmount: artistNetDP,
+          beforeBalance: "0",
+          afterBalance: "0",
+          actualIncrease: artistNetDP,
+          isMatched: true,
+        });
+
+        // 플랫폼 수수료 (아티스트)
+        distributionData.push({
+          role: `Platform Fee (Artist ${i + 1})`,
+          recipient: "Platform",
+          expectedAmount: artistFeeDP,
+          fee: artistFeeDP,
+          netAmount: artistFeeDP,
+          beforeBalance: "0",
+          afterBalance: "0",
+          actualIncrease: artistFeeDP,
+          isMatched: true,
+        });
+      }
+    }
+
+    // 인플루언서 마진 계산
+    const royaltiesTotal = brandPrice + artistTotalPrice;
+
+    logger.info(
+      `[calculateDistributionData] 로열티 총합: ${royaltiesTotal} Wei`
+    );
+    logger.info(`[calculateDistributionData] 총 판매액: ${totalAmountWei} Wei`);
+
+    const influencerMargin =
+      totalAmountWei > royaltiesTotal
+        ? totalAmountWei - royaltiesTotal
+        : BigInt(0);
+
+    logger.info(
+      `[calculateDistributionData] 인플루언서 마진: ${influencerMargin} Wei`
+    );
+
+    if (influencerMargin > 0) {
+      const influencerFee =
+        (influencerMargin * BigInt(platformFeePercentage)) / BigInt(10000);
+      const influencerNet = influencerMargin - influencerFee;
+
+      logger.info(
+        `[calculateDistributionData] 인플루언서 수수료: ${influencerFee} Wei`
+      );
+      logger.info(
+        `[calculateDistributionData] 인플루언서 순수익: ${influencerNet} Wei`
+      );
+
+      const influencerMarginDP = web3.utils.fromWei(
+        influencerMargin.toString(),
+        "ether"
+      );
+      const influencerFeeDP = web3.utils.fromWei(
+        influencerFee.toString(),
+        "ether"
+      );
+      const influencerNetDP = web3.utils.fromWei(
+        influencerNet.toString(),
+        "ether"
+      );
+
+      distributionData.push({
+        role: "Influencer",
+        recipient: projectInfo._influencer,
+        expectedAmount: influencerMarginDP,
+        fee: influencerFeeDP,
+        netAmount: influencerNetDP,
+        beforeBalance: "0",
+        afterBalance: "0",
+        actualIncrease: influencerNetDP,
+        isMatched: true,
+      });
+
+      // 플랫폼 수수료 (인플루언서)
+      distributionData.push({
+        role: "Platform Fee (Influencer)",
+        recipient: "Platform",
+        expectedAmount: influencerFeeDP,
+        fee: influencerFeeDP,
+        netAmount: influencerFeeDP,
+        beforeBalance: "0",
+        afterBalance: "0",
+        actualIncrease: influencerFeeDP,
+        isMatched: true,
+      });
+    }
+
+    logger.info(
+      `[calculateDistributionData] 분배 데이터 계산 완료: ${distributionData.length}개 항목`
+    );
+    return distributionData;
+  } catch (error) {
+    logger.error(`분배 데이터 계산 중 오류: ${error.message}`);
+    logger.error(`오류 상세 정보:`, error);
+    // 오류 발생 시 기본 분배 데이터 반환
+    return [
+      {
+        role: "Platform Fee",
+        recipient: "Platform",
+        expectedAmount: "0",
+        fee: "0",
+        netAmount: "0",
+        beforeBalance: "0",
+        afterBalance: "0",
+        actualIncrease: "0",
+        isMatched: true,
+      },
+    ];
+  }
+};
+
+// =============================================
+// 1. 프로젝트 관리 (인플루언서, 브랜드)
+// =============================================
+
+/**
+ * Merchandise 프로젝트 생성 (인플루언서)
+ * @param {Object} req - Express request object
+ * @param {string} req.body.projectName - 프로젝트 이름
+ * @param {string} req.body.description - 프로젝트 설명
+ * @param {number} req.body.quantity - 수량
+ * @param {string} req.body.salePrice - 판매 가격
+ * @param {string} req.body.ipnftTokenIds - IPNFT 토큰 ID들
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {string} req.body.accessToken - 액세스 토큰
+ * @param {string} req.body.projectImageUrl - 프로젝트 이미지 URL
+ * @param {Object} res - Express response object
+ */
+const createProject = async (req, res) => {
+  const {
     projectName,
     description,
     quantity,
     salePrice,
     ipnftTokenIds,
-    files: req.files ? req.files.length : 0,
-    projectImageUri,
-  });
-
-  // 필수 필드 검증 (projectImageUri는 파일 업로드 후 설정됨)
-  if (
-    !projectName ||
-    !description ||
-    !quantity ||
-    !salePrice ||
-    !ipnftTokenIds
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "모든 필수 필드를 입력해주세요.",
-      missing: {
-        projectName: !projectName,
-        description: !description,
-        quantity: !quantity,
-        salePrice: !salePrice,
-        ipnftTokenIds: !ipnftTokenIds,
-      },
-    });
-  }
-
-  // IPNFT 토큰 ID 배열 처리
-  let tokenIdsArray;
-  if (typeof ipnftTokenIds === "string") {
-    tokenIdsArray = ipnftTokenIds.split(",").map((id) => id.trim());
-  } else if (Array.isArray(ipnftTokenIds)) {
-    tokenIdsArray = ipnftTokenIds;
-  } else {
-    return res.status(400).json({
-      success: false,
-      message: "IPNFT 토큰 ID를 올바른 형식으로 입력해주세요.",
-    });
-  }
-
-  if (tokenIdsArray.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: "IPNFT 토큰 ID를 하나 이상 입력해주세요.",
-    });
-  }
-
-  // 1. 파일이 첨부된 경우 IPFS 업로드 또는 base64 string 처리
-  if (req.files && req.files.length > 0) {
-    try {
-      console.log("파일 업로드 시작:", req.files[0].originalname);
-      const file = req.files[0];
-      projectImageUri = await uploadFileToIPFS(file.buffer, file.originalname);
-      console.log("IPFS 업로드 완료:", projectImageUri);
-    } catch (err) {
-      console.error("IPFS 업로드 실패:", err);
-      return res.status(500).json({
-        success: false,
-        message: "IPFS upload failed",
-        error: err.message,
-      });
-    }
-  } else if (req.body.base64Image) {
-    // base64 string 처리 (data:...;base64,... 또는 순수 base64)
-    try {
-      console.log("base64 이미지 업로드 시작");
-      let { mimeType, base64 } = parseBase64(req.body.base64Image);
-      let fileName = `upload_${Date.now()}.${mimeType.split("/")[1] || "png"}`;
-      projectImageUri = await uploadBase64ImageToIPFS(
-        base64,
-        fileName,
-        mimeType
-      );
-      console.log("IPFS 업로드 완료:", projectImageUri);
-    } catch (err) {
-      console.error("base64 IPFS 업로드 실패:", err);
-      return res.status(500).json({
-        success: false,
-        message: "base64 IPFS upload failed",
-        error: err.message,
-      });
-    }
-  }
-  // projectImageUri가 없으면 오류
-  if (!projectImageUri) {
-    return res.status(400).json({
-      success: false,
-      message:
-        "프로젝트 이미지를 업로드해주세요. (image 파일, base64Image, 또는 projectImageUri)",
-    });
-  }
+    storedWalletData,
+    devicePassword,
+    accessToken,
+    projectImageUrl,
+  } = req.body;
 
   try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
-    const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      process.env.DEVICE_PASSWORD
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
+    // 1. 필수 파라미터 검증
+    if (
+      !projectName ||
+      !description ||
+      !quantity ||
+      !salePrice ||
+      !ipnftTokenIds ||
+      !devicePassword ||
+      !storedWalletData ||
+      !accessToken
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required.",
+      });
+    }
 
-    console.log("지갑 정보:", walletInfo.address);
+    // 2. 프로젝트 이미지 처리
+    let projectImageUri = "";
 
-    // 2. 사용자의 SBT 목록을 조회하고 influencer 타입의 SBT가 있는지 확인
-    const sbtInfoList = await creatorSBTContract.methods
-      .getSBTInfoByAddress(walletInfo.address)
-      .call();
+    if (projectImageUrl) {
+      // URL에서 이미지 다운로드 후 업로드
+      if (
+        !projectImageUrl.startsWith("http://") &&
+        !projectImageUrl.startsWith("https://")
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "잘못된 이미지 URL 형식입니다.",
+        });
+      }
 
-    console.log("SBT 정보:", sbtInfoList);
-
-    let hasInfluencerSBT = false;
-    for (const sbtInfo of sbtInfoList) {
-      if (sbtInfo.creatorType.toLowerCase() === "influencer") {
-        hasInfluencerSBT = true;
-        break;
+      try {
+        const response = await axios.get(projectImageUrl, {
+          responseType: "arraybuffer",
+        });
+        const buffer = Buffer.from(response.data, "binary");
+        const filename =
+          new URL(projectImageUrl).pathname.split("/").pop() || "image.png";
+        projectImageUri = await uploadFileToIPFS(buffer, filename);
+      } catch (err) {
+        logger.error("Failed to download or upload image from URL:", err);
+        return res.status(500).json({
+          success: false,
+          message: "URL에서 이미지를 처리하는 데 실패했습니다.",
+        });
+      }
+    } else if (req.files && req.files.length > 0) {
+      // 파일 업로드 방식
+      try {
+        const file = req.files[0];
+        projectImageUri = await uploadFileToIPFS(
+          file.buffer,
+          file.originalname
+        );
+      } catch (err) {
+        return res.status(500).json({
+          success: false,
+          message: "IPFS upload failed",
+        });
       }
     }
 
-    if (!hasInfluencerSBT) {
-      return res.status(403).json({
+    if (!projectImageUri) {
+      return res.status(400).json({
         success: false,
-        message:
-          "influencer 타입의 SBT를 보유한 사용자만 상품 프로젝트를 생성할 수 있습니다.",
+        message: "프로젝트 이미지가 필요합니다 (URL 또는 파일 업로드).",
       });
     }
 
-    // 3. IPNFT 유효성 및 타입 검증 (owner 검증 X)
-    let brandIPNFTTokenId = null;
-    let artistIPNFTTokenIds = [];
+    // 3. IPNFT 토큰 ID 파싱
+    const tokenIdsArray = String(ipnftTokenIds)
+      .split(",")
+      .map((id) => id.trim());
 
-    // PlatformRegistry 컨트랙트 인스턴스 생성
-    const platformRegistryContract = new web3.eth.Contract(
-      require("../../abi/PlatformRegistry.json"),
-      platformRegistryAddress
+    // 4. IPNFT 컨트랙트 인스턴스 생성
+    const ipnftFactoryContract = new web3.eth.Contract(
+      require("../../abi/IPNFTFactory.json"),
+      await platformRegistryContract.methods.ipnftFactory().call()
+    );
+    const ipnftAddress = await ipnftFactoryContract.methods
+      .getIPNFTAddress()
+      .call();
+    const ipnftContract = new web3.eth.Contract(
+      require("../../abi/IPNFT.json"),
+      ipnftAddress
     );
 
+    let brandIPNFTTokenId = null;
+    let artistIPNFTTokenIds = [];
+    let minSalePriceInWei = BigInt(0);
+
     for (const tokenId of tokenIdsArray) {
+      logger.info(
+        `[Create Project] Manually validating IPNFT Token ID: ${tokenId}`
+      );
+
       try {
-        const numericTokenId = Number(tokenId);
-        console.log(
-          `[DEBUG] 검증 시도: tokenId=${tokenId}, numericTokenId=${numericTokenId}`
+        // 1. PlatformRegistry에 등록되었는지 확인
+        const isRegistered = await platformRegistryContract.methods
+          .validIPNFTTokenIds(tokenId)
+          .call();
+        if (!isRegistered) {
+          throw new Error(
+            `Token ID ${tokenId} is not registered in PlatformRegistry.`
+          );
+        }
+        logger.info(`> Token ${tokenId} is registered.`);
+
+        // 2. IPNFT 정보 가져오기
+        const ipnftInfo = await ipnftContract.methods
+          .getTokenInfo(tokenId)
+          .call();
+        minSalePriceInWei += BigInt(ipnftInfo.price);
+        logger.info(`> Fetched IPNFT info for ${tokenId}:`, {
+          creator: ipnftInfo.creator,
+          sbtId: ipnftInfo.creatorSBTId,
+        });
+
+        // 3. SBT 정보 가져오기
+        const sbtInfo = await creatorSBTContract.methods
+          .getSBTInfoById(ipnftInfo.creatorSBTId)
+          .call();
+        logger.info(
+          `> Fetched SBT info for SBT ID ${ipnftInfo.creatorSBTId}:`,
+          { type: sbtInfo.creatorType }
         );
-        const isBrand = await platformRegistryContract.methods
-          .validateBrandIPNFT(numericTokenId)
-          .call();
-        const isArtist = await platformRegistryContract.methods
-          .validateArtistIPNFT(numericTokenId)
-          .call();
-        console.log(
-          `[DEBUG] 검증 결과: isBrand=${isBrand}, isArtist=${isArtist}`
+
+        // 4. 타입 검증
+        const isBrand = sbtInfo.creatorType.toLowerCase() === "brand";
+        const isArtist = sbtInfo.creatorType.toLowerCase() === "artist";
+
+        logger.info(
+          `> Validation result for ${tokenId}: isBrand=${isBrand}, isArtist=${isArtist}`
         );
 
         if (!isBrand && !isArtist) {
           return res.status(400).json({
             success: false,
-            message: `IPNFT 토큰 ID ${tokenId}는 유효한 brand/artist IPNFT가 아닙니다.`,
+            message: `IPNFT Token ID ${tokenId} is not a valid brand/artist IPNFT.`,
           });
         }
 
@@ -227,17 +450,20 @@ const createProject = async (req, res) => {
           if (brandIPNFTTokenId !== null) {
             return res.status(400).json({
               success: false,
-              message: "brand IPNFT는 하나만 지정할 수 있습니다.",
+              message: "Only one brand IPNFT can be specified.",
             });
           }
-          brandIPNFTTokenId = numericTokenId;
+          brandIPNFTTokenId = tokenId;
         } else if (isArtist) {
-          artistIPNFTTokenIds.push(numericTokenId);
+          artistIPNFTTokenIds.push(tokenId);
         }
       } catch (err) {
+        logger.error(
+          `[Create Project] Validation failed for token ${tokenId}: ${err.message}`
+        );
         return res.status(500).json({
           success: false,
-          message: `IPNFT 토큰 ID ${tokenId} 검증 중 오류 발생`,
+          message: `Error validating IPNFT Token ID ${tokenId}.`,
           error: err.message,
         });
       }
@@ -246,406 +472,707 @@ const createProject = async (req, res) => {
     if (brandIPNFTTokenId === null) {
       return res.status(400).json({
         success: false,
-        message: "brand IPNFT를 반드시 하나 지정해야 합니다.",
+        message: "One brand IPNFT must be specified.",
       });
     }
     if (artistIPNFTTokenIds.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "artist IPNFT를 하나 이상 지정해야 합니다.",
+        message: "At least one artist IPNFT must be specified.",
       });
     }
 
-    // 디버깅: influencer SBT 검증
-    try {
-      console.log("Influencer SBT 검증 시작...");
-      const hasInfluencerSBT = await creatorSBTContract.methods
-        .hasCreatorSbt(walletInfo.address, "influencer")
-        .call();
-      console.log("hasCreatorSbt 결과:", hasInfluencerSBT);
+    const salePriceInWei = BigInt(web3.utils.toWei(String(salePrice), "ether"));
 
-      if (!hasInfluencerSBT) {
-        return res.status(403).json({
-          success: false,
-          message: "인플루언서 SBT가 필요합니다.",
-        });
-      }
-    } catch (sbtError) {
-      console.error("SBT 검증 오류:", sbtError);
+    if (salePriceInWei < minSalePriceInWei) {
       return res.status(400).json({
         success: false,
-        message: "SBT 검증 중 오류가 발생했습니다.",
-        error: sbtError.message,
+        message: `판매 가격은 모든 IPNFT 판매가의 합보다 낮을 수 없습니다. 최소 판매가: ${web3.utils.fromWei(
+          minSalePriceInWei.toString(),
+          "ether"
+        )} DP`,
       });
     }
 
-    // 디버깅: 컨트랙트 주소 확인
-    console.log("컨트랙트 주소 확인:");
-    console.log("- MerchandiseFactory:", merchandiseFactoryAddress);
-    console.log("- CreatorSBT:", creatorSBTAddress);
-    console.log("- PlatformRegistry:", platformRegistryAddress);
-
-    // 디버깅: 각 require 조건 개별 테스트
-    console.log("=== Require 조건 개별 테스트 ===");
-    console.log(
-      "1. totalSupply > 0:",
-      parseInt(quantity) > 0,
-      `(${parseInt(quantity)} > 0)`
+    // 최종 파라미터 로깅
+    logger.info(
+      "[Create Project] Final parameters for smart contract transaction:"
     );
-    console.log(
-      "2. salePrice > 0:",
-      parseInt(salePrice) > 0,
-      `(${salePrice} > 0)`
+    logger.info(`> projectName: ${projectName} (${typeof projectName})`);
+    logger.info(`> description: ${description} (${typeof description})`);
+    logger.info(`> quantity: ${quantity} (${typeof quantity})`);
+    logger.info(
+      `> salePriceInWei: ${salePriceInWei.toString()} (${typeof salePriceInWei})`
     );
-    console.log(
-      "3. brandIPNFTTokenId >= 0:",
-      brandIPNFTTokenId >= 0,
-      `(${brandIPNFTTokenId} >= 0)`
+    logger.info(
+      `> brandIPNFTTokenId: ${brandIPNFTTokenId} (${typeof brandIPNFTTokenId})`
     );
-    console.log(
-      "4. artistIPNFTTokenIds.length > 0:",
-      artistIPNFTTokenIds.length > 0,
-      `(${artistIPNFTTokenIds.length} > 0)`
+    logger.info(
+      `> artistIPNFTTokenIds: ${JSON.stringify(
+        artistIPNFTTokenIds
+      )} (Array of ${typeof artistIPNFTTokenIds[0]})`
     );
-    console.log(
-      "5. projectName.length > 0:",
-      projectName.length > 0,
-      `("${projectName}" length: ${projectName.length})`
+    logger.info(
+      `> projectImageUri: ${projectImageUri} (${typeof projectImageUri})`
     );
-    console.log(
-      "6. description.length > 0:",
-      description.length > 0,
-      `("${description}" length: ${description.length})`
-    );
-    console.log(
-      "7. projectImageUri.length > 0:",
-      projectImageUri.length > 0,
-      `("${projectImageUri}" length: ${projectImageUri.length})`
-    );
-    console.log("=== Require 조건 테스트 완료 ===");
 
-    // 4. Merchandise 프로젝트 생성
-    console.log("Merchandise 프로젝트 생성 시작...");
-
-    // 숫자 타입 변환
-    const totalSupply = parseInt(quantity);
-    const salePriceInWei = web3.utils.toWei(salePrice.toString(), "ether");
-
-    console.log("생성 파라미터:", {
-      projectName,
-      description,
-      totalSupply,
-      salePriceInWei,
-      brandIPNFTTokenId,
-      artistIPNFTTokenIds,
-      projectImageUri,
-    });
-
-    const createProjectTx =
-      merchandiseFactoryContract.methods.createMerchandiseProject(
-        projectName,
-        description,
-        totalSupply,
-        salePriceInWei,
-        brandIPNFTTokenId || 0, // brand IPNFT가 없으면 0
-        artistIPNFTTokenIds,
-        projectImageUri
-      );
-
-    const gasEstimate = await createProjectTx.estimateGas({
-      from: walletInfo.address,
-    });
-
-    console.log("가스 추정:", gasEstimate);
-
-    // ABC WAAS를 통해 트랜잭션 전송
-    const transactionData = {
-      to: merchandiseFactoryAddress,
-      data: createProjectTx.encodeABI(),
+    // 여기서 salePriceInWei는 이미 BigInt 타입이므로 그대로 사용
+    const createProjectTxData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods
+        .createMerchandiseProject(
+          projectName,
+          description,
+          quantity,
+          salePriceInWei.toString(), // 스마트 컨트랙트 함수는 BigInt를 직접 받지 못하므로 문자열로 변환
+          brandIPNFTTokenId, // 문자열 ID 전달
+          artistIPNFTTokenIds, // 문자열 ID 배열 전달
+          projectImageUri
+        )
+        .encodeABI(),
       value: "0",
     };
 
-    // 1. 트랜잭션 서명
-    const signedTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      transactionData,
-      req.token
+    const receipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      createProjectTxData,
+      accessToken
     );
 
-    // 2. 서명된 트랜잭션 전송
-    const transactionHash = await blockchainService.sendTransaction(signedTx);
+    let projectId = null;
+    try {
+      const eventAbi = merchandiseFactoryContract.options.jsonInterface.find(
+        (e) => e.name === "MerchandiseProjectCreated" && e.type === "event"
+      );
 
-    console.log("프로젝트 생성 완료, 트랜잭션 해시:", transactionHash);
+      if (eventAbi) {
+        const eventLog = receipt.logs.find(
+          (log) =>
+            log.address.toLowerCase() ===
+              merchandiseFactoryContract.options.address.toLowerCase() &&
+            log.topics[0] === eventAbi.signature
+        );
 
-    // 3. 트랜잭션 영수증 대기
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const receipt = await blockchainService.getTransactionReceipt(
-      transactionHash
-    );
-
-    // 4. 생성된 프로젝트 ID 추출 (이벤트에서)
-    console.log("트랜잭션 영수증 로그:", receipt.logs);
-
-    // 모든 로그의 topics 확인
-    receipt.logs.forEach((log, index) => {
-      console.log(`로그 ${index}:`, {
-        address: log.address,
-        topics: log.topics,
-        data: log.data,
-      });
-    });
-
-    // MerchandiseProjectCreated 이벤트 찾기
-    const expectedEventSignature =
-      "0x2ed1fd105197255d60a3ac92a9c91aebb18620efc66764103d6f04d28ee057d5";
-    console.log("예상 이벤트 시그니처:", expectedEventSignature);
-
-    const projectCreatedEvent = receipt.logs.find(
-      (log) => log.topics[0] === expectedEventSignature
-    );
-
-    if (!projectCreatedEvent) {
-      console.log("이벤트를 찾을 수 없습니다. 모든 로그의 첫 번째 topic:");
-      receipt.logs.forEach((log, index) => {
-        console.log(`로그 ${index} 첫 번째 topic:`, log.topics[0]);
-      });
-
-      // 첫 번째 로그를 사용 (일반적으로 프로젝트 생성 이벤트)
-      if (receipt.logs.length > 0) {
-        console.log("첫 번째 로그를 사용합니다.");
-        const firstLog = receipt.logs[0];
-
-        // projectId는 topics[1]에서 직접 추출
-        const projectId = parseInt(firstLog.topics[1], 16);
-        console.log("생성된 프로젝트 ID:", projectId);
-
-        // 6. 생성된 프로젝트 정보 조회
-        console.log("프로젝트 정보 조회 시작...");
-        const projectInfo = await merchandiseFactoryContract.methods
-          .getProjectInfo(projectId)
-          .call();
-        console.log("프로젝트 정보 조회 완료:", projectInfo);
-
-        console.log("응답 데이터 준비 시작...");
-        const responseData = {
-          success: true,
-          message: "상품 프로젝트가 성공적으로 생성되었습니다.",
-          data: {
-            projectId: projectId,
-            projectName: projectInfo._projectName,
-            description: projectInfo._productDescription,
-            totalSupply: projectInfo._totalSupply,
-            salePrice: web3.utils.fromWei(projectInfo._salePrice, "ether"),
-            brandIPNFTTokenId: projectInfo._brandIPNFTTokenId,
-            artistIPNFTTokenIds: projectInfo._artistIPNFTTokenIds,
-            isActive: projectInfo._isActive,
-            createdAt: projectInfo._createdAt,
-            projectImageURI:
-              projectInfo._projectImageURI &&
-              projectInfo._projectImageURI.startsWith("ipfs://")
-                ? projectInfo._projectImageURI.replace(
-                    "ipfs://",
-                    "https://ipfs.io/ipfs/"
-                  )
-                : projectInfo._projectImageURI,
-            mintedCount: projectInfo._mintedCount,
-            transactionHash: transactionHash,
-          },
-        };
-        console.log("응답 데이터 준비 완료:", responseData);
-
-        console.log("응답 전송 시작...");
-        res.json(stringifyBigInts(responseData));
-        console.log("응답 전송 완료");
-        return;
+        if (eventLog) {
+          const decodedLog = web3.eth.abi.decodeLog(
+            eventAbi.inputs,
+            eventLog.data,
+            eventLog.topics.slice(1)
+          );
+          projectId = decodedLog.projectId.toString();
+        } else {
+          logger.warn(
+            `[Create Project] MerchandiseProjectCreated event not found in transaction ${receipt.transactionHash}`
+          );
+        }
+      } else {
+        logger.warn(
+          `[Create Project] MerchandiseProjectCreated event ABI not found.`
+        );
       }
-
-      throw new Error("프로젝트 생성 이벤트를 찾을 수 없습니다.");
+    } catch (err) {
+      logger.error(`[Create Project] Error parsing event log: ${err.message}`);
     }
 
-    // projectId는 topics[1]에서 직접 추출
-    const projectId = parseInt(projectCreatedEvent.topics[1], 16);
-    console.log("생성된 프로젝트 ID:", projectId);
+    return res.json({
+      success: true,
+      message: "Merchandise project created successfully.",
+      txHash: receipt.transactionHash,
+      projectId: projectId,
+    });
+  } catch (error) {
+    logger.error("Error creating merchandise project:", error);
+    logger.error("Full error object:", JSON.stringify(error, null, 2));
 
-    // 6. 생성된 프로젝트 정보 조회
-    console.log("프로젝트 정보 조회 시작...");
+    // 장치 비밀번호 검증 실패 에러 처리
+    if (error.message.includes("Invalid device password")) {
+      return res.status(401).json({
+        success: false,
+        message: "장치 비밀번호가 올바르지 않습니다.",
+        error: "INVALID_DEVICE_PASSWORD",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "An error occurred while creating the project.",
+    });
+  }
+};
+
+/**
+ * 프로젝트 활성화 (브랜드)
+ * @param {Object} req - Express request object
+ * @param {string} req.body.projectId - 프로젝트 ID
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {Object} res - Express response object
+ */
+const setActive = async (req, res) => {
+  const { projectId, devicePassword, storedWalletData } = req.body;
+  const accessToken = req.token;
+
+  if (!projectId || !devicePassword || !storedWalletData) {
+    return res.status(400).json({
+      success: false,
+      message: "모든 필수 필드를 입력해주세요.",
+    });
+  }
+
+  try {
+    const txData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods
+        .activateProject(projectId)
+        .encodeABI(),
+      value: "0",
+    };
+
+    // 비밀번호를 검증하는 안전한 MPC 서비스로 변경
+    const receipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      txData,
+      accessToken
+    );
+
+    return res.json({
+      success: true,
+      message: "프로젝트가 성공적으로 활성화되었습니다.",
+      receipt: stringifyBigInts(receipt),
+    });
+  } catch (error) {
+    logger.error("Error activating project:", error);
+
+    // 장치 비밀번호 검증 실패 에러 처리
+    if (error.message.includes("Invalid device password")) {
+      return res.status(401).json({
+        success: false,
+        message: "장치 비밀번호가 올바르지 않습니다.",
+        error: "INVALID_DEVICE_PASSWORD",
+      });
+    }
+
+    const reason =
+      error.reason ||
+      (error.data ? web3.utils.toAscii(error.data) : null) ||
+      error.message;
+    logger.error(`Project activation failed. Reason: ${reason}`);
+
+    return res.status(500).json({
+      success: false,
+      message: "프로젝트 활성화 중 오류가 발생했습니다.",
+      error: reason,
+    });
+  }
+};
+
+// =============================================
+// 2. 구매 플로우 (구매자)
+// =============================================
+
+/**
+ * 상품 구매 요청 (Approve & Request)
+ * @param {Object} req - Express request object
+ * @param {string} req.body.projectId - 프로젝트 ID
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {Object} res - Express response object
+ */
+const requestPurchase = async (req, res) => {
+  const { projectId, devicePassword, storedWalletData } = req.body;
+  const accessToken = req.token;
+  const quantity = 1; // 사용자의 제안에 따라 수량을 1로 고정합니다.
+
+  if (!projectId || !devicePassword || !storedWalletData) {
+    return res.status(400).json({
+      success: false,
+      message: "프로젝트 ID, 장치 비밀번호, 지갑 데이터는 필수입니다.",
+    });
+  }
+
+  try {
+    // 1. 스마트 컨트랙트에서 프로젝트의 정확한 판매 가격(salePrice)을 조회합니다.
     const projectInfo = await merchandiseFactoryContract.methods
       .getProjectInfo(projectId)
       .call();
-    console.log("프로젝트 정보 조회 완료:", projectInfo);
+    const salePriceInWei = projectInfo._salePrice;
 
-    console.log("응답 데이터 준비 시작...");
-    const responseData = {
-      success: true,
-      message: "상품 프로젝트가 성공적으로 생성되었습니다.",
-      data: {
-        projectId: projectId,
-        projectName: projectInfo._projectName,
-        description: projectInfo._productDescription,
-        totalSupply: projectInfo._totalSupply,
-        salePrice: web3.utils.fromWei(projectInfo._salePrice, "ether"),
-        brandIPNFTTokenId: projectInfo._brandIPNFTTokenId,
-        artistIPNFTTokenIds: projectInfo._artistIPNFTTokenIds,
-        isActive: projectInfo._isActive,
-        createdAt: projectInfo._createdAt,
-        projectImageURI:
-          projectInfo._projectImageURI &&
-          projectInfo._projectImageURI.startsWith("ipfs://")
-            ? projectInfo._projectImageURI.replace(
-                "ipfs://",
-                "https://ipfs.io/ipfs/"
-              )
-            : projectInfo._projectImageURI,
-        mintedCount: projectInfo._mintedCount,
-        transactionHash: transactionHash,
-      },
+    if (!projectInfo._isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "아직 활성화되지 않은 프로젝트입니다.",
+      });
+    }
+
+    if (projectInfo._mintedCount >= projectInfo._totalSupply) {
+      return res
+        .status(400)
+        .json({ success: false, message: "모든 수량이 판매되었습니다." });
+    }
+
+    const userWalletAddress = storedWalletData.sid;
+    const dpBalance = await dpTokenContract.methods
+      .balanceOf(userWalletAddress)
+      .call();
+
+    // 2. 사용자의 DP 토큰 잔액을 확인합니다.
+    if (BigInt(dpBalance) < BigInt(salePriceInWei)) {
+      return res.status(403).json({
+        success: false,
+        message: `DP 토큰 잔액이 부족합니다. 필요 금액: ${web3.utils.fromWei(
+          salePriceInWei,
+          "ether"
+        )} DP`,
+      });
+    }
+
+    // 3. 정확한 salePrice로 DP 토큰 사용을 승인(approve)합니다.
+    const approveTxData = {
+      to: dpTokenContract.options.address,
+      data: dpTokenContract.methods
+        .approve(merchandiseFactoryContract.options.address, salePriceInWei)
+        .encodeABI(),
+      value: "0",
     };
-    console.log("응답 데이터 준비 완료:", responseData);
 
-    console.log("응답 전송 시작...");
-    res.json(stringifyBigInts(responseData));
-    console.log("응답 전송 완료");
+    const approveReceipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      approveTxData,
+      accessToken
+    );
+    logger.info(
+      `[Purchase] DP Token approved for ${web3.utils.fromWei(
+        salePriceInWei,
+        "ether"
+      )} DP. Tx Hash: ${approveReceipt.transactionHash}`
+    );
+
+    // 4. 구매 요청(requestPurchase) 트랜잭션을 실행합니다.
+    const purchaseTxData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods
+        .requestPurchase(projectId)
+        .encodeABI(), // 함수 이름 수정 및 quantity 제거
+      value: "0",
+    };
+
+    const purchaseReceipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      purchaseTxData,
+      accessToken
+    );
+
+    if (!purchaseReceipt) {
+      throw new Error("구매 요청 트랜잭션 실패");
+    }
+
+    const txHash = purchaseReceipt.transactionHash;
+    let requestId = null;
+
+    // 이벤트 로그에서 requestId를 추출합니다.
+    try {
+      const eventAbi = merchandiseFactoryContract.options.jsonInterface.find(
+        (e) => e.name === "PurchaseRequestCreated" && e.type === "event"
+      );
+
+      if (eventAbi) {
+        const eventLog = purchaseReceipt.logs.find(
+          (log) =>
+            log.address.toLowerCase() ===
+              merchandiseFactoryContract.options.address.toLowerCase() &&
+            log.topics[0] === eventAbi.signature
+        );
+
+        if (eventLog) {
+          const decodedLog = web3.eth.abi.decodeLog(
+            eventAbi.inputs,
+            eventLog.data,
+            eventLog.topics.slice(1)
+          );
+          requestId = decodedLog.requestId.toString();
+        } else {
+          logger.warn(
+            `[Purchase] 트랜잭션 ${txHash}에서 PurchaseRequestCreated 이벤트를 찾을 수 없습니다.`
+          );
+        }
+      } else {
+        logger.warn(
+          `[Purchase] PurchaseRequestCreated 이벤트의 ABI를 찾을 수 없습니다.`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `[Purchase] 이벤트 로그 처리 중 오류 발생: ${error.message}`
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "구매 요청이 성공적으로 완료되었습니다.",
+      requestId: requestId,
+      txHash: txHash,
+    });
   } catch (error) {
-    console.error("상품 프로젝트 생성 오류:", error);
-    logger.error("상품 프로젝트 생성 오류:", error);
-    res.status(500).json({
+    logger.error(`구매 요청 처리 중 오류: ${error.message}`);
+
+    // 장치 비밀번호 검증 실패 에러 처리
+    if (error.message.includes("Invalid device password")) {
+      return res.status(401).json({
+        success: false,
+        message: "장치 비밀번호가 올바르지 않습니다.",
+        error: "INVALID_DEVICE_PASSWORD",
+      });
+    }
+
+    return res.status(500).json({
       success: false,
-      message: "상품 프로젝트 생성 중 오류가 발생했습니다.",
+      message: "구매 요청 중 오류가 발생했습니다.",
       error: error.message,
     });
   }
 };
 
-// 상품 프로젝트 목록 조회
-const getProjects = async (req, res) => {
-  try {
-    console.log("MerchandiseFactory 주소:", merchandiseFactoryAddress);
-    console.log("RPC URL:", process.env.RPC_URL);
+/**
+ * 상품 구매 확정 (NFT 발행 및 대금 정산)
+ * @param {Object} req - Express request object
+ * @param {string} req.body.projectId - 프로젝트 ID
+ * @param {string} req.body.requestId - 요청 ID
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {Object} res - Express response object
+ */
+const confirmPurchase = async (req, res) => {
+  const { projectId, requestId, devicePassword, storedWalletData } = req.body;
+  const accessToken = req.token;
 
-    const merchandiseFactory = new web3.eth.Contract(
-      require("../../abi/MerchandiseFactory.json"),
-      merchandiseFactoryAddress
+  if (!projectId || !requestId || !devicePassword || !storedWalletData) {
+    return res.status(400).json({
+      success: false,
+      message: "모든 필수 필드를 입력해주세요.",
+    });
+  }
+
+  try {
+    const userWalletAddress = storedWalletData.sid;
+
+    logger.info(
+      `[Confirm Purchase] 구매자가 구매 확정 시도 - requestId: ${requestId}`
+    );
+    logger.info(`[Confirm Purchase] 구매자 주소: ${userWalletAddress}`);
+    logger.info(
+      `[Confirm Purchase] MerchandiseFactory 주소: ${merchandiseFactoryContract.options.address}`
     );
 
-    console.log("컨트랙트 인스턴스 생성 완료");
-
-    const projectCount = await merchandiseFactory.methods
-      .getProjectCount()
+    const purchaseRequest = await merchandiseFactoryContract.methods
+      .getPurchaseRequest(projectId, requestId)
       .call();
 
-    console.log("프로젝트 개수:", projectCount);
+    // 디버깅을 위한 로그 추가
+    logger.info(
+      `[Confirm Purchase] 권한 확인 - projectId: ${projectId}, requestId: ${requestId}`
+    );
+    logger.info(`[Confirm Purchase] 요청한 구매자 주소: ${userWalletAddress}`);
+    logger.info(
+      `[Confirm Purchase] 컨트랙트의 구매자 주소: ${purchaseRequest.buyer}`
+    );
 
-    const projects = [];
+    // 권한 확인 (구매자 본인만 확정 가능) - 양쪽 모두 소문자로 비교하여 안정성 강화
+    if (
+      userWalletAddress.toLowerCase() !== purchaseRequest.buyer.toLowerCase()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "해당 구매 요청의 구매자만 확정할 수 있습니다.",
+      });
+    }
+
+    const requiredAmount = purchaseRequest.amount; // .amount는 이미 Wei 단위의 BigInt 문자열
+    logger.info(
+      `[Confirm Purchase] Required DP token amount (Wei): ${requiredAmount}`
+    );
+
+    // 2. 구매 확정(confirmPurchase) 트랜잭션 생성
+    const confirmTxData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods
+        .confirmPurchase(projectId, requestId)
+        .encodeABI(),
+      value: "0",
+    };
+
+    // MPC 서명 및 전송
+    logger.info(`[Confirm Purchase] Confirming purchase...`);
+    const receipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      confirmTxData,
+      accessToken
+    );
+
+    let tokenId = null;
+    let receiptId = null;
+    try {
+      const eventAbi = merchandiseFactoryContract.options.jsonInterface.find(
+        (e) => e.name === "PurchaseConfirmed" && e.type === "event"
+      );
+
+      if (eventAbi) {
+        const eventLog = receipt.logs.find(
+          (log) =>
+            log.address.toLowerCase() ===
+              merchandiseFactoryContract.options.address.toLowerCase() &&
+            log.topics[0] === eventAbi.signature
+        );
+
+        if (eventLog) {
+          const decodedLog = web3.eth.abi.decodeLog(
+            eventAbi.inputs,
+            eventLog.data,
+            eventLog.topics.slice(1)
+          );
+          tokenId = decodedLog.tokenId.toString();
+
+          // 영수증 생성 로직 추가
+          const projectInfo = await merchandiseFactoryContract.methods
+            .getProjectInfo(projectId)
+            .call();
+
+          // 영수증 생성을 위한 데이터 구성
+          const purchaseData = {
+            projectId: projectId.toString(),
+            requestId: requestId.toString(),
+            buyer: decodedLog.buyer,
+            tokenId: tokenId,
+            amount: purchaseRequest.amount,
+            amountInDP: web3.utils.fromWei(purchaseRequest.amount, "ether"),
+            projectName: projectInfo._projectName,
+            description: projectInfo._productDescription,
+            imageUri: projectInfo._projectImageURI,
+            tokenUri: "", // 토큰 URI는 별도로 조회 필요
+          };
+
+          // 실제 분배 데이터 계산
+          const distributionData = await calculateDistributionData(
+            projectId,
+            purchaseRequest.amount
+          );
+
+          // 트랜잭션 데이터
+          const transactionData = {
+            hash: receipt.transactionHash,
+            blockNumber: receipt.blockNumber || "0",
+            gasUsed: receipt.gasUsed || "0",
+            timestamp: new Date().toISOString(),
+          };
+
+          const receiptResult = await receiptGenerator.generateReceipt(
+            purchaseData,
+            distributionData,
+            transactionData
+          );
+          if (receiptResult.success) {
+            receiptId = receiptResult.receiptId;
+            logger.info(
+              `[Confirm Purchase] Receipt created successfully with ID: ${receiptId}`
+            );
+          } else {
+            logger.error(
+              `[Confirm Purchase] Failed to create receipt: ${receiptResult.error}`
+            );
+          }
+        } else {
+          logger.warn(
+            `[Confirm Purchase] PurchaseConfirmed event not found in transaction.`
+          );
+        }
+      } else {
+        logger.warn(
+          `[Confirm Purchase] PurchaseConfirmed event ABI not found.`
+        );
+      }
+    } catch (err) {
+      logger.error(
+        `[Confirm Purchase] Error processing event or creating receipt: ${err.message}`
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: "구매가 성공적으로 확정되었습니다.",
+      txHash: receipt.transactionHash,
+      tokenId: tokenId,
+      receiptId: receiptId,
+    });
+  } catch (error) {
+    logger.error("Error confirming purchase:", error);
+
+    // 장치 비밀번호 검증 실패 에러 처리
+    if (error.message.includes("Invalid device password")) {
+      return res.status(401).json({
+        success: false,
+        message: "장치 비밀번호가 올바르지 않습니다.",
+        error: "INVALID_DEVICE_PASSWORD",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "구매 확정 중 오류가 발생했습니다.",
+    });
+  }
+};
+
+/**
+ * 상품 구매 취소
+ * @param {Object} req - Express request object
+ * @param {string} req.body.projectId - 프로젝트 ID
+ * @param {string} req.body.requestId - 요청 ID
+ * @param {string} req.body.devicePassword - 장치 비밀번호
+ * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
+ * @param {Object} res - Express response object
+ */
+const cancelPurchase = async (req, res) => {
+  const { projectId, requestId, devicePassword, storedWalletData } = req.body;
+  const accessToken = req.token;
+
+  if (!projectId || !requestId || !devicePassword || !storedWalletData) {
+    return res.status(400).json({
+      success: false,
+      message: "모든 필수 필드를 입력해주세요.",
+    });
+  }
+
+  try {
+    // 트랜잭션 생성
+    const cancelTxData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods
+        .cancelPurchase(projectId, requestId)
+        .encodeABI(),
+      value: "0",
+    };
+
+    // MPC 서명 및 전송
+    const receipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      cancelTxData,
+      accessToken
+    );
+
+    return res.json({
+      success: true,
+      message: "구매가 성공적으로 취소되었습니다.",
+      txHash: receipt.transactionHash,
+    });
+  } catch (error) {
+    logger.error("Error canceling purchase:", error);
+
+    // 장치 비밀번호 검증 실패 에러 처리
+    if (error.message.includes("Invalid device password")) {
+      return res.status(401).json({
+        success: false,
+        message: "장치 비밀번호가 올바르지 않습니다.",
+        error: "INVALID_DEVICE_PASSWORD",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "구매 취소 중 오류가 발생했습니다.",
+    });
+  }
+};
+
+// =============================================
+// 3. 조회 API
+// =============================================
+
+// 3.1. 프로젝트 조회
+// ---------------------------------------------
+
+const _formatProjectInfo = async (projectId, projectInfo) => {
+  // 새로 추가한 함수를 호출하여 아티스트 토큰 ID 목록을 가져옵니다.
+  const artistIdsRaw = await merchandiseFactoryContract.methods
+    .getArtistIPNFTTokenIdsForProject(projectId)
+    .call();
+  const artistIds = (artistIdsRaw || []).map((id) => id.toString());
+
+  return {
+    projectId: projectId.toString(),
+    influencer: projectInfo.influencer,
+    projectName: projectInfo.projectName,
+    productDescription: projectInfo.productDescription,
+    brandIPNFTTokenId: projectInfo.brandIPNFTTokenId.toString(),
+    artistIPNFTTokenIds: artistIds,
+    totalSupply: projectInfo.totalSupply.toString(),
+    salePrice: web3.utils.fromWei(projectInfo.salePrice.toString(), "ether"),
+    isActive: projectInfo.isActive,
+    createdAt: projectInfo.createdAt.toString(),
+    projectImageURI: projectInfo.projectImageURI,
+    mintedCount: projectInfo.mintedCount.toString(),
+  };
+};
+
+/**
+ * 전체 Merchandise 프로젝트 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getAllProjects = async (req, res) => {
+  try {
+    const projectCount = await merchandiseFactoryContract.methods
+      .nextProjectId()
+      .call();
+    const projectPromises = [];
 
     for (let i = 0; i < projectCount; i++) {
-      try {
-        console.log(`프로젝트 ${i} 조회 시작`);
-        const project = await merchandiseFactory.methods.getProject(i).call();
-        console.log(`프로젝트 ${i} 데이터:`, project);
-
-        const projectData = {
-          projectId: i,
-          name: project.name || "",
-          description: project.description || "",
-          imageUri: project.imageUri || "",
-          quantity: project.quantity || "0",
-          salePrice: web3.utils.fromWei(project.salePrice || "0", "ether"),
-          creator: project.creator || "",
-          isActive: project.isActive || false,
-          soldCount: project.soldCount || "0",
-          ipnftTokenIds: project.ipnftTokenIds || [],
-        };
-
-        console.log(`프로젝트 ${i} 처리된 데이터:`, projectData);
-        projects.push(projectData);
-      } catch (error) {
-        console.error(`프로젝트 ${i} 조회 오류:`, error);
-        logger.error(`프로젝트 ${i} 조회 오류:`, error);
-      }
+      projectPromises.push(
+        merchandiseFactoryContract.methods
+          .projects(i)
+          .call()
+          .then((projectInfo) => {
+            if (
+              projectInfo.influencer !==
+              "0x0000000000000000000000000000000000000000"
+            ) {
+              return _formatProjectInfo(i, projectInfo); // This returns a promise
+            }
+            return null;
+          })
+          .catch((error) => {
+            logger.error(`Error fetching project ${i}:`, error);
+            return null;
+          })
+      );
     }
 
-    console.log("최종 프로젝트 목록:", projects);
-
-    res.json({
-      success: true,
-      data: projects,
-    });
+    // Promise.all로 모든 약속(Promise)이 이행될 때까지 기다립니다.
+    const projects = (await Promise.all(projectPromises)).filter(
+      (p) => p !== null
+    );
+    res.json({ success: true, data: stringifyBigInts(projects.reverse()) });
   } catch (error) {
-    console.error("상품 프로젝트 목록 조회 오류 상세:", error);
-    logger.error("상품 프로젝트 목록 조회 오류:", error);
+    logger.error("Error fetching all merchandise projects:", error);
     res.status(500).json({
       success: false,
-      message: "상품 프로젝트 목록 조회 중 오류가 발생했습니다.",
+      message: "Failed to retrieve merchandise projects.",
       error: error.message,
     });
   }
 };
 
-// 상품 구매
-const purchaseMerchandise = async (req, res) => {
-  try {
-    const { projectId } = req.body;
-    const buyerAddress = req.user.address;
-
-    if (!projectId) {
-      return res.status(400).json({
-        success: false,
-        message: "프로젝트 ID를 입력해주세요.",
-      });
-    }
-
-    const merchandiseFactory = new web3.eth.Contract(
-      require("../../abi/MerchandiseFactory.json"),
-      merchandiseFactoryAddress
-    );
-
-    // 프로젝트 정보 조회
-    const project = await merchandiseFactory.methods
-      .getProject(projectId)
-      .call();
-
-    if (!project.isActive) {
-      return res.status(400).json({
-        success: false,
-        message: "판매가 종료된 상품입니다.",
-      });
-    }
-
-    if (parseInt(project.soldCount) >= parseInt(project.quantity)) {
-      return res.status(400).json({
-        success: false,
-        message: "품절된 상품입니다.",
-      });
-    }
-
-    // 구매 트랜잭션 생성
-    const purchaseData = merchandiseFactory.methods
-      .purchaseMerchandise(projectId)
-      .encodeABI();
-
-    res.json({
-      success: true,
-      message: "상품 구매 트랜잭션이 준비되었습니다.",
-      data: {
-        to: merchandiseFactoryAddress,
-        data: purchaseData,
-        value: project.salePrice,
-      },
-    });
-  } catch (error) {
-    logger.error("상품 구매 오류:", error);
-    res.status(500).json({
-      success: false,
-      message: "상품 구매 중 오류가 발생했습니다.",
-    });
-  }
-};
-
-// 인플루언서 자신의 프로젝트 목록 조회
+/**
+ * 인플루언서 자신의 프로젝트 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
 const getMyProjects = async (req, res) => {
   try {
-    // accessToken에서 walletAddress 추출 (ipController 패턴 참고)
     const walletInfo = await walletService.getWallet(req.token);
     const walletAddress = walletInfo.address;
 
@@ -656,53 +1183,49 @@ const getMyProjects = async (req, res) => {
       });
     }
 
-    // 1. MerchandiseFactory 컨트랙트 연결
-    const merchandiseFactoryAddress = process.env.MERCH_FACTORY_ADDRESS;
-    const merchandiseFactory = new web3.eth.Contract(
-      require("../../abi/MerchandiseFactory.json"),
-      merchandiseFactoryAddress
-    );
-
-    // 2. 인플루언서의 프로젝트 목록 조회
-    const influencerProjects = await merchandiseFactory.methods
-      .getInfluencerProjects(walletAddress)
+    const projectCount = await merchandiseFactoryContract.methods
+      .nextProjectId()
       .call();
+    const projectPromises = [];
 
-    // 3. 각 프로젝트의 상세 정보 조회
-    const projects = [];
-    for (const projectAddress of influencerProjects) {
-      try {
-        const projectInfo = await merchandiseFactory.methods
-          .getProjectInfo(projectAddress)
-          .call();
-
-        projects.push({
-          merchandiseAddress: projectAddress,
-          influencer: projectInfo._influencer,
-          projectName: projectInfo._projectName,
-          brandIPNFTTokenId: projectInfo._brandIPNFTTokenId,
-          artistIPNFTTokenIds: projectInfo._artistIPNFTTokenIds,
-          totalSupply: projectInfo._totalSupply,
-          salePrice: web3.utils.fromWei(projectInfo._salePrice || "0", "ether"),
-          isActive: projectInfo._isActive,
-          createdAt: projectInfo._createdAt,
-        });
-      } catch (error) {
-        console.error(
-          `Error fetching project info for ${projectAddress}:`,
-          error
-        );
-        // 개별 프로젝트 조회 실패 시에도 계속 진행
-      }
+    for (let i = 0; i < projectCount; i++) {
+      projectPromises.push(
+        merchandiseFactoryContract.methods
+          .projects(i)
+          .call()
+          .then((projectInfo) => {
+            if (
+              projectInfo &&
+              projectInfo.influencer &&
+              projectInfo.influencer.toLowerCase() ===
+                walletAddress.toLowerCase()
+            ) {
+              return _formatProjectInfo(i, projectInfo); // This returns a promise
+            }
+            return null;
+          })
+          .catch((error) => {
+            logger.error(
+              `Error fetching project info for my project ${i}:`,
+              error
+            );
+            return null;
+          })
+      );
     }
+
+    // Promise.all로 모든 약속(Promise)이 이행될 때까지 기다립니다.
+    const myProjects = (await Promise.all(projectPromises)).filter(
+      (p) => p !== null
+    );
 
     return res.json({
       success: true,
       message: "My merchandise projects retrieved successfully",
-      data: stringifyBigInts(projects),
+      data: stringifyBigInts(myProjects.reverse()),
     });
   } catch (error) {
-    console.error("My merchandise projects retrieval error:", error);
+    logger.error("My merchandise projects retrieval error:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to retrieve my merchandise projects",
@@ -711,1514 +1234,11 @@ const getMyProjects = async (req, res) => {
   }
 };
 
-// 전체 프로젝트 목록 조회
-const getAllProjects = async (req, res) => {
-  try {
-    // 1. MerchandiseFactory 컨트랙트 연결
-    const merchandiseFactoryAddress = process.env.MERCH_FACTORY_ADDRESS;
-    const merchandiseFactory = new web3.eth.Contract(
-      require("../../abi/MerchandiseFactory.json"),
-      merchandiseFactoryAddress
-    );
-
-    // 2. 전체 프로젝트 수 조회
-    const projectCount = await merchandiseFactory.methods
-      .getProjectCount()
-      .call();
-
-    console.log("전체 프로젝트 수:", projectCount);
-
-    // 3. 각 프로젝트의 상세 정보 조회
-    const projects = [];
-    for (let projectId = 0; projectId < projectCount; projectId++) {
-      try {
-        console.log(`프로젝트 ${projectId} 조회 시작`);
-        const projectInfo = await merchandiseFactory.methods
-          .getProjectInfo(projectId)
-          .call();
-
-        console.log(`프로젝트 ${projectId} 정보:`, projectInfo);
-
-        projects.push({
-          projectId: projectId,
-          influencer: projectInfo._influencer,
-          projectName: projectInfo._projectName,
-          description: projectInfo._productDescription,
-          brandIPNFTTokenId: projectInfo._brandIPNFTTokenId,
-          artistIPNFTTokenIds: projectInfo._artistIPNFTTokenIds,
-          totalSupply: projectInfo._totalSupply,
-          salePrice: web3.utils.fromWei(projectInfo._salePrice || "0", "ether"),
-          isActive: projectInfo._isActive,
-          createdAt: projectInfo._createdAt,
-          projectImageURI:
-            projectInfo._projectImageURI &&
-            projectInfo._projectImageURI.startsWith("ipfs://")
-              ? projectInfo._projectImageURI.replace(
-                  "ipfs://",
-                  "https://ipfs.io/ipfs/"
-                )
-              : projectInfo._projectImageURI,
-          mintedCount: projectInfo._mintedCount,
-        });
-      } catch (error) {
-        console.error(
-          `Error fetching project info for projectId ${projectId}:`,
-          error
-        );
-        // 개별 프로젝트 조회 실패 시에도 계속 진행
-      }
-    }
-
-    console.log("전체 프로젝트 목록 조회 완료:", projects);
-
-    return res.json({
-      success: true,
-      message: "All merchandise projects retrieved successfully",
-      data: stringifyBigInts(projects),
-    });
-  } catch (error) {
-    console.error("All merchandise projects retrieval error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve all merchandise projects",
-      error: error.message,
-    });
-  }
-};
-
-// 구매 요청 (사용자가 DP로 구매 신청)
-const requestPurchase = async (req, res) => {
-  const accessToken = req.token;
-  const { projectId } = req.body;
-
-  if (!projectId) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
-    const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      process.env.DEVICE_PASSWORD
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
-
-    // 2. 프로젝트 정보 조회
-    const projectInfo = await merchandiseFactoryContract.methods
-      .getProjectInfo(projectId)
-      .call();
-
-    if (
-      !projectInfo._influencer ||
-      projectInfo._influencer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "프로젝트를 찾을 수 없습니다.",
-      });
-    }
-
-    if (!projectInfo._isActive) {
-      return res.status(400).json({
-        success: false,
-        message: "해당 프로젝트는 현재 비활성화 상태입니다.",
-      });
-    }
-
-    // 3. 재고 확인
-    if (projectInfo._mintedCount >= projectInfo._totalSupply) {
-      return res.status(400).json({
-        success: false,
-        message: "해당 프로젝트의 재고가 모두 소진되었습니다.",
-      });
-    }
-
-    // 4. DP 토큰 잔액 확인
-    const dpTokenAddress = process.env.DP_TOKEN_ADDRESS;
-    const dpTokenContract = new web3.eth.Contract(
-      require("../../abi/DPToken.json"),
-      dpTokenAddress
-    );
-
-    const balance = await dpTokenContract.methods
-      .balanceOf(walletInfo.address)
-      .call();
-
-    // BigInt 비교를 위해 문자열로 변환
-    const balanceStr = balance.toString();
-    const salePriceStr = projectInfo._salePrice.toString();
-
-    if (BigInt(balanceStr) < BigInt(salePriceStr)) {
-      return res.status(400).json({
-        success: false,
-        message: `DP 토큰 잔액이 부족합니다. 현재 잔액: ${web3.utils.fromWei(
-          balanceStr,
-          "ether"
-        )} DP, 필요 금액: ${web3.utils.fromWei(salePriceStr, "ether")} DP`,
-      });
-    }
-
-    // 5. 중복 구매 요청 방지
-    const totalRequests = await merchandiseFactoryContract.methods
-      .projectTotalRequests(projectId)
-      .call();
-
-    // 기존 구매 요청들 확인
-    for (let i = 0; i < totalRequests; i++) {
-      const existingRequest = await merchandiseFactoryContract.methods
-        .getPurchaseRequest(projectId, i)
-        .call();
-
-      if (
-        existingRequest.buyer.toLowerCase() ===
-          walletInfo.address.toLowerCase() &&
-        !existingRequest.isConfirmed &&
-        !existingRequest.isCancelled
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "이미 진행 중인 구매 요청이 있습니다. 기존 요청을 취소하거나 확정을 기다려주세요.",
-        });
-      }
-    }
-
-    // 6. DP 토큰 승인 확인 및 승인
-    const approveData = dpTokenContract.methods
-      .approve(merchandiseFactoryAddress, projectInfo._salePrice)
-      .encodeABI();
-
-    const approveTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      {
-        to: dpTokenAddress,
-        data: approveData,
-        value: "0",
-      },
-      accessToken
-    );
-
-    const approveHash = await blockchainService.sendTransaction(approveTx);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    await blockchainService.getTransactionReceipt(approveHash);
-
-    // 7. 구매 요청 실행
-    console.log("[requestPurchase] 구매 요청 실행 시작...");
-
-    // ABC WAAS를 통해 트랜잭션 전송
-    const transactionData = {
-      to: merchandiseFactoryAddress,
-      data: merchandiseFactoryContract.methods
-        .requestPurchase(projectId)
-        .encodeABI(),
-      value: "0",
-    };
-
-    // 1. 트랜잭션 서명
-    const signedTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      transactionData,
-      accessToken
-    );
-
-    // 2. 서명된 트랜잭션 전송
-    const transactionHash = await blockchainService.sendTransaction(signedTx);
-
-    console.log("[requestPurchase] 트랜잭션 완료, 해시:", transactionHash);
-
-    // 3. 트랜잭션 영수증 대기
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const receipt = await blockchainService.getTransactionReceipt(
-      transactionHash
-    );
-
-    console.log("[requestPurchase] 트랜잭션 영수증:", receipt);
-
-    // 4. 구매 요청 ID 추출 (이벤트에서)
-    const expectedEventSignature = web3.utils.keccak256(
-      "PurchaseRequestCreated(uint256,uint256,address,uint256)"
-    );
-    console.log(
-      "[requestPurchase] 예상 이벤트 시그니처:",
-      expectedEventSignature
-    );
-
-    const purchaseRequestCreatedEvent = receipt.logs.find(
-      (log) => log.topics[0] === expectedEventSignature
-    );
-
-    if (!purchaseRequestCreatedEvent) {
-      console.log(
-        "[requestPurchase] 이벤트를 찾을 수 없습니다. 모든 로그의 첫 번째 topic:"
-      );
-      receipt.logs.forEach((log, index) => {
-        console.log(`로그 ${index} 첫 번째 topic:`, log.topics[0]);
-      });
-      throw new Error("구매 요청 이벤트를 찾을 수 없습니다.");
-    }
-
-    // requestId는 topics[1]에서 직접 추출
-    const requestId = parseInt(purchaseRequestCreatedEvent.topics[1], 16);
-    console.log("[requestPurchase] 생성된 구매 요청 ID:", requestId);
-
-    logger.info("구매 요청 완료", {
-      userAddress: walletInfo.address,
-      projectId: projectId,
-      requestId: requestId,
-      amount: projectInfo._salePrice,
-      txHash: transactionHash,
-    });
-
-    res.json({
-      success: true,
-      message: "구매 요청이 성공적으로 처리되었습니다.",
-      data: {
-        requestId: requestId,
-        projectId: projectId,
-        buyer: walletInfo.address,
-        amount: web3.utils.fromWei(projectInfo._salePrice || "0", "ether"),
-        amountWei: projectInfo._salePrice.toString(),
-        txHash: transactionHash,
-        timestamp: Math.floor(Date.now() / 1000),
-        status: "pending",
-        projectName: projectInfo._projectName,
-        projectImageURI:
-          projectInfo._projectImageURI &&
-          projectInfo._projectImageURI.startsWith("ipfs://")
-            ? projectInfo._projectImageURI.replace(
-                "ipfs://",
-                "https://ipfs.io/ipfs/"
-              )
-            : projectInfo._projectImageURI,
-      },
-    });
-  } catch (error) {
-    logger.error("구매 요청 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "구매 요청 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-// 구매 확정 (구매자가 확정)
-const confirmPurchase = async (req, res) => {
-  const accessToken = req.token;
-  let { projectId, requestId } = req.body;
-
-  // 타입 체크 및 변환
-  if (typeof projectId === "string" && projectId.match(/^\d+$/))
-    projectId = Number(projectId);
-  if (typeof requestId === "string" && requestId.match(/^\d+$/))
-    requestId = Number(requestId);
-
-  // 잘못된 타입 방어
-  if (
-    typeof projectId !== "number" ||
-    typeof requestId !== "number" ||
-    isNaN(projectId) ||
-    isNaN(requestId)
-  ) {
-    console.warn(
-      "[confirmPurchase] projectId/requestId 타입 오류:",
-      projectId,
-      requestId,
-      typeof projectId,
-      typeof requestId
-    );
-    return res.status(400).json({
-      success: false,
-      message: "projectId와 requestId는 숫자여야 합니다.",
-    });
-  }
-
-  if (projectId === undefined || requestId === undefined) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID와 요청 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
-    const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      process.env.DEVICE_PASSWORD
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
-
-    // 2. 프로젝트 정보 조회
-    const projectInfo = await merchandiseFactoryContract.methods
-      .getProjectInfo(projectId)
-      .call();
-
-    console.log("[confirmPurchase] 프로젝트 정보:", projectInfo);
-
-    if (
-      !projectInfo._influencer ||
-      projectInfo._influencer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "프로젝트를 찾을 수 없습니다.",
-      });
-    }
-
-    // 3. 구매 요청 정보 확인
-    console.log("[confirmPurchase] 구매 요청 조회 파라미터:");
-    console.log(
-      "- 조회할 projectId:",
-      projectId,
-      "(타입:",
-      typeof projectId,
-      ")"
-    );
-    console.log(
-      "- 조회할 requestId:",
-      requestId,
-      "(타입:",
-      typeof requestId,
-      ")"
-    );
-    const purchaseRequest = await merchandiseFactoryContract.methods
-      .getPurchaseRequest(projectId, requestId)
-      .call();
-    console.log("[confirmPurchase] 구매 요청 정보:", purchaseRequest);
-
-    if (
-      !purchaseRequest.buyer ||
-      purchaseRequest.buyer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "구매 요청을 찾을 수 없습니다.",
-      });
-    }
-
-    console.log("[confirmPurchase] 구매자 주소:", purchaseRequest.buyer);
-    console.log("[confirmPurchase] 현재 사용자 주소:", walletInfo.address);
-
-    // 구매자 권한 확인 (구매자만 확정 가능)
-    if (
-      purchaseRequest.buyer.toLowerCase() !== walletInfo.address.toLowerCase()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "구매자만 구매를 확정할 수 있습니다.",
-      });
-    }
-
-    console.log("[confirmPurchase] 권한 확인 통과");
-
-    if (purchaseRequest.isConfirmed) {
-      return res.status(400).json({
-        success: false,
-        message: "이미 확정된 구매 요청입니다.",
-      });
-    }
-
-    if (purchaseRequest.isCancelled) {
-      return res.status(400).json({
-        success: false,
-        message: "이미 취소된 구매 요청입니다.",
-      });
-    }
-
-    console.log("[confirmPurchase] 구매 요청 상태 확인 통과");
-
-    // 4. 재고 확인
-    console.log("[confirmPurchase] 재고 확인:");
-    console.log("- mintedCount:", projectInfo._mintedCount.toString());
-    console.log("- totalSupply:", projectInfo._totalSupply.toString());
-    console.log("- isActive:", projectInfo._isActive);
-
-    if (projectInfo._mintedCount >= projectInfo._totalSupply) {
-      return res.status(400).json({
-        success: false,
-        message: "해당 프로젝트의 재고가 모두 소진되었습니다.",
-      });
-    }
-
-    // 프로젝트가 활성화되어 있는지 확인
-    if (!projectInfo._isActive) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "프로젝트가 활성화되지 않았습니다. 브랜드의 서명이 필요합니다.",
-      });
-    }
-
-    console.log("[confirmPurchase] 모든 조건 확인 통과");
-
-    // 5. IPNFT 토큰 상태 확인
-    console.log("[confirmPurchase] IPNFT 토큰 상태 확인:");
-
-    // PlatformRegistry 컨트랙트 연결
-    const platformRegistry = new web3.eth.Contract(
-      require("../../abi/PlatformRegistry.json"),
-      platformRegistryAddress
-    );
-
-    // 브랜드 IPNFT 확인
-    const brandIPNFTTokenId = projectInfo._brandIPNFTTokenId;
-    console.log("- 브랜드 IPNFT 토큰 ID:", brandIPNFTTokenId.toString());
-
-    let brandIPNFTInfo;
-    try {
-      brandIPNFTInfo = await platformRegistry.methods
-        .getIPNFTInfo(brandIPNFTTokenId)
-        .call();
-      console.log("- 브랜드 IPNFT 정보:", brandIPNFTInfo);
-    } catch (brandError) {
-      console.error("- 브랜드 IPNFT 조회 실패:", brandError);
-      return res.status(400).json({
-        success: false,
-        message: `브랜드 IPNFT 토큰 ${brandIPNFTTokenId}를 찾을 수 없습니다.`,
-        error: brandError.message,
-      });
-    }
-
-    // 아티스트 IPNFT 확인
-    const artistIPNFTTokenIds = projectInfo._artistIPNFTTokenIds;
-    console.log(
-      "- 아티스트 IPNFT 토큰 IDs:",
-      artistIPNFTTokenIds.map((id) => id.toString())
-    );
-
-    const artistIPNFTInfos = [];
-    for (let i = 0; i < artistIPNFTTokenIds.length; i++) {
-      const artistTokenId = artistIPNFTTokenIds[i];
-      try {
-        const artistIPNFTInfo = await platformRegistry.methods
-          .getIPNFTInfo(artistTokenId)
-          .call();
-        artistIPNFTInfos.push(artistIPNFTInfo);
-        console.log(`- 아티스트 IPNFT ${artistTokenId} 정보:`, artistIPNFTInfo);
-      } catch (artistError) {
-        console.error(
-          `- 아티스트 IPNFT ${artistTokenId} 조회 실패:`,
-          artistError
-        );
-        return res.status(400).json({
-          success: false,
-          message: `아티스트 IPNFT 토큰 ${artistTokenId}를 찾을 수 없습니다.`,
-          error: artistError.message,
-        });
-      }
-    }
-
-    // 6. MerchandiseFactory 컨트랙트의 DP 토큰 잔액 확인
-    const dpTokenAddress = process.env.DP_TOKEN_ADDRESS;
-    const dpTokenContract = new web3.eth.Contract(
-      require("../../abi/DPToken.json"),
-      dpTokenAddress
-    );
-
-    const factoryBalance = await dpTokenContract.methods
-      .balanceOf(merchandiseFactoryAddress)
-      .call();
-
-    console.log("[confirmPurchase] MerchandiseFactory DP 토큰 잔액:");
-    console.log("- Factory 주소:", merchandiseFactoryAddress);
-    console.log(
-      "- Factory 잔액:",
-      web3.utils.fromWei(factoryBalance.toString(), "ether"),
-      "DP"
-    );
-    console.log(
-      "- 구매 금액:",
-      web3.utils.fromWei(purchaseRequest.amount.toString(), "ether"),
-      "DP"
-    );
-
-    if (BigInt(factoryBalance) < BigInt(purchaseRequest.amount)) {
-      return res.status(400).json({
-        success: false,
-        message: `MerchandiseFactory 컨트랙트의 DP 토큰 잔액이 부족합니다. 필요: ${web3.utils.fromWei(
-          purchaseRequest.amount.toString(),
-          "ether"
-        )} DP, 보유: ${web3.utils.fromWei(
-          factoryBalance.toString(),
-          "ether"
-        )} DP`,
-      });
-    }
-
-    // 7. 구매 확정 실행
-    console.log("[confirmPurchase] 구매 확정 실행 시작...");
-
-    // 분배 디버깅 로그 추가
-    try {
-      // 분배 관련 값 미리 계산 (스마트컨트랙트와 동일하게)
-      const totalPrice = BigInt(purchaseRequest.amount);
-      const brandPrice = BigInt(brandIPNFTInfo.price || 0);
-      const artistPrices = artistIPNFTInfos.map((info) =>
-        BigInt(info.price || 0)
-      );
-      const artistTotal = artistPrices.reduce((a, b) => a + b, 0n);
-      let influencerMargin = totalPrice;
-      if (brandPrice > 0n) influencerMargin -= brandPrice;
-      influencerMargin -= artistTotal;
-      const platformFeePercentage = 100n; // 1% (basis point)
-      console.log("==== [분배 디버깅] ====");
-      console.log("totalPrice:", totalPrice.toString());
-      console.log("brandPrice:", brandPrice.toString());
-      console.log(
-        "artistPrices:",
-        artistPrices.map((p) => p.toString())
-      );
-      console.log("artistTotal:", artistTotal.toString());
-      console.log("influencerMargin:", influencerMargin.toString());
-      console.log("platformFeePercentage:", platformFeePercentage.toString());
-      if (brandPrice > 0n) {
-        const brandFee = (brandPrice * platformFeePercentage) / 10000n;
-        const brandNet = brandPrice - brandFee;
-        console.log(
-          "brandFee:",
-          brandFee.toString(),
-          "brandNet:",
-          brandNet.toString()
-        );
-      }
-      for (let i = 0; i < artistPrices.length; i++) {
-        const artistFee = (artistPrices[i] * platformFeePercentage) / 10000n;
-        const artistNet = artistPrices[i] - artistFee;
-        console.log(
-          `artist[${i}] fee:`,
-          artistFee.toString(),
-          "net:",
-          artistNet.toString()
-        );
-      }
-      if (influencerMargin > 0n) {
-        const influencerFee =
-          (influencerMargin * platformFeePercentage) / 10000n;
-        const influencerNet = influencerMargin - influencerFee;
-        console.log(
-          "influencerFee:",
-          influencerFee.toString(),
-          "influencerNet:",
-          influencerNet.toString()
-        );
-      }
-      console.log("=====================");
-    } catch (e) {
-      console.log("[분배 디버깅] 계산 중 오류:", e);
-    }
-
-    // ABC 서버를 통한 트랜잭션 실행
-    try {
-      // 디버깅: 실제 전달되는 값들 확인
-      console.log("[confirmPurchase] 함수 호출 파라미터:");
-      console.log("- projectId:", projectId, "(타입:", typeof projectId, ")");
-      console.log("- requestId:", requestId, "(타입:", typeof requestId, ")");
-
-      // MerchandiseFactory 컨트랙트의 confirmPurchase 함수 호출을 위한 데이터 생성
-      const confirmPurchaseData = merchandiseFactoryContract.methods
-        .confirmPurchase(projectId, requestId)
-        .encodeABI();
-
-      console.log("[confirmPurchase] 트랜잭션 데이터 생성 완료");
-      console.log("- 컨트랙트 주소:", merchandiseFactoryAddress);
-      console.log("- 함수 데이터:", confirmPurchaseData);
-
-      // 트랜잭션 데이터 준비
-      const transactionData = {
-        network: process.env.NETWORK || "testnet",
-        type: "contract",
-        data: confirmPurchaseData,
-        to: merchandiseFactoryAddress,
-        value: "0", // ETH 전송 없음
-      };
-
-      console.log("[confirmPurchase] ABC 서버를 통한 트랜잭션 서명 시작...");
-
-      // ABC 서버를 통한 트랜잭션 서명
-      const signedTransaction = await blockchainService.signTransaction(
-        secureChannel,
-        fullWalletData,
-        transactionData,
-        accessToken
-      );
-
-      console.log("[confirmPurchase] 트랜잭션 서명 완료");
-
-      // 서명된 트랜잭션 전송
-      const transactionHash = await web3.eth.sendSignedTransaction(
-        signedTransaction
-      );
-
-      console.log(
-        "[confirmPurchase] 트랜잭션 전송 완료, 해시:",
-        transactionHash.transactionHash
-      );
-
-      // 트랜잭션 영수증 대기
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const receipt = await blockchainService.getTransactionReceipt(
-        transactionHash.transactionHash
-      );
-
-      console.log("[confirmPurchase] 트랜잭션 영수증:", receipt);
-
-      // DebugDistribution 이벤트 로그 확인
-      console.log("=== DP 토큰 분배 로그 ===");
-      const debugDistributionSignature = web3.utils.keccak256(
-        "DebugDistribution(string,address,uint256,uint256,uint256,uint256,uint256)"
-      );
-
-      const debugEvents = receipt.logs.filter(
-        (log) => log.topics[0] === debugDistributionSignature
-      );
-
-      if (debugEvents.length > 0) {
-        console.log(`총 ${debugEvents.length}개의 분배 이벤트 발견`);
-
-        debugEvents.forEach((event, index) => {
-          try {
-            const decodedEvent = web3.eth.abi.decodeLog(
-              [
-                { type: "string", name: "role" },
-                { type: "address", name: "recipient" },
-                { type: "uint256", name: "beforeBalance" },
-                { type: "uint256", name: "afterBalance" },
-                { type: "uint256", name: "expectedAmount" },
-                { type: "uint256", name: "fee" },
-                { type: "uint256", name: "netAmount" },
-              ],
-              event.data,
-              event.topics.slice(1)
-            );
-
-            const actualIncrease =
-              BigInt(decodedEvent.afterBalance) -
-              BigInt(decodedEvent.beforeBalance);
-            const expectedNet = BigInt(decodedEvent.netAmount);
-
-            console.log(
-              `[${index + 1}] ${decodedEvent.role.toUpperCase()} 분배:`
-            );
-            console.log(`  - 수령자: ${decodedEvent.recipient}`);
-            console.log(
-              `  - 분배 전 잔액: ${web3.utils.fromWei(
-                decodedEvent.beforeBalance,
-                "ether"
-              )} DP`
-            );
-            console.log(
-              `  - 분배 후 잔액: ${web3.utils.fromWei(
-                decodedEvent.afterBalance,
-                "ether"
-              )} DP`
-            );
-            console.log(
-              `  - 기대 분배액: ${web3.utils.fromWei(
-                decodedEvent.expectedAmount,
-                "ether"
-              )} DP`
-            );
-            console.log(
-              `  - 수수료: ${web3.utils.fromWei(decodedEvent.fee, "ether")} DP`
-            );
-            console.log(
-              `  - 예상 수령액: ${web3.utils.fromWei(
-                decodedEvent.netAmount,
-                "ether"
-              )} DP`
-            );
-            console.log(
-              `  - 실제 증가량: ${web3.utils.fromWei(
-                actualIncrease.toString(),
-                "ether"
-              )} DP`
-            );
-            console.log(
-              `  - 일치 여부: ${
-                actualIncrease === expectedNet ? "✅ 일치" : "❌ 불일치"
-              }`
-            );
-            console.log("---");
-          } catch (decodeError) {
-            console.log(
-              `이벤트 ${index + 1} 디코딩 실패:`,
-              decodeError.message
-            );
-          }
-        });
-      } else {
-        console.log("DebugDistribution 이벤트를 찾을 수 없습니다.");
-      }
-      console.log("=========================");
-
-      // 영수증 생성을 위한 분배 데이터 수집
-      const distributionData = [];
-      if (debugEvents.length > 0) {
-        debugEvents.forEach((event) => {
-          try {
-            const decodedEvent = web3.eth.abi.decodeLog(
-              [
-                { type: "string", name: "role" },
-                { type: "address", name: "recipient" },
-                { type: "uint256", name: "beforeBalance" },
-                { type: "uint256", name: "afterBalance" },
-                { type: "uint256", name: "expectedAmount" },
-                { type: "uint256", name: "fee" },
-                { type: "uint256", name: "netAmount" },
-              ],
-              event.data,
-              event.topics.slice(1)
-            );
-
-            const actualIncrease =
-              BigInt(decodedEvent.afterBalance) -
-              BigInt(decodedEvent.beforeBalance);
-            const expectedNet = BigInt(decodedEvent.netAmount);
-
-            distributionData.push({
-              role: decodedEvent.role,
-              recipient: decodedEvent.recipient,
-              expectedAmount: decodedEvent.expectedAmount,
-              fee: decodedEvent.fee,
-              netAmount: decodedEvent.netAmount,
-              beforeBalance: decodedEvent.beforeBalance,
-              afterBalance: decodedEvent.afterBalance,
-              actualIncrease: actualIncrease.toString(),
-              isMatched: actualIncrease === expectedNet,
-            });
-          } catch (decodeError) {
-            console.log(
-              "분배 데이터 수집 중 디코딩 실패:",
-              decodeError.message
-            );
-          }
-        });
-      }
-
-      // 확정된 구매 정보 추출 (이벤트에서)
-      const expectedEventSignature = web3.utils.keccak256(
-        "PurchaseConfirmed(uint256,uint256,address,uint256,uint256)"
-      );
-      console.log(
-        "[confirmPurchase] 예상 이벤트 시그니처:",
-        expectedEventSignature
-      );
-
-      const purchaseConfirmedEvent = receipt.logs.find(
-        (log) => log.topics[0] === expectedEventSignature
-      );
-
-      if (!purchaseConfirmedEvent) {
-        console.log(
-          "[confirmPurchase] 이벤트를 찾을 수 없습니다. 모든 로그의 첫 번째 topic:"
-        );
-        receipt.logs.forEach((log, index) => {
-          console.log(`로그 ${index} 첫 번째 topic:`, log.topics[0]);
-        });
-        throw new Error("구매 확정 이벤트를 찾을 수 없습니다.");
-      }
-
-      // 이벤트 데이터에서 정보 추출 (indexed 파라미터는 topics에서, 나머지는 data에서)
-      const decodedData = web3.eth.abi.decodeLog(
-        [
-          {
-            type: "uint256",
-            name: "projectId",
-            indexed: true,
-          },
-          {
-            type: "uint256",
-            name: "requestId",
-            indexed: false,
-          },
-          {
-            type: "address",
-            name: "buyer",
-            indexed: false,
-          },
-          {
-            type: "uint256",
-            name: "tokenId",
-            indexed: false,
-          },
-          {
-            type: "uint256",
-            name: "amount",
-            indexed: false,
-          },
-        ],
-        purchaseConfirmedEvent.data,
-        [purchaseConfirmedEvent.topics[1]]
-      );
-
-      const confirmedTokenId = decodedData.tokenId;
-      const buyer = decodedData.buyer;
-      const amount = decodedData.amount;
-
-      console.log("[confirmPurchase] 생성된 토큰 ID:", confirmedTokenId);
-      console.log("[confirmPurchase] 구매자:", buyer);
-      console.log("[confirmPurchase] 금액:", amount);
-
-      // 영수증 생성
-      let receiptId = null;
-      try {
-        const purchaseData = {
-          projectId: projectId,
-          requestId: requestId,
-          buyer: buyer,
-          tokenId: confirmedTokenId.toString(),
-          amount: amount.toString(),
-          amountInDP: web3.utils.fromWei(amount.toString() || "0", "ether"),
-          projectName: projectInfo._projectName,
-          description: projectInfo._productDescription,
-          imageUri: projectInfo._projectImageUri,
-          tokenUri: "", // NFT 토큰 URI는 별도로 조회 필요
-        };
-
-        const transactionData = {
-          hash: transactionHash.transactionHash,
-          blockNumber: receipt.blockNumber,
-          gasUsed: receipt.gasUsed,
-          timestamp: new Date().toISOString(),
-        };
-
-        const receiptResult = await receiptGenerator.generateReceipt(
-          purchaseData,
-          distributionData,
-          transactionData
-        );
-
-        if (receiptResult.success) {
-          receiptId = receiptResult.receiptId;
-          console.log("영수증 생성 완료:", receiptId);
-        } else {
-          console.log("영수증 생성 실패:", receiptResult.error);
-        }
-      } catch (receiptError) {
-        console.log("영수증 생성 중 오류:", receiptError.message);
-      }
-
-      logger.info("구매 확정 완료", {
-        influencerAddress: walletInfo.address,
-        projectId: projectId,
-        requestId: requestId,
-        buyer: buyer,
-        tokenId: confirmedTokenId.toString(),
-        amount: amount.toString(),
-        txHash: transactionHash.transactionHash,
-      });
-
-      res.json({
-        success: true,
-        message: "구매가 성공적으로 확정되었습니다.",
-        data: {
-          projectId: projectId,
-          requestId: requestId,
-          buyer: buyer,
-          tokenId: confirmedTokenId.toString(),
-          amount: web3.utils.fromWei(amount.toString() || "0", "ether"),
-          txHash: transactionHash.transactionHash,
-          receiptId: receiptId,
-        },
-      });
-    } catch (error) {
-      console.log("[confirmPurchase] ABC 서버 트랜잭션 실패:", error.message);
-
-      // 더 자세한 디버깅 정보 추가 (실제 사용 가능한 정보만)
-      console.log("[confirmPurchase] DP 토큰 전송 상세 정보:");
-      console.log("- 브랜드 IPNFT 소유자:", brandIPNFTInfo.owner);
-      console.log("- 브랜드 IPNFT 가격:", brandIPNFTInfo.price.toString());
-
-      console.log("- 아티스트 IPNFT 소유자들:");
-      for (let i = 0; i < artistIPNFTInfos.length; i++) {
-        console.log(
-          `  아티스트 ${i}: ${
-            artistIPNFTInfos[i].owner
-          } (가격: ${artistIPNFTInfos[i].price.toString()})`
-        );
-      }
-
-      console.log("- 인플루언서:", projectInfo._influencer);
-      console.log("- 총 구매 금액:", purchaseRequest.amount.toString());
-
-      // 각 주소가 컨트랙트인지 확인
-      for (let i = 0; i < artistIPNFTInfos.length; i++) {
-        const code = await web3.eth.getCode(artistIPNFTInfos[i].owner);
-        console.log(
-          `- 아티스트 ${i} (${artistIPNFTInfos[i].owner}) 컨트랙트 여부:`,
-          code !== "0x"
-        );
-      }
-
-      const brandCode = await web3.eth.getCode(brandIPNFTInfo.owner);
-      console.log(
-        `- 브랜드 소유자 (${brandIPNFTInfo.owner}) 컨트랙트 여부:`,
-        brandCode !== "0x"
-      );
-
-      const influencerCode = await web3.eth.getCode(projectInfo._influencer);
-      console.log(
-        `- 인플루언서 (${projectInfo._influencer}) 컨트랙트 여부:`,
-        influencerCode !== "0x"
-      );
-
-      // 추가 디버깅: 실제 전달된 파라미터와 컨트랙트 상태 확인
-      console.log("[confirmPurchase] 추가 디버깅 정보:");
-      console.log("- 실제 전달된 projectId:", projectId);
-      console.log("- 실제 전달된 requestId:", requestId);
-
-      // 구매 요청이 실제로 존재하는지 다시 확인
-      try {
-        const actualRequest = await merchandiseFactoryContract.methods
-          .getPurchaseRequest(projectId, requestId)
-          .call();
-        console.log("- 실제 구매 요청 정보:", actualRequest);
-      } catch (reqError) {
-        console.log("- 구매 요청 조회 실패:", reqError.message);
-      }
-
-      throw error; // 에러를 다시 던져서 catch 블록에서 처리
-    }
-  } catch (error) {
-    logger.error("구매 확정 실패", error);
-
-    // 스마트 컨트랙트 에러 메시지 파싱
-    let errorMessage = "구매 확정 중 오류가 발생했습니다.";
-    if (error.message && error.message.includes("Execution reverted")) {
-      // 스마트 컨트랙트에서 발생한 에러
-      if (error.data && error.data !== "0x") {
-        try {
-          // 에러 데이터 디코딩 시도
-          const decodedError = web3.eth.abi.decodeParameter(
-            "string",
-            error.data
-          );
-          errorMessage = `스마트 컨트랙트 에러: ${decodedError}`;
-        } catch (decodeError) {
-          errorMessage = `스마트 컨트랙트 에러 (코드: ${error.data})`;
-        }
-      } else {
-        errorMessage = "스마트 컨트랙트에서 트랜잭션이 실패했습니다.";
-      }
-    }
-
-    console.error("[confirmPurchase] 상세 에러 정보:", {
-      message: error.message,
-      data: error.data,
-      reason: error.reason,
-      signature: error.signature,
-      code: error.code,
-    });
-
-    res.status(500).json({
-      success: false,
-      message: errorMessage,
-      error: error.message,
-      details: {
-        data: error.data,
-        reason: error.reason,
-        signature: error.signature,
-      },
-    });
-  }
-};
-
-// 구매 취소 (구매자 또는 인플루언서가 취소)
-const cancelPurchase = async (req, res) => {
-  const accessToken = req.token;
-  const { projectId, requestId } = req.body;
-
-  if (!projectId || requestId === undefined) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID와 요청 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
-    const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      process.env.DEVICE_PASSWORD
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
-
-    // 2. 프로젝트 정보 조회
-    const projectInfo = await merchandiseFactoryContract.methods
-      .getProjectInfo(projectId)
-      .call();
-
-    if (
-      !projectInfo._influencer ||
-      projectInfo._influencer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "프로젝트를 찾을 수 없습니다.",
-      });
-    }
-
-    // 3. 구매 요청 정보 확인
-    const purchaseRequest = await merchandiseFactoryContract.methods
-      .getPurchaseRequest(projectId, requestId)
-      .call();
-
-    if (
-      !purchaseRequest.buyer ||
-      purchaseRequest.buyer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "구매 요청을 찾을 수 없습니다.",
-      });
-    }
-
-    if (purchaseRequest.isConfirmed) {
-      return res.status(400).json({
-        success: false,
-        message: "이미 확정된 구매 요청은 취소할 수 없습니다.",
-      });
-    }
-
-    if (purchaseRequest.isCancelled) {
-      return res.status(400).json({
-        success: false,
-        message: "이미 취소된 구매 요청입니다.",
-      });
-    }
-
-    // 구매자 권한 확인 (구매자만 취소 가능)
-    if (
-      purchaseRequest.buyer.toLowerCase() !== walletInfo.address.toLowerCase()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "구매자만 구매를 취소할 수 있습니다.",
-      });
-    }
-
-    // 5. 구매 취소 실행
-    console.log("[cancelPurchase] 구매 취소 실행 시작...");
-
-    // ABC WAAS를 통해 트랜잭션 전송
-    const transactionData = {
-      to: merchandiseFactoryAddress,
-      data: merchandiseFactoryContract.methods
-        .cancelPurchase(projectId, requestId)
-        .encodeABI(),
-      value: "0",
-    };
-
-    // 1. 트랜잭션 서명
-    const signedTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      transactionData,
-      accessToken
-    );
-
-    // 2. 서명된 트랜잭션 전송
-    const transactionHash = await blockchainService.sendTransaction(signedTx);
-
-    console.log("[cancelPurchase] 트랜잭션 완료, 해시:", transactionHash);
-
-    // 3. 트랜잭션 영수증 대기
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const receipt = await blockchainService.getTransactionReceipt(
-      transactionHash
-    );
-
-    console.log("[cancelPurchase] 트랜잭션 영수증:", receipt);
-
-    // 4. 취소 정보 추출 (이벤트에서)
-    const expectedEventSignature = web3.utils.keccak256(
-      "PurchaseCancelled(uint256,uint256,address,uint256,uint256)"
-    );
-    console.log(
-      "[cancelPurchase] 예상 이벤트 시그니처:",
-      expectedEventSignature
-    );
-
-    const purchaseCancelledEvent = receipt.logs.find(
-      (log) => log.topics[0] === expectedEventSignature
-    );
-
-    if (!purchaseCancelledEvent) {
-      console.log(
-        "[cancelPurchase] 이벤트를 찾을 수 없습니다. 모든 로그의 첫 번째 topic:"
-      );
-      receipt.logs.forEach((log, index) => {
-        console.log(`로그 ${index} 첫 번째 topic:`, log.topics[0]);
-      });
-      throw new Error("구매 취소 이벤트를 찾을 수 없습니다.");
-    }
-
-    // 이벤트 데이터에서 refundAmount와 platformFee 추출
-    const decodedData = web3.eth.abi.decodeParameters(
-      ["uint256", "uint256"],
-      purchaseCancelledEvent.data
-    );
-
-    const refundAmount = decodedData[0];
-    const platformFee = decodedData[1];
-
-    console.log("[cancelPurchase] 환불 금액:", refundAmount);
-    console.log("[cancelPurchase] 플랫폼 수수료:", platformFee);
-
-    logger.info("구매 취소 완료", {
-      userAddress: walletInfo.address,
-      projectId: projectId,
-      requestId: requestId,
-      buyer: purchaseRequest.buyer,
-      refundAmount: refundAmount.toString(),
-      platformFee: platformFee.toString(),
-      txHash: transactionHash,
-    });
-
-    res.json({
-      success: true,
-      message: "구매가 성공적으로 취소되었습니다.",
-      data: {
-        projectId: projectId,
-        requestId: requestId,
-        buyer: purchaseRequest.buyer,
-        refundAmount: web3.utils.fromWei(
-          refundAmount.toString() || "0",
-          "ether"
-        ),
-        platformFee: web3.utils.fromWei(platformFee.toString() || "0", "ether"),
-        txHash: transactionHash,
-      },
-    });
-  } catch (error) {
-    logger.error("구매 취소 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "구매 취소 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-// 구매 요청 정보 조회
-const getPurchaseRequest = async (req, res) => {
-  const { projectId, requestId } = req.params;
-
-  if (!projectId || requestId === undefined) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID와 요청 ID가 필요합니다.",
-    });
-  }
-
-  try {
-    const purchaseRequest = await merchandiseFactoryContract.methods
-      .getPurchaseRequest(projectId, requestId)
-      .call();
-
-    if (
-      !purchaseRequest.buyer ||
-      purchaseRequest.buyer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "구매 요청을 찾을 수 없습니다.",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        projectId: projectId,
-        requestId: requestId,
-        buyer: purchaseRequest.buyer,
-        amount: web3.utils.fromWei(purchaseRequest.amount || "0", "ether"),
-        timestamp: purchaseRequest.timestamp.toString(),
-        isConfirmed: purchaseRequest.isConfirmed,
-        isCancelled: purchaseRequest.isCancelled,
-        tokenId: purchaseRequest.tokenId.toString(),
-      },
-    });
-  } catch (error) {
-    logger.error("구매 요청 정보 조회 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "구매 요청 정보 조회 중 오류가 발생했습니다.",
-      message: errorMessage,
-      error: error.message,
-    });
-  }
-};
-
-// 프로젝트별 구매 요청 목록 조회
-const getProjectPurchaseRequests = async (req, res) => {
-  const { projectId } = req.params;
-
-  if (!projectId) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    // 프로젝트 정보 조회
-    const projectInfo = await merchandiseFactoryContract.methods
-      .getProjectInfo(projectId)
-      .call();
-
-    if (
-      !projectInfo._influencer ||
-      projectInfo._influencer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "프로젝트를 찾을 수 없습니다.",
-      });
-    }
-
-    // 해당 프로젝트의 구매 요청 수 조회
-    const totalRequests = await merchandiseFactoryContract.methods
-      .projectTotalRequests(projectId)
-      .call();
-
-    const purchaseRequests = [];
-    for (let requestId = 0; requestId < totalRequests; requestId++) {
-      try {
-        const purchaseRequest = await merchandiseFactoryContract.methods
-          .getPurchaseRequest(projectId, requestId)
-          .call();
-
-        if (
-          purchaseRequest.buyer &&
-          purchaseRequest.buyer !== "0x0000000000000000000000000000000000000000"
-        ) {
-          purchaseRequests.push({
-            requestId: requestId,
-            buyer: purchaseRequest.buyer,
-            amount: web3.utils.fromWei(purchaseRequest.amount || "0", "ether"),
-            amountWei: purchaseRequest.amount.toString(),
-            timestamp: purchaseRequest.timestamp.toString(),
-            isConfirmed: purchaseRequest.isConfirmed,
-            isCancelled: purchaseRequest.isCancelled,
-            status: purchaseRequest.isConfirmed
-              ? "confirmed"
-              : purchaseRequest.isCancelled
-              ? "cancelled"
-              : "pending",
-            tokenId: purchaseRequest.tokenId.toString(),
-          });
-        }
-      } catch (error) {
-        console.error(`요청 ID ${requestId} 조회 실패:`, error);
-      }
-    }
-
-    res.json({
-      success: true,
-      data: {
-        projectId: projectId,
-        projectName: projectInfo._projectName,
-        projectImageURI: projectInfo._projectImageURI,
-        purchaseRequests: purchaseRequests,
-        totalCount: purchaseRequests.length,
-      },
-    });
-  } catch (error) {
-    logger.error("프로젝트 구매 요청 목록 조회 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "프로젝트 구매 요청 목록 조회 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-// 프로젝트 활성화 (브랜드 IPNFT 소유자만)
-const setActive = async (req, res) => {
-  const accessToken = req.token;
-  const { projectId } = req.params;
-
-  console.log("[setActive] 프로젝트 활성화 시작 - projectId:", projectId);
-
-  if (!projectId) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID가 필요합니다.",
-    });
-  }
-
-  try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
-    const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      process.env.DEVICE_PASSWORD
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
-
-    console.log("[setActive] 사용자 주소:", walletInfo.address);
-
-    // 2. 프로젝트 정보 조회
-    const projectInfo = await merchandiseFactoryContract.methods
-      .getProjectInfo(projectId)
-      .call();
-
-    console.log("[setActive] 프로젝트 정보:", projectInfo);
-
-    if (
-      !projectInfo._influencer ||
-      projectInfo._influencer === "0x0000000000000000000000000000000000000000"
-    ) {
-      return res.status(404).json({
-        success: false,
-        message: "프로젝트를 찾을 수 없습니다.",
-      });
-    }
-
-    // 3. 브랜드 IPNFT 토큰 ID 확인
-    const brandIPNFTTokenId = projectInfo._brandIPNFTTokenId;
-    console.log(
-      "[setActive] 브랜드 IPNFT 토큰 ID:",
-      brandIPNFTTokenId.toString()
-    );
-
-    // 4. IPNFT 컨트랙트에서 브랜드 소유자 확인
-    const platformRegistry = new web3.eth.Contract(
-      require("../../abi/PlatformRegistry.json"),
-      platformRegistryAddress
-    );
-    const ipnftFactoryAddr = await platformRegistry.methods
-      .ipnftFactory()
-      .call();
-    const ipnftFactory = new web3.eth.Contract(
-      require("../../abi/IPNFTFactory.json"),
-      ipnftFactoryAddr
-    );
-    const ipnftContractAddress = await ipnftFactory.methods
-      .getIPNFTAddress()
-      .call();
-
-    const ipnftContract = new web3.eth.Contract(
-      require("../../abi/IPNFT.json"),
-      ipnftContractAddress
-    );
-
-    const brandOwner = await ipnftContract.methods
-      .ownerOf(brandIPNFTTokenId)
-      .call();
-    console.log("[setActive] 브랜드 소유자:", brandOwner);
-    console.log("[setActive] 요청자:", walletInfo.address);
-
-    // 5. 권한 검증 (브랜드 IPNFT 소유자인지 확인)
-    if (brandOwner.toLowerCase() !== walletInfo.address.toLowerCase()) {
-      return res.status(403).json({
-        success: false,
-        message: "해당 프로젝트의 브랜드(IPNFT) 소유자만 활성화할 수 있습니다.",
-      });
-    }
-
-    // 6. Factory의 setProjectActive 호출
-    console.log("[setActive] Factory setProjectActive 호출 시작...");
-
-    // ABC WAAS를 통해 트랜잭션 전송
-    const transactionData = {
-      to: merchandiseFactoryAddress,
-      data: merchandiseFactoryContract.methods
-        .setProjectActive(projectId, true)
-        .encodeABI(),
-      value: "0",
-    };
-
-    // 1. 트랜잭션 서명
-    const signedTx = await blockchainService.signTransaction(
-      secureChannel,
-      fullWalletData,
-      transactionData,
-      req.token
-    );
-
-    // 2. 서명된 트랜잭션 전송
-    const transactionHash = await blockchainService.sendTransaction(signedTx);
-
-    console.log("[setActive] 트랜잭션 완료, 해시:", transactionHash);
-
-    // 3. 트랜잭션 영수증 대기
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const receipt = await blockchainService.getTransactionReceipt(
-      transactionHash
-    );
-
-    console.log("[setActive] 트랜잭션 영수증:", receipt);
-
-    // 7. 업데이트된 프로젝트 정보 조회
-    const updatedProjectInfo = await merchandiseFactoryContract.methods
-      .getProjectInfo(projectId)
-      .call();
-
-    console.log("[setActive] 업데이트된 프로젝트 정보:", updatedProjectInfo);
-
-    res.json({
-      success: true,
-      message: "프로젝트가 성공적으로 활성화되었습니다.",
-      data: {
-        projectId: projectId,
-        isActive: updatedProjectInfo._isActive,
-        transactionHash: transactionHash,
-      },
-    });
-  } catch (error) {
-    console.error("[setActive] 오류:", error);
-
-    // 에러 메시지 분석
-    let errorMessage = "프로젝트 활성화 중 오류가 발생했습니다.";
-    if (error.message.includes("Only brand IPNFT owner can set status")) {
-      errorMessage = "브랜드 IPNFT 소유자만 프로젝트를 활성화할 수 있습니다.";
-    } else if (error.message.includes("Project does not exist")) {
-      errorMessage = "프로젝트를 찾을 수 없습니다.";
-    }
-
-    res.status(500).json({
-      success: false,
-      message: errorMessage,
-      error: error.message,
-    });
-  }
-};
-
-// 브랜드가 서명(활성화)해야 하는 프로젝트만 조회
+/**
+ * 브랜드가 활성화해야 할 프로젝트 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
 const getBrandPendingProjects = async (req, res) => {
   try {
     const walletInfo = await walletService.getWallet(req.token);
@@ -2262,14 +1282,10 @@ const getBrandPendingProjects = async (req, res) => {
         );
 
         // IPNFT 컨트랙트에서 브랜드 소유자 확인
-        const platformRegistry = new web3.eth.Contract(
-          require("../../abi/PlatformRegistry.json"),
-          platformRegistryAddress
-        );
-        const ipnftFactoryAddr = await platformRegistry.methods
+        const ipnftFactoryAddr = await platformRegistryContract.methods
           .ipnftFactory()
           .call();
-        const ipnftFactory = new web3.eth.Contract(
+        const ipnftFactory = new web3.eth.Contract( // 여기는 동적으로 생성해야 할 수 있으므로 유지
           require("../../abi/IPNFTFactory.json"),
           ipnftFactoryAddr
         );
@@ -2343,7 +1359,277 @@ const getBrandPendingProjects = async (req, res) => {
   }
 };
 
-// 구매자별 구매 요청 조회
+// 3.2. 구매 요청 조회
+// ---------------------------------------------
+
+/**
+ * @summary 특정 구매 요청 정보 조회
+ */
+const getPurchaseRequest = async (req, res) => {
+  const { projectId, requestId } = req.params;
+
+  if (!projectId || requestId === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: "프로젝트 ID와 요청 ID가 필요합니다.",
+    });
+  }
+
+  // projectId와 requestId를 숫자로 변환
+  const numericProjectId = parseInt(projectId, 10);
+  const numericRequestId = parseInt(requestId, 10);
+
+  if (isNaN(numericProjectId) || isNaN(numericRequestId)) {
+    return res.status(400).json({
+      success: false,
+      message: "프로젝트 ID와 요청 ID는 숫자여야 합니다.",
+    });
+  }
+
+  try {
+    const purchaseRequest = await merchandiseFactoryContract.methods
+      .getPurchaseRequest(numericProjectId, numericRequestId)
+      .call();
+
+    if (
+      !purchaseRequest.buyer ||
+      purchaseRequest.buyer === "0x0000000000000000000000000000000000000000"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: "구매 요청을 찾을 수 없습니다.",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        projectId: numericProjectId,
+        requestId: numericRequestId,
+        buyer: purchaseRequest.buyer,
+        amount: web3.utils.fromWei(purchaseRequest.amount || "0", "ether"),
+        timestamp: purchaseRequest.timestamp.toString(),
+        isConfirmed: purchaseRequest.isConfirmed,
+        isCancelled: purchaseRequest.isCancelled,
+        tokenId: purchaseRequest.tokenId.toString(),
+      },
+    });
+  } catch (error) {
+    logger.error("구매 요청 정보 조회 실패", error);
+    res.status(500).json({
+      success: false,
+      message: "구매 요청 정보 조회 중 오류가 발생했습니다.",
+      message: errorMessage,
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @summary 프로젝트별 전체 구매 요청 목록 조회
+ */
+const getProjectPurchaseRequests = async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!projectId) {
+    return res.status(400).json({
+      success: false,
+      message: "프로젝트 ID를 입력해주세요.",
+    });
+  }
+
+  // projectId가 문자열 ":projectId"인지 확인
+  if (projectId === ":projectId") {
+    return res.status(400).json({
+      success: false,
+      message: "유효하지 않은 프로젝트 ID입니다.",
+    });
+  }
+
+  // projectId를 숫자로 변환
+  const numericProjectId = parseInt(projectId, 10);
+  if (isNaN(numericProjectId)) {
+    return res.status(400).json({
+      success: false,
+      message: "프로젝트 ID는 숫자여야 합니다.",
+    });
+  }
+
+  logger.info(
+    `[getProjectPurchaseRequests] 프로젝트 ${numericProjectId} 구매 요청 목록 조회 시작`
+  );
+
+  try {
+    // 전체 프로젝트 수 확인
+    const totalProjectCount = await merchandiseFactoryContract.methods
+      .getProjectCount()
+      .call();
+
+    logger.info(
+      `[getProjectPurchaseRequests] 전체 프로젝트 수: ${totalProjectCount.toString()}`
+    );
+
+    // 프로젝트 ID 유효성 검사
+    if (numericProjectId >= totalProjectCount) {
+      return res.status(400).json({
+        success: false,
+        message: `프로젝트 ID ${numericProjectId}는 존재하지 않습니다. (전체 프로젝트 수: ${totalProjectCount})`,
+      });
+    }
+
+    // 프로젝트 정보 조회
+    logger.info(`[getProjectPurchaseRequests] 프로젝트 정보 조회 중...`);
+    logger.info(
+      `[getProjectPurchaseRequests] 프로젝트 ID: ${numericProjectId}`
+    );
+    logger.info(
+      `[getProjectPurchaseRequests] 컨트랙트 주소: ${merchandiseFactoryContract.options.address}`
+    );
+
+    const projectInfo = await merchandiseFactoryContract.methods
+      .getProjectInfo(numericProjectId)
+      .call();
+
+    logger.info(`[getProjectPurchaseRequests] 프로젝트 정보:`, {
+      influencer: projectInfo._influencer,
+      projectName: projectInfo._projectName,
+      isActive: projectInfo._isActive,
+    });
+
+    if (
+      !projectInfo._influencer ||
+      projectInfo._influencer === "0x0000000000000000000000000000000000000000"
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: `프로젝트 ID ${numericProjectId}는 존재하지 않거나 유효하지 않습니다.`,
+      });
+    }
+
+    // 해당 프로젝트의 구매 요청 수 조회 (nextRequestId 사용)
+    logger.info(`[getProjectPurchaseRequests] 총 요청 수 조회 중...`);
+    let totalRequests;
+    try {
+      totalRequests = await merchandiseFactoryContract.methods
+        .nextRequestId(numericProjectId)
+        .call();
+      logger.info(`[getProjectPurchaseRequests] 총 요청 수: ${totalRequests}`);
+    } catch (error) {
+      logger.error(`프로젝트 ${projectId}의 총 요청 수 조회 실패:`, error);
+      logger.error(`에러 상세 정보:`, {
+        projectId: numericProjectId,
+        errorMessage: error.message,
+        errorStack: error.stack,
+      });
+      totalRequests = "0"; // 기본값 설정
+    }
+
+    const purchaseRequests = [];
+    logger.info(
+      `[getProjectPurchaseRequests] 구매 요청 목록 조회 시작 (총 ${totalRequests}개)`
+    );
+
+    // totalRequests가 0이면 빈 배열 반환
+    if (totalRequests === "0" || totalRequests === 0) {
+      logger.info(`[getProjectPurchaseRequests] 구매 요청이 없습니다.`);
+      return res.json({
+        success: true,
+        data: {
+          projectId: numericProjectId,
+          projectName: projectInfo._projectName,
+          projectImageURI: projectInfo._projectImageURI,
+          purchaseRequests: [],
+          totalCount: 0,
+        },
+      });
+    }
+
+    for (let requestId = 0; requestId < totalRequests; requestId++) {
+      try {
+        logger.info(
+          `[getProjectPurchaseRequests] 요청 ID ${requestId} 조회 중...`
+        );
+        const purchaseRequest = await merchandiseFactoryContract.methods
+          .getPurchaseRequest(numericProjectId, requestId)
+          .call();
+
+        logger.info(
+          `[getProjectPurchaseRequests] 요청 ID ${requestId} 데이터:`,
+          {
+            buyer: purchaseRequest.buyer,
+            amount: purchaseRequest.amount,
+            isConfirmed: purchaseRequest.isConfirmed,
+            isCancelled: purchaseRequest.isCancelled,
+          }
+        );
+
+        if (
+          purchaseRequest.buyer &&
+          purchaseRequest.buyer !== "0x0000000000000000000000000000000000000000"
+        ) {
+          purchaseRequests.push({
+            requestId: requestId,
+            buyer: purchaseRequest.buyer,
+            amount: web3.utils.fromWei(purchaseRequest.amount || "0", "ether"),
+            amountWei: purchaseRequest.amount.toString(),
+            timestamp: purchaseRequest.timestamp.toString(),
+            isConfirmed: purchaseRequest.isConfirmed,
+            isCancelled: purchaseRequest.isCancelled,
+            status: purchaseRequest.isConfirmed
+              ? "confirmed"
+              : purchaseRequest.isCancelled
+              ? "cancelled"
+              : "pending",
+            tokenId: purchaseRequest.tokenId.toString(),
+          });
+          logger.info(
+            `[getProjectPurchaseRequests] 요청 ID ${requestId} 추가됨`
+          );
+        } else {
+          logger.info(
+            `[getProjectPurchaseRequests] 요청 ID ${requestId}는 유효하지 않음`
+          );
+        }
+      } catch (error) {
+        logger.error(`요청 ID ${requestId} 조회 실패:`, error);
+        logger.error(`에러 상세 정보:`, {
+          projectId: numericProjectId,
+          requestId: requestId,
+          errorMessage: error.message,
+          errorStack: error.stack,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "프로젝트 구매 요청 목록을 성공적으로 조회했습니다.",
+      data: {
+        projectId: numericProjectId,
+        projectName: projectInfo._projectName,
+        projectImageURI: projectInfo._projectImageURI,
+        purchaseRequests: purchaseRequests,
+        totalCount: purchaseRequests.length,
+      },
+    });
+  } catch (error) {
+    logger.error("프로젝트 구매 요청 목록 조회 실패", error);
+    logger.error("에러 상세 정보:", {
+      projectId: projectId,
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "프로젝트 구매 요청 목록 조회 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @summary 자신의 구매 요청 목록 조회
+ */
 const getMyPurchaseRequests = async (req, res) => {
   const accessToken = req.token;
 
@@ -2469,70 +1755,37 @@ const getMyPurchaseRequests = async (req, res) => {
   }
 };
 
-// 수수료 수취 주소 조회
-const getPlatformFeeInfo = async (req, res) => {
-  try {
-    // 1. 수수료 수취 주소 조회
-    const platformFeeCollector = await merchandiseFactoryContract.methods
-      .platformFeeCollector()
-      .call();
+// 3.3. NFT 조회
+// ---------------------------------------------
 
-    // 2. 수수료 비율 조회
-    const platformFeePercentage = await merchandiseFactoryContract.methods
-      .platformFeePercentage()
-      .call();
-
-    // 3. 수수료 비율을 퍼센트로 변환 (basis points -> percentage)
-    const feePercentage = Number(platformFeePercentage) / 100;
-
-    res.json({
-      success: true,
-      message: "플랫폼 수수료 정보를 성공적으로 조회했습니다.",
-      data: {
-        platformFeeCollector: platformFeeCollector,
-        platformFeePercentage: feePercentage,
-        platformFeeBasisPoints: platformFeePercentage.toString(),
-      },
-    });
-  } catch (error) {
-    console.error("[getPlatformFeeInfo] 오류:", error);
-    res.status(500).json({
-      success: false,
-      message: "플랫폼 수수료 정보 조회 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-// 내가 소유한 Merchandise NFT 목록 조회
+/**
+ * 내가 소유한 Merchandise NFT 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
 const getMyMerchandiseNFTs = async (req, res) => {
   const accessToken = req.token;
 
   try {
-    // 1. 보안 채널 생성 및 사용자 기본 정보 조회
-    const secureChannel = await authService.createSecureChannel();
+    // 1. 사용자 지갑 정보 조회
     const walletInfo = await walletService.getWallet(accessToken);
-    const encryptedDevicePassword = authService.encrypt(
-      secureChannel,
-      process.env.DEVICE_PASSWORD
-    );
-    const fullWalletData = await walletService.createWallet(
-      walletInfo.email,
-      encryptedDevicePassword,
-      secureChannel.ChannelID,
-      accessToken
-    );
 
-    console.log("[getMyMerchandiseNFTs] 사용자 주소:", walletInfo.address);
+    if (!walletInfo || !walletInfo.address) {
+      return res.status(401).json({
+        success: false,
+        message: "유효한 지갑 정보를 찾을 수 없습니다.",
+      });
+    }
+
+    logger.info(`[getMyMerchandiseNFTs] 사용자 주소: ${walletInfo.address}`);
 
     // 2. 전체 프로젝트 수 조회
     const totalProjects = await merchandiseFactoryContract.methods
       .getProjectCount()
       .call();
 
-    console.log(
-      "[getMyMerchandiseNFTs] 전체 프로젝트 수:",
-      totalProjects.toString()
+    logger.info(
+      `[getMyMerchandiseNFTs] 전체 프로젝트 수: ${totalProjects.toString()}`
     );
 
     const myNFTs = [];
@@ -2560,7 +1813,7 @@ const getMyMerchandiseNFTs = async (req, res) => {
           .call();
 
         const mintedCount = projectInfo._mintedCount;
-        console.log(
+        logger.info(
           `[getMyMerchandiseNFTs] 프로젝트 ${projectId}: 토큰 시작 ID ${tokenStartId}, 민팅된 수 ${mintedCount}`
         );
 
@@ -2575,7 +1828,7 @@ const getMyMerchandiseNFTs = async (req, res) => {
               .call();
 
             if (!exists) {
-              console.log(
+              logger.debug(
                 `[getMyMerchandiseNFTs] 토큰 ${tokenId}는 존재하지 않음`
               );
               continue;
@@ -2586,9 +1839,8 @@ const getMyMerchandiseNFTs = async (req, res) => {
               .ownerOf(tokenId)
               .call();
 
-            console.log(
-              `[getMyMerchandiseNFTs] 토큰 ${tokenId} 소유자:`,
-              owner
+            logger.debug(
+              `[getMyMerchandiseNFTs] 토큰 ${tokenId} 소유자: ${owner}`
             );
 
             // 내가 소유한 토큰만 필터링
@@ -2608,7 +1860,7 @@ const getMyMerchandiseNFTs = async (req, res) => {
 
             myNFTs.push({
               tokenId: tokenId.toString(),
-              contract: merchandiseFactoryAddress,
+              contract: merchandiseFactoryContract.options.address,
               owner: owner,
               projectId: tokenProjectId.toString(),
               projectName: projectInfo._projectName,
@@ -2635,25 +1887,23 @@ const getMyMerchandiseNFTs = async (req, res) => {
               createdAt: projectInfo._createdAt.toString(),
             });
           } catch (error) {
-            console.error(
-              `[getMyMerchandiseNFTs] 토큰 ${tokenId} 조회 실패:`,
-              error
+            logger.error(
+              `[getMyMerchandiseNFTs] 토큰 ${tokenId} 조회 실패: ${error.message}`
             );
             // 개별 토큰 오류는 무시하고 계속 진행
           }
         }
       } catch (error) {
-        console.error(
-          `[getMyMerchandiseNFTs] 프로젝트 ${projectId} 조회 실패:`,
-          error
+        logger.error(
+          `[getMyMerchandiseNFTs] 프로젝트 ${projectId} 조회 실패: ${error.message}`
         );
         // 개별 프로젝트 오류는 무시하고 계속 진행
       }
     }
 
-    console.log("[getMyMerchandiseNFTs] 조회된 NFT 수:", myNFTs.length);
+    logger.info(`[getMyMerchandiseNFTs] 조회된 NFT 수: ${myNFTs.length}`);
 
-    res.json({
+    return res.json({
       success: true,
       message: "내 Merchandise NFT 목록을 성공적으로 조회했습니다.",
       data: stringifyBigInts({
@@ -2663,8 +1913,8 @@ const getMyMerchandiseNFTs = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.error("[getMyMerchandiseNFTs] 오류:", error);
-    res.status(500).json({
+    logger.error(`[getMyMerchandiseNFTs] 오류: ${error.message}`);
+    return res.status(500).json({
       success: false,
       message: "내 Merchandise NFT 목록 조회 중 오류가 발생했습니다.",
       error: error.message,
@@ -2672,7 +1922,9 @@ const getMyMerchandiseNFTs = async (req, res) => {
   }
 };
 
-// 전체 Merchandise NFT 목록 조회 (관리자용)
+/**
+ * @summary 전체 Merchandise NFT 목록 조회 (관리자용)
+ */
 const getAllMerchandiseNFTs = async (req, res) => {
   try {
     console.log("[getAllMerchandiseNFTs] 전체 Merchandise NFT 조회 시작");
@@ -2750,7 +2002,7 @@ const getAllMerchandiseNFTs = async (req, res) => {
 
             allNFTs.push({
               tokenId: tokenId.toString(),
-              contract: merchandiseFactoryAddress,
+              contract: merchandiseFactoryContract.options.address,
               owner: owner,
               projectId: tokenProjectId.toString(),
               projectName: projectInfo._projectName,
@@ -2814,7 +2066,9 @@ const getAllMerchandiseNFTs = async (req, res) => {
   }
 };
 
-// 특정 Merchandise NFT 정보 조회
+/**
+ * @summary 특정 Merchandise NFT 정보 조회
+ */
 const getMerchandiseNFTInfo = async (req, res) => {
   try {
     const { tokenId } = req.params;
@@ -2862,7 +2116,7 @@ const getMerchandiseNFTInfo = async (req, res) => {
 
     const nftInfo = {
       tokenId: tokenId,
-      contract: merchandiseFactoryAddress,
+      contract: merchandiseFactoryContract.options.address,
       owner: owner,
       projectId: projectId.toString(),
       projectName: projectInfo._projectName,
@@ -2905,7 +2159,57 @@ const getMerchandiseNFTInfo = async (req, res) => {
   }
 };
 
-// 영수증 조회 API들
+// =============================================
+// 4. 유틸리티 및 기타
+// =============================================
+
+/**
+ * 플랫폼 수수료 정보 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getPlatformFeeInfo = async (req, res) => {
+  try {
+    // 1. 수수료 수취 주소 조회
+    const platformFeeCollector = await merchandiseFactoryContract.methods
+      .platformFeeCollector()
+      .call();
+
+    // 2. 수수료 비율 조회
+    const platformFeePercentage = await merchandiseFactoryContract.methods
+      .platformFeePercentage()
+      .call();
+
+    // 3. 수수료 비율을 퍼센트로 변환 (basis points -> percentage)
+    const feePercentage = Number(platformFeePercentage) / 100;
+
+    res.json({
+      success: true,
+      message: "플랫폼 수수료 정보를 성공적으로 조회했습니다.",
+      data: {
+        platformFeeCollector: platformFeeCollector,
+        platformFeePercentage: feePercentage,
+        platformFeeBasisPoints: platformFeePercentage.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("[getPlatformFeeInfo] 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: "플랫폼 수수료 정보 조회 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+// 4.1. 영수증 API
+// ---------------------------------------------
+
+/**
+ * 전체 영수증 목록 조회
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
 const getAllReceipts = async (req, res) => {
   try {
     const result = await receiptGenerator.getAllReceipts();
@@ -2936,6 +2240,12 @@ const getAllReceipts = async (req, res) => {
   }
 };
 
+/**
+ * ID로 특정 영수증 조회
+ * @param {Object} req - Express request object
+ * @param {string} req.params.receiptId - 영수증 ID
+ * @param {Object} res - Express response object
+ */
 const getReceiptById = async (req, res) => {
   const { receiptId } = req.params;
 
@@ -2972,6 +2282,12 @@ const getReceiptById = async (req, res) => {
   }
 };
 
+/**
+ * 프로젝트 ID로 영수증 목록 조회
+ * @param {Object} req - Express request object
+ * @param {string} req.params.projectId - 프로젝트 ID
+ * @param {Object} res - Express response object
+ */
 const getReceiptsByProject = async (req, res) => {
   const { projectId } = req.params;
 
@@ -3012,18 +2328,23 @@ const getReceiptsByProject = async (req, res) => {
   }
 };
 
-// PDF 영수증 다운로드
-const downloadPDFReceipt = async (req, res) => {
+/**
+ * PDF 영수증 생성 및 다운로드
+ * @param {Object} req - Express request object
+ * @param {string} req.params.receiptId - 영수증 ID
+ * @param {Object} res - Express response object
+ */
+const generatePDFReceipt = async (req, res) => {
   const { receiptId } = req.params;
 
-  if (!receiptId) {
-    return res.status(400).json({
-      success: false,
-      message: "영수증 ID를 입력해주세요.",
-    });
-  }
-
   try {
+    if (!receiptId) {
+      return res.status(400).json({
+        success: false,
+        message: "영수증 ID를 입력해주세요.",
+      });
+    }
+
     // 1. 영수증 JSON 데이터 조회
     const receiptResult = await receiptGenerator.getReceipt(receiptId);
 
@@ -3079,82 +2400,31 @@ const downloadPDFReceipt = async (req, res) => {
   }
 };
 
-// PDF 영수증 생성 (JSON 데이터 기반)
-const generatePDFReceipt = async (req, res) => {
-  const { receiptId } = req.params;
-
-  if (!receiptId) {
-    return res.status(400).json({
-      success: false,
-      message: "영수증 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    // 1. 영수증 JSON 데이터 조회
-    const receiptResult = await receiptGenerator.getReceipt(receiptId);
-
-    if (!receiptResult.success) {
-      return res.status(404).json({
-        success: false,
-        message: "영수증을 찾을 수 없습니다.",
-        error: receiptResult.error,
-      });
-    }
-
-    const receiptData = receiptResult.receipt;
-
-    // 2. PDF 생성
-    const pdfResult = await pdfReceiptGenerator.generatePDFReceipt(receiptData);
-
-    if (!pdfResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: "PDF 생성 중 오류가 발생했습니다.",
-        error: pdfResult.error,
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "PDF 영수증이 성공적으로 생성되었습니다.",
-      data: {
-        receiptId: receiptId,
-        pdfFileName: pdfResult.pdfFileName,
-        pdfPath: pdfResult.pdfPath,
-      },
-    });
-  } catch (error) {
-    logger.error("PDF 영수증 생성 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "PDF 영수증 생성 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
+  // 1. 프로젝트 관리
   createProject,
-  getProjects,
-  purchaseMerchandise,
-  getMyProjects,
-  getAllProjects,
+  setActive,
+
+  // 2. 구매 플로우
   requestPurchase,
   confirmPurchase,
   cancelPurchase,
+
+  // 3. 조회
+  getAllProjects,
+  getMyProjects,
+  getBrandPendingProjects,
   getPurchaseRequest,
   getProjectPurchaseRequests,
-  setActive,
-  getBrandPendingProjects,
   getMyPurchaseRequests,
-  getPlatformFeeInfo,
   getMyMerchandiseNFTs,
-  getMerchandiseNFTInfo,
   getAllMerchandiseNFTs,
+  getMerchandiseNFTInfo,
+
+  // 4. 유틸리티
+  getPlatformFeeInfo,
   getAllReceipts,
   getReceiptById,
   getReceiptsByProject,
-  downloadPDFReceipt,
   generatePDFReceipt,
 };

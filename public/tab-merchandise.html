@@ -1,220 +1,331 @@
-<h2>Merchandise Platform</h2>
-<div class="api-grid">
-  <fieldset>
-    <legend>1. 상품 프로젝트 생성 (POST /api/nft/merchandise/create)</legend>
-    <form id="create-project-form" enctype="multipart/form-data">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label
-        >Project Name <input type="text" name="projectName" required
-      /></label>
-      <label
-        >Description <input type="text" name="description" required
-      /></label>
-      <label>Quantity <input type="text" name="quantity" required /></label>
-      <label
-        >Sale Price (DP) <input type="text" name="salePrice" required
-      /></label>
-      <label
-        >IPNFT Token IDs (comma separated)
-        <input type="text" name="ipnftTokenIds" required
-      /></label>
-      <label>Project Image <input type="file" name="projectImage" /></label>
-      <!-- <label
-        >Base64 Image (data:image/png;base64,...)<br />
-        <textarea
-          name="base64Image"
-          rows="3"
-          cols="60"
-          placeholder="여기에 base64 string을 붙여넣으세요"
-        ></textarea>
-      </label> -->
-      <button type="submit">Create Project</button>
-    </form>
-    <pre id="create-project-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>2. 내 프로젝트 목록 (GET /api/nft/merchandise/my)</legend>
-    <form id="my-projects-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get My Projects</button>
-    </form>
-    <pre id="my-projects-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>3. 전체 프로젝트 목록 (GET /api/nft/merchandise/list)</legend>
-    <button id="load-projects-btn">프로젝트 목록 불러오기</button>
-    <div
-      id="project-list"
-      style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px"
-    ></div>
-  </fieldset>
-  <fieldset>
-    <legend>
-      4. 브랜드 활성화 대기 프로젝트 (GET /api/nft/merchandise/brand-pending)
-    </legend>
-    <form id="brand-pending-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get Brand Pending Projects</button>
-    </form>
-    <pre id="brand-pending-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      5. 프로젝트 활성화 (브랜드) (POST
-      /api/nft/merchandise/activate/:projectId)
-    </legend>
-    <form id="activate-project-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label>Project ID <input type="text" name="projectId" required /></label>
-      <button type="submit">Activate Project</button>
-    </form>
-    <pre id="activate-project-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>6. 구매 요청 (POST /api/nft/merchandise/request-purchase)</legend>
-    <form id="request-purchase-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label>Project ID <input type="text" name="projectId" required /></label>
-      <button type="submit">Request Purchase</button>
-    </form>
-    <pre id="request-purchase-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      7. 내 구매 요청 목록 (GET /api/nft/merchandise/my-purchase-requests)
-    </legend>
-    <form id="my-purchase-requests-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get My Purchase Requests</button>
-    </form>
-    <pre id="my-purchase-requests-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>8. 구매 확정 (POST /api/nft/merchandise/confirm-purchase)</legend>
-    <form id="confirm-purchase-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label>Project ID <input type="text" name="projectId" required /></label>
-      <label>Request ID <input type="text" name="requestId" required /></label>
-      <button type="submit">Confirm Purchase</button>
-    </form>
-    <pre id="confirm-purchase-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>9. 내가 소유한 NFT 조회 (GET /api/nft/merchandise/my-nfts)</legend>
-    <form id="my-nfts-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get My NFTs</button>
-    </form>
-    <pre id="my-nfts-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      10. 전체 Merchandise NFT 조회 (GET /api/nft/merchandise/all-nfts)
-    </legend>
-    <button id="all-nfts-btn">Get All NFTs</button>
-    <pre id="all-nfts-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      11. 특정 NFT 상세 조회 (GET /api/nft/merchandise/nft/:tokenId)
-    </legend>
-    <form id="nft-detail-form">
-      <label>Token ID <input type="text" name="tokenId" required /></label>
-      <button type="submit">Get NFT Details</button>
-    </form>
-    <pre id="nft-detail-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>12. 구매 취소 (POST /api/nft/merchandise/cancel-purchase)</legend>
-    <form id="cancel-purchase-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label>Project ID <input type="text" name="projectId" required /></label>
-      <label>Request ID <input type="text" name="requestId" required /></label>
-      <button type="submit">Cancel Purchase</button>
-    </form>
-    <pre id="cancel-purchase-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      13. 프로젝트별 구매 요청 목록 (GET
-      /api/nft/merchandise/purchase-requests/:projectId)
-    </legend>
-    <form id="project-purchase-requests-form">
-      <label>Project ID <input type="text" name="projectId" required /></label>
-      <button type="submit">Get Project Purchase Requests</button>
-    </form>
-    <pre id="project-purchase-requests-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      14. 플랫폼 수수료 정보 (GET /api/nft/merchandise/platform-fee-info)
-    </legend>
-    <button id="platform-fee-info-btn">Get Platform Fee Info</button>
-    <pre id="platform-fee-info-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>15. 모든 영수증 목록 (GET /api/nft/merchandise/receipts)</legend>
-    <button id="all-receipts-btn">Get All Receipts</button>
-    <pre id="all-receipts-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      16. 특정 영수증 조회 (GET /api/nft/merchandise/receipt/:receiptId)
-    </legend>
-    <form id="receipt-detail-form">
-      <label>Receipt ID <input type="text" name="receiptId" required /></label>
-      <button type="submit">Get Receipt Details</button>
-    </form>
-    <pre id="receipt-detail-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      17. 프로젝트별 영수증 목록 (GET
-      /api/nft/merchandise/receipts/project/:projectId)
-    </legend>
-    <form id="project-receipts-form">
-      <label>Project ID <input type="text" name="projectId" required /></label>
-      <button type="submit">Get Project Receipts</button>
-    </form>
-    <pre id="project-receipts-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>
-      18. PDF 영수증 다운로드 (GET /api/nft/merchandise/receipt/:receiptId/pdf)
-    </legend>
-    <form id="pdf-download-form">
-      <label>Receipt ID <input type="text" name="receiptId" required /></label>
-      <button type="submit">Download PDF Receipt</button>
-    </form>
-    <div id="pdf-download-result"></div>
-  </fieldset>
-  <fieldset>
-    <legend>
-      19. PDF 영수증 생성 (POST
-      /api/nft/merchandise/receipt/:receiptId/generate-pdf)
-    </legend>
-    <form id="pdf-generate-form">
-      <label>Receipt ID <input type="text" name="receiptId" required /></label>
-      <button type="submit">Generate PDF Receipt</button>
-    </form>
-    <pre id="pdf-generate-result"></pre>
-  </fieldset>
-</div>
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Merchandise API Test</title>
+    <!-- style.css를 공통으로 사용한다고 가정하고 별도 스타일은 제거 -->
+  </head>
+  <body>
+    <div class="api-grid">
+      <!-- 1. 프로젝트 관리 -->
+      <fieldset>
+        <legend>1. 상품 프로젝트 생성 (인플루언서)</legend>
+        <form id="createProjectForm">
+          <label for="cp_accessToken">Access Token:</label>
+          <textarea
+            id="cp_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <label for="cp_devicePassword">Device Password:</label>
+          <input
+            type="password"
+            id="cp_devicePassword"
+            name="devicePassword"
+            required
+          />
+          <label for="cp_projectName">Project Name:</label>
+          <input type="text" id="cp_projectName" name="projectName" required />
+          <label for="cp_description">Description:</label>
+          <input type="text" id="cp_description" name="description" required />
+          <label for="cp_quantity">Quantity:</label>
+          <input type="number" id="cp_quantity" name="quantity" required />
+          <label for="cp_salePrice">Sale Price (DP):</label>
+          <input type="text" id="cp_salePrice" name="salePrice" required />
+          <label for="cp_ipnftTokenIds"
+            >IPNFT Token IDs (comma separated):</label
+          >
+          <input
+            type="text"
+            id="cp_ipnftTokenIds"
+            name="ipnftTokenIds"
+            placeholder="e.g., 1,2,3"
+            required
+          />
+          <label for="cp_projectImageUrl">Project Image URL:</label>
+          <input
+            type="text"
+            id="cp_projectImageUrl"
+            name="projectImageUrl"
+            placeholder="Enter image URL"
+            required
+          />
+          <button type="submit">Create Project</button>
+        </form>
+        <pre id="createProjectResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>2. 내 프로젝트 목록 (인플루언서)</legend>
+        <form id="getMyProjectsForm">
+          <label for="gmp_accessToken">Access Token:</label>
+          <textarea
+            id="gmp_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <button type="button" id="getMyProjectsBtn">Get My Projects</button>
+        </form>
+        <pre id="getMyProjectsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>3. 전체 프로젝트 목록</legend>
+        <form id="getAllProjectsForm">
+          <button type="button" id="getAllProjectsBtn">Get All Projects</button>
+        </form>
+        <pre id="getAllProjectsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>4. 브랜드 활성화 대기 프로젝트</legend>
+        <form id="getBrandPendingProjectsForm">
+          <label for="gbpp_accessToken">Access Token:</label>
+          <textarea
+            id="gbpp_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <button type="button" id="getBrandPendingProjectsBtn">
+            Get Brand Pending Projects
+          </button>
+        </form>
+        <pre id="getBrandPendingProjectsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>5. 프로젝트 활성화 (브랜드)</legend>
+        <form id="activateProjectForm">
+          <label for="ap_accessToken">Access Token:</label>
+          <textarea
+            id="ap_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <label for="ap_devicePassword">Device Password:</label>
+          <input
+            type="password"
+            id="ap_devicePassword"
+            name="devicePassword"
+            required
+          />
+          <label for="ap_projectId">Project ID:</label>
+          <input type="text" id="ap_projectId" name="projectId" required />
+          <button type="submit">Activate Project</button>
+        </form>
+        <pre id="activateProjectResult"></pre>
+      </fieldset>
+
+      <!-- 2. 구매 플로우 -->
+      <fieldset>
+        <legend>6. 상품 구매 요청 (구매자)</legend>
+        <form id="requestPurchaseForm">
+          <label for="rp_accessToken">Access Token:</label>
+          <textarea
+            id="rp_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <label for="rp_devicePassword">Device Password:</label>
+          <input
+            type="password"
+            id="rp_devicePassword"
+            name="devicePassword"
+            required
+          />
+          <label for="rp_projectId">Project ID:</label>
+          <input type="text" id="rp_projectId" name="projectId" required />
+          <button type="submit">Request Purchase</button>
+        </form>
+        <pre id="requestPurchaseResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>7. 내 구매 요청 목록 (구매자)</legend>
+        <form id="getMyPurchaseRequestsForm">
+          <label for="gmpr_accessToken">Access Token:</label>
+          <textarea
+            id="gmpr_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <button type="button" id="getMyPurchaseRequestsBtn">
+            Get My Purchase Requests
+          </button>
+        </form>
+        <pre id="getMyPurchaseRequestsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>8. 구매 확정 (구매자)</legend>
+        <form id="confirmPurchaseForm">
+          <label for="confp_accessToken">Access Token:</label>
+          <textarea
+            id="confp_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <label for="confp_devicePassword">Device Password:</label>
+          <input
+            type="password"
+            id="confp_devicePassword"
+            name="devicePassword"
+            required
+          />
+          <label for="confp_projectId">Project ID:</label>
+          <input type="text" id="confp_projectId" name="projectId" required />
+          <label for="confp_requestId">Request ID:</label>
+          <input type="text" id="confp_requestId" name="requestId" required />
+          <button type="submit">Confirm Purchase</button>
+        </form>
+        <pre id="confirmPurchaseResult"></pre>
+      </fieldset>
+
+      <!-- 3. NFT 및 기타 조회 -->
+      <fieldset>
+        <legend>9. 내가 소유한 NFT 조회</legend>
+        <form id="getMyNftsForm">
+          <label for="gmn_accessToken">Access Token:</label>
+          <textarea
+            id="gmn_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <button type="button" id="getMyNftsBtn">Get My NFTs</button>
+        </form>
+        <pre id="getMyNftsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>10. 전체 Merchandise NFT 조회</legend>
+        <form id="getAllNftsForm">
+          <button type="button" id="getAllNftsBtn">Get All NFTs</button>
+        </form>
+        <pre id="getAllNftsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>11. 특정 NFT 상세 조회</legend>
+        <form id="getNftInfoForm">
+          <label for="gni_tokenId">Token ID:</label>
+          <input type="text" id="gni_tokenId" name="tokenId" required />
+          <button type="button" id="getNftInfoBtn">Get NFT Details</button>
+        </form>
+        <pre id="getNftInfoResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>12. 구매 취소 (구매자)</legend>
+        <form id="cancelPurchaseForm">
+          <label for="canp_accessToken">Access Token:</label>
+          <textarea
+            id="canp_accessToken"
+            name="accessToken"
+            rows="3"
+            required
+          ></textarea>
+          <label for="canp_devicePassword">Device Password:</label>
+          <input
+            type="password"
+            id="canp_devicePassword"
+            name="devicePassword"
+            required
+          />
+          <label for="canp_projectId">Project ID:</label>
+          <input type="text" id="canp_projectId" name="projectId" required />
+          <label for="canp_requestId">Request ID:</label>
+          <input type="text" id="canp_requestId" name="requestId" required />
+          <button type="submit">Cancel Purchase</button>
+        </form>
+        <pre id="cancelPurchaseResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>13. 프로젝트별 구매 요청 목록</legend>
+        <form id="getProjectPurchaseRequestsForm">
+          <label for="gppr_projectId">Project ID:</label>
+          <input type="text" id="gppr_projectId" name="projectId" required />
+          <button type="button" id="getProjectPurchaseRequestsBtn">
+            Get Project Purchase Requests
+          </button>
+        </form>
+        <pre id="getProjectPurchaseRequestsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>14. 플랫폼 수수료 정보</legend>
+        <form id="getPlatformFeeInfoForm">
+          <button type="button" id="getPlatformFeeInfoBtn">
+            Get Platform Fee Info
+          </button>
+        </form>
+        <pre id="getPlatformFeeInfoResult"></pre>
+      </fieldset>
+
+      <!-- 4. 영수증 -->
+      <fieldset>
+        <legend>15. 모든 영수증 목록</legend>
+        <form id="getAllReceiptsForm">
+          <button type="button" id="getAllReceiptsBtn">Get All Receipts</button>
+        </form>
+        <pre id="getAllReceiptsResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>16. 특정 영수증 조회</legend>
+        <form id="getReceiptByIdForm">
+          <label for="grbi_receiptId">Receipt ID:</label>
+          <input type="text" id="grbi_receiptId" name="receiptId" required />
+          <button type="button" id="getReceiptByIdBtn">
+            Get Receipt Details
+          </button>
+        </form>
+        <pre id="getReceiptByIdResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>17. 프로젝트별 영수증 목록</legend>
+        <form id="getReceiptsByProjectForm">
+          <label for="grbp_projectId">Project ID:</label>
+          <input type="text" id="grbp_projectId" name="projectId" required />
+          <button type="button" id="getReceiptsByProjectBtn">
+            Get Project Receipts
+          </button>
+        </form>
+        <pre id="getReceiptsByProjectResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>18. PDF 영수증 다운로드</legend>
+        <form id="downloadPdfForm">
+          <label for="dp_receiptId">Receipt ID:</label>
+          <input type="text" id="dp_receiptId" name="receiptId" required />
+          <button type="button" id="downloadPdfBtn">
+            Download PDF Receipt
+          </button>
+        </form>
+        <pre id="downloadPdfResult"></pre>
+      </fieldset>
+      <fieldset>
+        <legend>19. PDF 영수증 생성 (서버에 파일 저장)</legend>
+        <p class="description">
+          구매 확정 시 자동으로 생성되지만, 수동 생성을 위해 제공됩니다.
+        </p>
+        <form id="generatePdfForm">
+          <label for="gp_receiptId">Receipt ID:</label>
+          <input type="text" id="gp_receiptId" name="receiptId" required />
+          <button type="submit">Generate PDF</button>
+        </form>
+        <pre id="generatePdfResult"></pre>
+      </fieldset>
+    </div>
+  </body>
+</html>

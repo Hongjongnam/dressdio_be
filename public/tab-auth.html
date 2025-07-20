@@ -1,133 +1,262 @@
-<h2>Auth & Wallet</h2>
-<div class="api-grid">
-  <fieldset>
-    <legend>1. 이메일 인증 (GET /api/auth/:email/verify-email)</legend>
-    <form id="verify-email-form">
-      <label>Email <input type="email" name="email" required /></label>
-      <button type="submit">Verify Email</button>
-    </form>
-    <pre id="verify-email-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>2. 인증코드 발송 (GET /api/auth/:email/send-code)</legend>
-    <form id="send-code-form">
-      <label>Email <input type="email" name="email" required /></label>
-      <label
-        >Language
-        <select name="lang">
-          <option value="ko">한국어</option>
-          <option value="en">English</option>
-        </select></label
-      >
-      <label
-        >Template
-        <select name="template" required>
-          <option value="register">회원가입</option>
-          <option value="reset">비밀번호 재설정</option>
-          <option value="login">로그인</option>
-        </select></label
-      >
-      <button type="submit">Send Code</button>
-    </form>
-    <pre id="send-code-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>3. 인증코드 확인 (POST /api/auth/:email/verify-code)</legend>
-    <form id="verify-code-form">
-      <label>Email <input type="email" name="email" required /></label>
-      <label
-        >Verification Code <input type="text" name="code" required
-      /></label>
-      <button type="submit">Verify Code</button>
-    </form>
-    <pre id="verify-code-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>4. 회원가입 (POST /api/auth/register)</legend>
-    <form id="register-form">
-      <label>Email <input type="email" name="email" required /></label>
-      <label>Password <input type="password" name="password" required /></label>
-      <label
-        >Verification Code <input type="text" name="code" required
-      /></label>
-      <label>Overage Agreement <input type="checkbox" name="overage" /></label>
-      <label>Terms Agreement <input type="checkbox" name="agree" /></label>
-      <label>Privacy Collection <input type="checkbox" name="collect" /></label>
-      <label
-        >Third Party Sharing <input type="checkbox" name="thirdParty"
-      /></label>
-      <label>Advertisement <input type="checkbox" name="advertise" /></label>
-      <button type="submit">Register</button>
-    </form>
-    <pre id="register-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>5. 로그인 (POST /api/auth/login)</legend>
-    <form id="login-form">
-      <label>Email <input type="email" name="email" required /></label>
-      <label>Password <input type="password" name="password" required /></label>
-      <button type="submit">Login</button>
-    </form>
-    <pre id="login-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>6. 토큰 리프레시 (POST /api/auth/refresh-token)</legend>
-    <form id="refresh-form">
-      <label
-        >Refresh Token <input type="text" name="refreshToken" required
-      /></label>
-      <button type="submit">Refresh</button>
-    </form>
-    <pre id="refresh-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>7. 비밀번호 재설정 (POST /api/auth/reset-password)</legend>
-    <form id="reset-password-form">
-      <label>Email <input type="email" name="email" required /></label>
-      <label
-        >New Password <input type="password" name="password" required
-      /></label>
-      <label
-        >Verification Code <input type="text" name="code" required
-      /></label>
-      <button type="submit">Reset Password</button>
-    </form>
-    <pre id="reset-password-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>8. 비밀번호 변경 (POST /api/auth/change-password)</legend>
-    <form id="change-password-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label
-        >Current Password <input type="password" name="oldpassword" required
-      /></label>
-      <label
-        >New Password <input type="password" name="newpassword" required
-      /></label>
-      <button type="submit">Change Password</button>
-    </form>
-    <pre id="change-password-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>9. 내 계정 정보 (GET /api/auth/account)</legend>
-    <form id="account-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get Account</button>
-    </form>
-    <pre id="account-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>10. 잔액 조회 (GET /api/auth/balance)</legend>
-    <form id="balance-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get Balance</button>
-    </form>
-    <pre id="balance-result"></pre>
-  </fieldset>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auth Tab</title>
+    <style>
+      .description {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        line-height: 1.5;
+      }
+      fieldset legend i {
+        margin-right: 0.5em;
+      }
+      .unified-login-container {
+        grid-column: 1 / -1; /* Make it span the full width */
+      }
+      .login-step {
+        /* styles for each step */
+      }
+      .social-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .social-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        font-size: 1rem;
+        border-radius: 5px;
+        border: 1px solid var(--border-color);
+        background-color: #fff;
+        color: var(--text-primary);
+        cursor: pointer;
+      }
+      .social-btn i {
+        margin-right: 10px;
+      }
+      .social-btn.google {
+        color: #db4437;
+      }
+      .social-btn.kakao {
+        color: #3c1e1e;
+        background-color: #fee500;
+        border-color: #fee500;
+      }
+      .social-btn.naver {
+        color: #fff;
+        background-color: #03c75a;
+        border-color: #03c75a;
+      }
+      .success-message {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #27ae60;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="api-grid">
+      <!-- Card 1: Social Login Step 1 -->
+      <fieldset id="social-login-url-card">
+        <legend>
+          <i class="fas fa-sign-in-alt"></i> 1. 소셜 로그인 URL 요청
+        </legend>
+        <p class="description">
+          소셜 로그인 제공자를 선택하여 인증 URL을 받습니다. 사용자는 이 URL로
+          이동하여 로그인합니다.
+        </p>
+        <form id="social-login-url-form">
+          <label for="loginProvider">소셜 로그인</label>
+          <select id="loginProvider" name="provider">
+            <option value="google">Google</option>
+            <option value="kakao">Kakao</option>
+            <option value="naver">Naver</option>
+            <option value="apple">Apple</option>
+            <option value="line">Line</option>
+          </select>
+          <input
+            type="hidden"
+            id="loginCallbackUrl"
+            value="https://dressdio.com/callback"
+          />
+          <button type="submit">URL 요청</button>
+        </form>
+        <pre id="social-login-url-result" style="display: none"></pre>
+      </fieldset>
+
+      <!-- Card 2: Social Login Step 2 -->
+      <fieldset id="finalize-login-card">
+        <legend><i class="fas fa-user-check"></i> 2. 로그인 완료</legend>
+        <p class="description">
+          콜백 URL의 ID를 입력하여 로그인을 완료하고 액세스 토큰을 발급받습니다.
+        </p>
+        <form id="finalize-login-form">
+          <label for="authIdInput">인증 ID (콜백)</label>
+          <input
+            type="text"
+            id="authIdInput"
+            name="id"
+            placeholder="콜백 URL의 ID를 입력하세요"
+            required
+          />
+          <button type="submit">로그인 완료 및 토큰 발급</button>
+        </form>
+        <pre id="finalize-login-result" style="display: none"></pre>
+      </fieldset>
+
+      <!-- Card 3: Create/Recover MPC Wallet -->
+      <fieldset id="create-wallet-card">
+        <legend><i class="fas fa-wallet"></i> 3. MPC 지갑 생성 / 복구</legend>
+        <p class="description">
+          2단계에서 받은 액세스 토큰과 장치 비밀번호를 입력하여 MPC 지갑을
+          생성하거나 복구합니다.
+        </p>
+        <form id="create-wallet-form">
+          <label for="createWalletAccessToken">액세스 토큰</label>
+          <textarea
+            id="createWalletAccessToken"
+            rows="4"
+            placeholder="2단계에서 발급받은 액세스 토큰을 입력하세요"
+            required
+          ></textarea>
+          <label for="createWalletEmail">이메일</label>
+          <input
+            type="email"
+            id="createWalletEmail"
+            placeholder="소셜 로그인에 사용된 이메일을 입력하세요"
+            required
+          />
+          <label for="devicePassword">장치 비밀번호</label>
+          <input
+            type="password"
+            id="devicePassword"
+            name="devicePassword"
+            placeholder="안전한 장치 비밀번호를 입력하세요"
+            required
+          />
+          <button type="submit">지갑 생성 / 복구</button>
+        </form>
+        <pre id="create-wallet-result" style="display: none"></pre>
+      </fieldset>
+
+      <!-- Card 4: Account Information -->
+      <fieldset id="account-info-card">
+        <legend><i class="fas fa-user"></i> 계정 정보</legend>
+        <p class="description">
+          액세스 토큰을 수동으로 입력하여 계정 정보와 토큰 잔액을 조회합니다.
+        </p>
+        <label for="accountInfoAccessToken">액세스 토큰</label>
+        <textarea
+          id="accountInfoAccessToken"
+          rows="4"
+          placeholder="로그인 후 발급받은 액세스 토큰을 입력하세요"
+        ></textarea>
+        <div class="button-group">
+          <form id="get-account-info-form" style="margin: 0">
+            <button type="button" id="get-account-info-btn">
+              계정 정보 조회
+            </button>
+          </form>
+          <form id="get-balance-form" style="margin: 0">
+            <button type="button" id="get-balance-btn">
+              DP 토큰 잔액 조회
+            </button>
+          </form>
+        </div>
+        <pre id="get-account-info-result" style="display: none"></pre>
+        <pre id="get-balance-result" style="display: none"></pre>
+      </fieldset>
+
+      <!-- Card 5: Refresh Token -->
+      <fieldset id="refresh-token-card">
+        <legend><i class="fas fa-sync-alt"></i> 토큰 재발급</legend>
+        <p class="description">
+          액세스 토큰이 만료된 경우, 리프레시 토큰을 사용하여 새로 발급받습니다.
+        </p>
+        <form id="refresh-token-form">
+          <label for="refreshTokenInput">리프레시 토큰</label>
+          <input
+            type="text"
+            id="refreshTokenInput"
+            name="refreshToken"
+            placeholder="리프레시 토큰을 입력하세요"
+            required
+          />
+          <button type="submit">액세스 토큰 재발급</button>
+        </form>
+        <pre id="refresh-token-result" style="display: none"></pre>
+      </fieldset>
+
+      <!-- Card 6: Social Registration -->
+      <fieldset id="social-register-card">
+        <legend><i class="fas fa-user-plus"></i> 소셜 회원가입</legend>
+        <p class="description">
+          로그인 완료 시 618 에러(신규 사용자)가 발생한 경우, 이 양식을 사용하여
+          가입을 완료합니다. 에러 응답의 `email`과 `txId`를 입력하세요.
+        </p>
+        <form id="social-register-form">
+          <label for="registerProvider">소셜 로그인</label>
+          <input
+            type="text"
+            id="registerProvider"
+            name="provider"
+            placeholder="예: google, kakao"
+            required
+          />
+
+          <label for="registerEmail">이메일</label>
+          <input
+            type="email"
+            id="registerEmail"
+            name="email"
+            placeholder="618 에러 응답의 이메일을 입력하세요"
+            required
+          />
+
+          <label for="registerSixcode">SIXCODE (code)</label>
+          <input
+            type="text"
+            id="registerSixcode"
+            name="code"
+            placeholder="618 에러 응답의 txId를 입력하세요"
+            required
+          />
+
+          <div class="checkbox-group">
+            <label class="checkbox-item">
+              <input type="checkbox" name="overage" value="true" required />
+              <span>만 14세 이상입니다.</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="agree" value="true" required />
+              <span>서비스 이용약관에 동의합니다.</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="collect" value="true" required />
+              <span>개인정보 수집에 동의합니다.</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="thirdParty" value="true" />
+              <span>제3자 정보 제공 동의 (선택)</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="advertise" value="true" />
+              <span>프로모션 정보 수신 (선택)</span>
+            </label>
+          </div>
+
+          <button type="submit">회원가입 완료</button>
+        </form>
+        <pre id="social-register-result" style="display: none"></pre>
+      </fieldset>
+    </div>
+
+    <script src="js/main.js"></script>
+  </body>
+</html>

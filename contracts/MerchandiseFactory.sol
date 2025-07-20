@@ -5,15 +5,16 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "./PlatformRegistry.sol";
 import "./CreatorSBT.sol";
+import "./interfaces/IIPNFT.sol"; // IIPNFT 인터페이스 import
 
 contract MerchandiseFactory is ERC721, Ownable {
     using Strings for uint256;
 
-    PlatformRegistry public platformRegistry;
+    // PlatformRegistry 대신 IIPNFT 와 CreatorSBT 를 직접 참조
+    IIPNFT public ipnftContract;
     CreatorSBT public sbtContract;
-    IERC20 public dpToken; // DP 토큰 컨트랙트
+    IERC20 public dpToken;
     
     // 프로젝트 ID 관리
     uint256 public nextProjectId;
@@ -38,6 +39,8 @@ contract MerchandiseFactory is ERC721, Ownable {
         uint256 createdAt;
         string projectImageURI;
         uint256 mintedCount; // 현재까지 민팅된 수량
+        uint256 totalArtistContribution; // 아티스트 기여도 총합
+        mapping(address => uint256) artistContributions; // 아티스트별 기여도
     }
     
     // 구매 요청 정보 구조체
@@ -82,10 +85,9 @@ contract MerchandiseFactory is ERC721, Ownable {
     );
     event PurchaseConfirmed(
         uint256 indexed projectId,
-        uint256 requestId,
+        uint256 indexed requestId,
         address buyer,
-        uint256 tokenId,
-        uint256 amount
+        uint256 tokenId // NFT 토큰 ID 추가
     );
     event PurchaseCancelled(
         uint256 indexed projectId,
@@ -108,17 +110,39 @@ contract MerchandiseFactory is ERC721, Ownable {
         uint256 fee,
         uint256 netAmount
     );
+    event DebugRoyaltyCalculation(uint256 totalPrice, uint256 royaltiesTotal, uint256 brandPrice, uint256 artistTotal);
+    event DebugStep(string step, uint256 value);
+    event DebugLog(string message, uint256 value);
+    event DebugLogAddress(string message, address value);
+    event DebugLogBool(string message, bool value);
+    event DebugMessage(string message);
+    /*
+    event DebugProjectCreation(
+        string projectName,
+        uint256 totalSupply,
+        uint256 salePrice,
+        uint256 brandIPNFTTokenId,
+        uint256[] artistIPNFTTokenIds
+    );
+    */
+
+    // --- 새로운 뷰 함수 ---
+    function getArtistIPNFTTokenIdsForProject(uint256 projectId) external view returns (uint256[] memory) {
+        return projects[projectId].artistIPNFTTokenIds;
+    }
+
 
     constructor(
-        address _platformRegistry, 
+        address _ipnftContract, // IPNFT 주소를 직접 받음
         address _sbtContract,
         address _dpToken
     ) ERC721("MerchandiseFactory", "MCF") Ownable(msg.sender) {
-        platformRegistry = PlatformRegistry(_platformRegistry);
+        ipnftContract = IIPNFT(_ipnftContract); // IIPNFT로 인스턴스화
         sbtContract = CreatorSBT(_sbtContract);
         dpToken = IERC20(_dpToken);
-        platformFeeCollector = msg.sender; // 초기에는 배포자가 수수료 수취
-        nextProjectId = 0; // 프로젝트 ID는 0부터 시작
+        platformFeeCollector = msg.sender;
+        nextProjectId = 0;
+        _nextTokenId = 1; // 토큰 ID 카운터를 1로 초기화합니다.
     }
 
     // 인플루언서 SBT 검증
@@ -149,6 +173,20 @@ contract MerchandiseFactory is ERC721, Ownable {
         _;
     }
 
+    // 브랜드 IPNFT 소유자 검증 modifier 수정
+    modifier onlyBrandOwnerOfProject(uint256 projectId) {
+        ProjectInfo storage project = projects[projectId];
+        require(project.influencer != address(0), "Project does not exist");
+        
+        // ipnftContract를 직접 사용하여 소유자 조회
+        address brandOwner = ipnftContract.ownerOf(project.brandIPNFTTokenId);
+        
+        emit DebugAddress(brandOwner, msg.sender, project.brandIPNFTTokenId, brandOwner == msg.sender);
+        
+        require(brandOwner == msg.sender, "Only the brand owner can perform this action");
+        _;
+    }
+
     // IPNFT 존재 여부 검증
     modifier validIPNFT(uint256 tokenId) {
         // IPNFT Factory에서 IPNFT 주소 조회 후 존재 여부 확인
@@ -166,6 +204,8 @@ contract MerchandiseFactory is ERC721, Ownable {
         uint256[] memory artistIPNFTTokenIds,
         string memory projectImageURI
     ) external onlyInfluencer returns (uint256) {
+        // emit DebugProjectCreation(projectName, totalSupply, salePrice, brandIPNFTTokenId, artistIPNFTTokenIds);
+
         require(totalSupply > 0, "Total supply must be greater than 0");
         require(salePrice > 0, "Sale price must be greater than 0");
         require(brandIPNFTTokenId >= 0, "Brand IPNFT token ID is required");
@@ -174,35 +214,44 @@ contract MerchandiseFactory is ERC721, Ownable {
         require(bytes(productDescription).length > 0, "Product description is required");
         require(bytes(projectImageURI).length > 0, "Project image URI is required");
         
-        // IPNFT 컨트랙트 주소 조회
-        address ipnftFactoryAddr = platformRegistry.ipnftFactory();
-        address ipnftContractAddr = address(0);
-        if (ipnftFactoryAddr != address(0)) {
-            ipnftContractAddr = IIPNFTFactory(ipnftFactoryAddr).getIPNFTAddress();
-        }
-        
-        // IPNFT 검증 (실제 구현에서는 IPNFT Factory와 연동)
-        // validIPNFT(brandIPNFTTokenId);
-        // for (uint i = 0; i < artistIPNFTTokenIds.length; i++) {
-        //     validIPNFT(artistIPNFTTokenIds[i]);
-        // }
-        
         uint256 projectId = nextProjectId++;
         
-        // 프로젝트 정보 저장
-        projects[projectId] = ProjectInfo({
-            influencer: msg.sender,
-            projectName: projectName,
-            productDescription: productDescription,
-            brandIPNFTTokenId: brandIPNFTTokenId,
-            artistIPNFTTokenIds: artistIPNFTTokenIds,
-            totalSupply: totalSupply,
-            salePrice: salePrice,
-            isActive: false,
-            createdAt: block.timestamp,
-            projectImageURI: projectImageURI,
-            mintedCount: 0
-        });
+        // 1. 저장 공간을 먼저 확보합니다.
+        ProjectInfo storage project = projects[projectId];
+
+        // 2. 기본 정보들을 먼저 채웁니다.
+        project.influencer = msg.sender;
+        project.projectName = projectName;
+        project.productDescription = productDescription;
+        project.brandIPNFTTokenId = brandIPNFTTokenId;
+        project.artistIPNFTTokenIds = artistIPNFTTokenIds;
+        project.totalSupply = totalSupply;
+        project.salePrice = salePrice;
+        project.isActive = false;
+        project.createdAt = block.timestamp;
+        project.projectImageURI = projectImageURI;
+        project.mintedCount = 0;
+        
+        // 3. 이제 안전하게 매핑에 값을 채우고, 기여도 합계를 계산합니다.
+        uint256 totalArtistPrice = 0;
+        emit DebugMessage("Starting to loop through artist tokens");
+        for (uint i = 0; i < artistIPNFTTokenIds.length; i++) {
+            uint256 currentTokenId = artistIPNFTTokenIds[i];
+            emit DebugLog("Processing artist token ID", currentTokenId);
+
+            IIPNFT.TokenInfo memory artistInfo = ipnftContract.getTokenInfo(currentTokenId);
+            
+            address artistOwner = artistInfo.owner;
+            uint256 artistPrice = artistInfo.price;
+            
+            emit DebugLogAddress("Found artist owner", artistOwner);
+            emit DebugLog("Found artist price", artistPrice);
+
+            project.artistContributions[artistOwner] = artistPrice;
+            totalArtistPrice += artistPrice;
+        }
+        emit DebugLog("Finished loop. Total artist price", totalArtistPrice);
+        project.totalArtistContribution = totalArtistPrice;
         
         // 프로젝트별 토큰 ID 범위 설정
         projectToTokenStart[projectId] = _nextTokenId;
@@ -223,6 +272,16 @@ contract MerchandiseFactory is ERC721, Ownable {
         return projectId;
     }
     
+    // 프로젝트 활성화 (브랜드 IPNFT 소유자만 가능)
+    function activateProject(uint256 projectId) external projectExists(projectId) onlyBrandOwnerOfProject(projectId) {
+        ProjectInfo storage project = projects[projectId];
+        require(!project.isActive, "Project is already active");
+        
+        project.isActive = true;
+        
+        emit ProjectActivated(projectId, true);
+    }
+
     // 구매 요청 (사용자가 DP로 구매 신청)
     function requestPurchase(uint256 projectId) external returns (uint256 requestId) {
         ProjectInfo storage project = projects[projectId];
@@ -248,101 +307,127 @@ contract MerchandiseFactory is ERC721, Ownable {
         return requestId;
     }
     
-    // 구매 확정 (구매자가 확정)
-    function confirmPurchase(uint256 projectId, uint256 requestId) 
+    // 구매 확정 (구매자만 가능)
+    function confirmPurchase(
+        uint256 projectId, 
+        uint256 requestId
+    ) 
         external 
+        projectExists(projectId)
         validPurchaseRequest(projectId, requestId)
     {
+        ProjectInfo storage project = projects[projectId];
         PurchaseRequest storage request = purchaseRequests[projectId][requestId];
+
+        // 구매자만 확정할 수 있도록 수정
+        require(msg.sender == request.buyer, "Only the buyer can confirm purchase");
         require(!request.isConfirmed, "Purchase already confirmed");
         require(!request.isCancelled, "Purchase already cancelled");
-        require(msg.sender == request.buyer, "Only buyer can confirm purchase");
+        require(project.mintedCount < project.totalSupply, "All tokens have been minted");
         
-        ProjectInfo storage project = projects[projectId];
-        require(project.mintedCount < project.totalSupply, "All merchandise sold out");
-        
-        // NFT 민팅을 위한 토큰 ID 계산
-        uint256 actualTokenId = projectToTokenStart[projectId] + project.mintedCount;
-        project.mintedCount++;
-        
+        // --- 핵심 로직을 내부 함수로 분리 ---
+        uint256 tokenId = _processPurchase(projectId, requestId, project, request);
+
+        // 구매 요청 상태 업데이트
         request.isConfirmed = true;
-        request.tokenId = actualTokenId;
+        request.tokenId = tokenId;
+
+        // 버그 수정: 여기서 mintedCount를 증가시키면 이중으로 증가하게 됨.
+        // _processPurchase -> _mintMerchandise 내부에서 이미 증가시키고 있음.
+        // project.mintedCount++; // 이 라인을 삭제합니다.
+
+        emit PurchaseConfirmed(projectId, requestId, request.buyer, tokenId);
+    }
+
+    // --- 새로운 내부 함수들 ---
+
+    function _processPurchase(
+        uint256 projectId,
+        uint256 requestId,
+        ProjectInfo storage project,
+        PurchaseRequest storage request
+    ) private returns (uint256) {
+        // 1. NFT 민팅
+        uint256 tokenId = _mintMerchandise(request.buyer, projectId, requestId);
+
+        // 2. DP 토큰 분배
+        _distributeFunds(projectId, project);
+
+        return tokenId;
+    }
+
+    function _mintMerchandise(
+        address to,
+        uint256 projectId,
+        uint256 requestId
+    ) private returns (uint256) {
+        ProjectInfo storage project = projects[projectId];
         
-        // NFT 민팅 실행
-        _mint(request.buyer, actualTokenId);
-        tokenToProject[actualTokenId] = projectId;
+        // 우리 컨트랙트의 카운터를 사용하여 다음 토큰 ID를 결정합니다.
+        uint256 tokenId = _nextTokenId;
+        _safeMint(to, tokenId);
         
-        // 토큰 메타데이터 URI 설정
-        string memory metadataURI = string(abi.encodePacked(
-            project.projectImageURI,
-            "?tokenId=",
-            actualTokenId.toString(),
-            "&projectId=",
-            projectId.toString()
-        ));
-        tokenURIs[actualTokenId] = metadataURI;
+        // 다음 토큰 ID를 위해 카운터를 1 증가시킵니다.
+        _nextTokenId++;
+
+        project.mintedCount++; // mintedCount는 여기서 한번만 증가
+
+        // 토큰과 프로젝트 매핑
+        tokenToProject[tokenId] = projectId;
         
-        uint256 totalPrice = request.amount;
-        uint256 brandPrice = 0;
-        address brandOwner = address(0);
-        uint256[] memory artistPrices = new uint256[](project.artistIPNFTTokenIds.length);
-        address[] memory artistOwners = new address[](project.artistIPNFTTokenIds.length);
-        uint256 artistTotal = 0;
+        return tokenId;
+    }
+
+    function _distributeFunds(uint256 projectId, ProjectInfo storage project) private {
+        // ... (기존 분배 로직) ...
+        uint256 totalPrice = project.salePrice;
+
+        // 브랜드 정보 조회
+        IIPNFT.TokenInfo memory brandInfo = ipnftContract.getTokenInfo(project.brandIPNFTTokenId);
+        address brandOwner = brandInfo.owner;
+        uint256 brandPrice = brandInfo.price;
+
+        // 아티스트 정보 조회 및 총합 계산
+        uint256 artistTotal = project.totalArtistContribution;
         
-        // 브랜드 분배 정보 조회 (tokenId가 0이어도 분배)
-        (brandOwner, , , brandPrice, , , , ) = platformRegistry.getIPNFTInfo(project.brandIPNFTTokenId);
-        
-        for (uint i = 0; i < project.artistIPNFTTokenIds.length; i++) {
-            (
-                artistOwners[i], , , artistPrices[i], , , , 
-            ) = platformRegistry.getIPNFTInfo(project.artistIPNFTTokenIds[i]);
-            artistTotal += artistPrices[i];
-        }
-        
-        uint256 influencerMargin = totalPrice;
-        if (brandPrice > 0) {
-            influencerMargin -= brandPrice;
-        }
-        influencerMargin -= artistTotal;
-        require(influencerMargin >= 0, "Invalid margin");
+        // 인플루언서 마진 계산
+        uint256 royaltiesTotal = brandPrice + artistTotal;
+        require(totalPrice >= royaltiesTotal, "Sale price cannot cover royalties");
+        uint256 influencerMargin = totalPrice - royaltiesTotal;
         
         // 브랜드 분배
         if (brandPrice > 0 && brandOwner != address(0)) {
-            uint256 before = dpToken.balanceOf(brandOwner);
-            uint256 brandFee = (brandPrice * platformFeePercentage) / 10000; // 1% 수수료
+            uint256 brandFee = (brandPrice * platformFeePercentage) / 10000;
             uint256 brandNet = brandPrice - brandFee;
             require(dpToken.transfer(brandOwner, brandNet), "DP to brand owner failed");
-            uint256 afterB = dpToken.balanceOf(brandOwner);
-            emit DebugDistribution("brand", brandOwner, before, afterB, brandPrice, brandFee, brandNet);
             require(dpToken.transfer(platformFeeCollector, brandFee), "DP to platform (brand) failed");
         }
+        
         // 아티스트 분배
-        for (uint i = 0; i < artistOwners.length; i++) {
-            if (artistPrices[i] > 0 && artistOwners[i] != address(0)) {
-                uint256 before = dpToken.balanceOf(artistOwners[i]);
-                uint256 artistFee = (artistPrices[i] * platformFeePercentage) / 10000; // 1% 수수료
-                uint256 artistNet = artistPrices[i] - artistFee;
-                require(dpToken.transfer(artistOwners[i], artistNet), "DP to artist failed");
-                uint256 afterB = dpToken.balanceOf(artistOwners[i]);
-                emit DebugDistribution("artist", artistOwners[i], before, afterB, artistPrices[i], artistFee, artistNet);
+        for (uint i = 0; i < project.artistIPNFTTokenIds.length; i++) {
+            IIPNFT.TokenInfo memory artistInfo = ipnftContract.getTokenInfo(project.artistIPNFTTokenIds[i]);
+            address artistOwner = artistInfo.owner;
+            uint256 artistPrice = artistInfo.price;
+
+            if (artistPrice > 0 && artistOwner != address(0)) {
+                uint256 artistFee = (artistPrice * platformFeePercentage) / 10000;
+                uint256 artistNet = artistPrice - artistFee;
+                require(dpToken.transfer(artistOwner, artistNet), "DP to artist failed");
                 require(dpToken.transfer(platformFeeCollector, artistFee), "DP to platform (artist) failed");
             }
         }
+        
         // 인플루언서 분배
         if (influencerMargin > 0) {
-            uint256 before = dpToken.balanceOf(project.influencer);
-            uint256 influencerFee = (influencerMargin * platformFeePercentage) / 10000; // 1% 수수료
+            uint256 influencerFee = (influencerMargin * platformFeePercentage) / 10000;
             uint256 influencerNet = influencerMargin - influencerFee;
             require(dpToken.transfer(project.influencer, influencerNet), "DP to influencer failed");
-            uint256 afterB = dpToken.balanceOf(project.influencer);
-            emit DebugDistribution("influencer", project.influencer, before, afterB, influencerMargin, influencerFee, influencerNet);
             require(dpToken.transfer(platformFeeCollector, influencerFee), "DP to platform (influencer) failed");
         }
-        
-        emit PurchaseConfirmed(projectId, requestId, request.buyer, actualTokenId, request.amount);
     }
-    
-    // 구매 취소 (구매자 또는 인플루언서가 취소)
+
+
+    // 구매 취소 (구매자 또는 인플루언서가 취소 가능)
     function cancelPurchase(uint256 projectId, uint256 requestId) 
         external 
         validPurchaseRequest(projectId, requestId)
@@ -384,14 +469,14 @@ contract MerchandiseFactory is ERC721, Ownable {
         ProjectInfo storage project = projects[projectId];
         require(project.influencer != address(0), "Project does not exist");
         
-        address ipnftFactoryAddr = platformRegistry.ipnftFactory();
-        address ipnftContractAddr = address(0);
-        if (ipnftFactoryAddr != address(0)) {
-            ipnftContractAddr = IIPNFTFactory(ipnftFactoryAddr).getIPNFTAddress();
-        }
-        require(ipnftContractAddr != address(0), "IPNFT contract not found");
+        // address ipnftFactoryAddr = platformRegistry.ipnftFactory();
+        // address ipnftContractAddr = address(0);
+        // if (ipnftFactoryAddr != address(0)) {
+        //     ipnftContractAddr = IIPNFTFactory(ipnftFactoryAddr).getIPNFTAddress();
+        // }
+        // require(ipnftContractAddr != address(0), "IPNFT contract not found");
         
-        IIPNFT ipnftContract = IIPNFT(ipnftContractAddr);
+        // IIPNFT ipnftContract = IIPNFT(ipnftContractAddr);
         address brandOwner = ipnftContract.ownerOf(project.brandIPNFTTokenId);
         
         bool isMatch = (brandOwner == msg.sender);
@@ -515,7 +600,7 @@ contract MerchandiseFactory is ERC721, Ownable {
     
     // SBT 컨트랙트 주소 설정 (배포 후 필요시 사용)
     function setSBTContract(address _sbtContract) external {
-        require(msg.sender == platformRegistry.owner(), "Only platform registry owner can set SBT contract");
+        // require(msg.sender == platformRegistry.owner(), "Only platform registry owner can set SBT contract");
         sbtContract = CreatorSBT(_sbtContract);
     }
     

@@ -1,0 +1,120 @@
+{
+  "receiptId": "receipt_1_6_1752995264780",
+  "timestamp": "2025-07-20T07:07:44.780Z",
+  "purchase": {
+    "projectId": "1",
+    "requestId": "6",
+    "buyer": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "tokenId": "12",
+    "amount": "333000000000000000000",
+    "amountInDP": "333"
+  },
+  "distribution": [
+    {
+      "role": "Brand Owner",
+      "recipient": "0xd122561B32cb19c2b7AF431b892d0f9a7A62fFBC",
+      "expectedAmount": "100",
+      "fee": "1",
+      "netAmount": "99",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "99",
+      "isMatched": true
+    },
+    {
+      "role": "Platform Fee (Brand)",
+      "recipient": "Platform",
+      "expectedAmount": "1",
+      "fee": "1",
+      "netAmount": "1",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "1",
+      "isMatched": true
+    },
+    {
+      "role": "Artist 1",
+      "recipient": "0x25D96413E62A8A51eB31fd12fFA281Ca9c86A029",
+      "expectedAmount": "100",
+      "fee": "1",
+      "netAmount": "99",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "99",
+      "isMatched": true
+    },
+    {
+      "role": "Platform Fee (Artist 1)",
+      "recipient": "Platform",
+      "expectedAmount": "1",
+      "fee": "1",
+      "netAmount": "1",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "1",
+      "isMatched": true
+    },
+    {
+      "role": "Artist 2",
+      "recipient": "0xd0Db6aA1a206e36158c6F6055B4a17394c4e3cF7",
+      "expectedAmount": "100",
+      "fee": "1",
+      "netAmount": "99",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "99",
+      "isMatched": true
+    },
+    {
+      "role": "Platform Fee (Artist 2)",
+      "recipient": "Platform",
+      "expectedAmount": "1",
+      "fee": "1",
+      "netAmount": "1",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "1",
+      "isMatched": true
+    },
+    {
+      "role": "Influencer",
+      "recipient": "0x78bBD87Ad705C67837CD5616995E1d67B36693c3",
+      "expectedAmount": "33",
+      "fee": "0.33",
+      "netAmount": "32.67",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "32.67",
+      "isMatched": true
+    },
+    {
+      "role": "Platform Fee (Influencer)",
+      "recipient": "Platform",
+      "expectedAmount": "0.33",
+      "fee": "0.33",
+      "netAmount": "0.33",
+      "beforeBalance": "0",
+      "afterBalance": "0",
+      "actualIncrease": "0.33",
+      "isMatched": true
+    }
+  ],
+  "transaction": {
+    "hash": "0x3e486078daf2515b869d21949a92e058be3d4a198a83ffac3b9655471ce306e0",
+    "blockNumber": "11729319",
+    "gasUsed": "326031",
+    "timestamp": "2025-07-20T07:07:44.780Z"
+  },
+  "nft": {
+    "projectName": "merchanTEST",
+    "description": "ttttt",
+    "imageUri": "ipfs://QmaJ3A3fVvXQpF7YAHjSDRA6itmxHtQwkubo8NKSGzUqj9",
+    "tokenUri": ""
+  },
+  "summary": {
+    "totalAmount": "333000000000000000000",
+    "totalFees": "3.33",
+    "totalNetDistribution": "329.67",
+    "participants": 4
+  }
+}

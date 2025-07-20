@@ -55,24 +55,11 @@ const consoleFormat = format.combine(
   })
 );
 
-// 로그 필터링 - 불필요한 Sequelize 로그 제외
-const filterSequelizeLogs = format((info) => {
-  if (
-    info.message &&
-    (info.message.includes("SELECT 1+1") ||
-      info.message.includes("SHOW INDEX") ||
-      info.message.includes("SELECT TABLE_NAME"))
-  ) {
-    return false;
-  }
-  return info;
-})();
-
 // 로거 생성
 const logger = winston.createLogger({
   level: level(),
   levels,
-  format: format.combine(filterSequelizeLogs, logFormat),
+  format: logFormat,
   transports: [
     // 콘솔 출력
     new winston.transports.Console({

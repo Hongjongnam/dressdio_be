@@ -5,6 +5,7 @@ let crypto = require("crypto");
 let CryptoJS = require("crypto-js");
 let qs = require("qs");
 const { abcWalletBaseUrl } = require("../config/web3.js");
+const authService = require("./auth.js");
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -78,8 +79,18 @@ service.createWallet = async (
       throw new Error("Problem while creating Wallet");
     }
   } catch (error) {
-    logger.error("createWallet error:", error);
-    if (axios.isAxiosError(error)) {
+    logger.error("createWallet error:", error.response?.data || error.message);
+    if (axios.isAxiosError(error) && error.response) {
+      const { data } = error.response;
+      // ABC WaaS는 잘못된 비밀번호에 대해 612 코드를 반환.
+      if (
+        data.code === 612 ||
+        (data.msg && data.msg.toLowerCase().includes("password")) ||
+        (data.message && data.message.toLowerCase().includes("password"))
+      ) {
+        throw new Error("Invalid device password");
+      }
+
       if (
         error.response?.status === 401 &&
         error.response?.data?.message === "The token has expired."
@@ -89,20 +100,38 @@ service.createWallet = async (
         throw tokenError;
       }
 
-      if (error.response?.data["code"] == 606) {
-        return error.response.data.msg;
-      } else {
-        const errorMsg = `HTTP ${error.response?.status}: ${
-          error.response?.data?.message ||
-          error.response?.data?.msg ||
-          error.message
-        }`;
-        throw new Error(errorMsg);
-      }
+      const errorMsg = `HTTP ${error.response.status}: ${
+        data.message || data.msg || "An unknown error occurred"
+      }`;
+      throw new Error(errorMsg);
     }
 
     throw new Error(error.message || "Unknown error in createWallet");
   }
+};
+
+/**
+ * KeyShare와 devicePassword의 유효성을 검증합니다.
+ * 모든 로직을 authService에 위임하여 중복을 제거하고 일관성을 유지합니다.
+ * @param {object} secureChannel - authService에서 생성된 보안 채널 객체
+ * @param {string} pvencstr - localStorage에서 온 암호화된 키 조각
+ * @param {string} devicePassword - 사용자가 입력한 비밀번호 원문
+ * @param {string} accessToken - 인증 JWT
+ * @returns {Promise<boolean>} - 검증 성공 여부
+ */
+service.verifyPasswordWithShare = async (
+  secureChannel,
+  pvencstr,
+  devicePassword,
+  accessToken
+) => {
+  // 실제 검증 로직을 authService의 새 함수로 위임
+  return await authService.validatePasswordWithKeyShare(
+    secureChannel,
+    pvencstr,
+    devicePassword,
+    accessToken
+  );
 };
 
 module.exports = service;

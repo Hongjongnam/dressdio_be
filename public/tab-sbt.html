@@ -1,66 +1,68 @@
-<h2>SBT (Soulbound Token)</h2>
-<div class="api-grid">
-  <fieldset>
-    <legend>1. SBT 발급 (POST /api/nft/sbt/mint)</legend>
-    <form id="mint-sbt-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label
-        >Creator Wallet Address
+<body>
+  <div class="api-grid">
+    <fieldset>
+      <legend>1. SBT 발급 (관리자)</legend>
+      <form id="mint-sbt-form">
+        <label for="sbtAccessToken">관리자 액세스 토큰</label>
+        <textarea
+          id="sbtAccessToken"
+          name="accessToken"
+          rows="3"
+          required
+        ></textarea>
+
+        <label for="sbtDevicePassword">관리자 장치 비밀번호</label>
+        <input
+          type="password"
+          id="sbtDevicePassword"
+          name="devicePassword"
+          required
+        />
+
+        <label for="creatorWalletAddress">크리에이터 지갑 주소</label>
         <input
           type="text"
+          id="creatorWalletAddress"
           name="creatorWalletAddress"
           required
           placeholder="0x..."
-      /></label>
-      <label
-        >Creator Type
-        <select name="creatorType" required>
+        />
+
+        <label for="sbtCreatorType">크리에이터 타입</label>
+        <select id="sbtCreatorType" name="creatorType" required>
           <option value="">선택하세요</option>
           <option value="brand">Brand</option>
           <option value="artist">Artist</option>
           <option value="influencer">Influencer</option>
         </select>
-      </label>
-      <label
-        >Creator Name <input type="text" name="creatorName" required
-      /></label>
-      <label
-        >Description <input type="text" name="description" required
-      /></label>
-      <small style="color: #666; display: block; margin-bottom: 10px">
-        💡 크리에이터 타입에 따라 자동으로 이미지 URI가 설정됩니다:
-        <br />• Brand:
-        https://ipfs.io/ipfs/QmZQ3jf6Gnbw1Ez8BrCzNbXxc1pQFh2qKXwu1FubrnPgQU
-        <br />• Artist:
-        https://ipfs.io/ipfs/QmX2vnXSmdHR8uZQNduQUv8e4XdAb1hKFYahbrfELZuCUR
-        <br />• Influencer:
-        https://ipfs.io/ipfs/QmSWVngpmwDBcUikQTUNWXKUxxKhcQDFPoP5UwqXUT5BhF
-      </small>
-      <button type="submit">Mint SBT</button>
-    </form>
-    <pre id="mint-sbt-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>2. 전체 SBT 목록 조회 (GET /api/nft/sbt)</legend>
-    <button id="get-all-sbt-btn">Get All SBTs</button>
-    <pre id="get-all-sbt-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>3. SBT 정보 조회 (GET /api/nft/sbt/info/:sbtId)</legend>
-    <form id="get-sbt-info-form">
-      <label>SBT ID <input type="text" name="sbtId" required /></label>
-      <button type="submit">Get SBT Info</button>
-    </form>
-    <pre id="get-sbt-info-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>4. 주소별 SBT 목록 조회 (GET /api/nft/sbt/:walletAddress)</legend>
-    <form id="get-sbt-by-address-form">
-      <label>Address <input type="text" name="address" required /></label>
-      <button type="submit">Get SBTs by Address</button>
-    </form>
-    <pre id="get-sbt-by-address-result"></pre>
-  </fieldset>
-</div>
+
+        <label for="sbtCreatorName">크리에이터 이름</label>
+        <input type="text" id="sbtCreatorName" name="creatorName" required />
+
+        <label for="sbtDescription">설명</label>
+        <input type="text" id="sbtDescription" name="description" required />
+
+        <button type="submit">SBT 발급</button>
+      </form>
+      <pre id="mint-sbt-result"></pre>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. 전체 SBT 목록 조회</legend>
+      <form id="get-all-sbt-form">
+        <button type="button" id="get-all-sbt-btn">전체 SBT 조회</button>
+      </form>
+      <pre id="get-all-sbt-result"></pre>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. SBT 정보 조회 (ID)</legend>
+      <form id="get-sbt-info-form">
+        <label for="sbtId">SBT ID</label>
+        <input type="text" id="sbtId" name="sbtId" required />
+        <button type="button" id="get-sbt-info-btn">SBT 정보 조회</button>
+      </form>
+      <pre id="get-sbt-info-result"></pre>
+    </fieldset>
+  </div>
+</body>

@@ -2,24 +2,55 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>DressDio API 통합 테스트</title>
+    <title>DressDio API - 통합 테스트 대시보드</title>
     <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
   </head>
   <body>
-    <div class="tab-container">
-      <div class="tab-buttons">
-        <button class="tab-button active" data-tab="auth">Auth/Wallet</button>
-        <button class="tab-button" data-tab="sbt">SBT</button>
-        <button class="tab-button" data-tab="ipnft">IPNFT</button>
-        <button class="tab-button" data-tab="merchandise">Merchandise</button>
-        <button class="tab-button" data-tab="platform">Platform Admin</button>
-        <button class="tab-button" data-tab="blockchain">
-          Blockchain Utils
-        </button>
-      </div>
-      <div id="tab-content" class="tab-content-area">
-        <!-- 탭별 내용이 ajax로 로드됨 -->
-      </div>
+    <div class="dashboard-container">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <i class="fas fa-user-circle fa-3x"></i>
+          <h3>Altha Thompson</h3>
+          <p>Line Manager</p>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="#" class="nav-item active" data-tab="auth"
+            ><i class="fas fa-wallet"></i><span>Auth/Wallet</span></a
+          >
+          <a href="#" class="nav-item" data-tab="sbt"
+            ><i class="fas fa-id-card"></i><span>SBT</span></a
+          >
+          <a href="#" class="nav-item" data-tab="ipnft"
+            ><i class="fas fa-copyright"></i><span>IPNFT</span></a
+          >
+          <a href="#" class="nav-item" data-tab="merchandise"
+            ><i class="fas fa-shopping-bag"></i><span>Merchandise</span></a
+          >
+          <a href="#" class="nav-item" data-tab="platform"
+            ><i class="fas fa-server"></i><span>Platform Admin</span></a
+          >
+          <a href="#" class="nav-item" data-tab="blockchain"
+            ><i class="fab fa-ethereum"></i><span>Blockchain Utils</span></a
+          >
+        </nav>
+      </aside>
+      <main class="main-content">
+        <header class="main-header">
+          <h1 id="content-title">Auth/Wallet</h1>
+          <!-- <div class="header-buttons">
+            <button>BUTTON 01</button>
+            <button>BUTTON 02</button>
+            <button>BUTTON 03</button>
+          </div> -->
+        </header>
+        <div id="tab-content" class="content-area">
+          <!-- 탭별 내용이 ajax로 로드됨 -->
+        </div>
+      </main>
     </div>
     <script src="js/main.js"></script>
   </body>

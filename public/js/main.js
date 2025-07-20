@@ -1,1168 +1,754 @@
-document.addEventListener("DOMContentLoaded", function () {
-  const tabButtons = document.querySelectorAll(".tab-button");
+document.addEventListener("DOMContentLoaded", () => {
+  const sidebarNav = document.querySelector(".sidebar-nav");
   const tabContent = document.getElementById("tab-content");
+  const contentTitle = document.getElementById("content-title");
+  const navItems = document.querySelectorAll(".nav-item");
 
-  const tabFiles = {
-    auth: "tab-auth.html",
-    sbt: "tab-sbt.html",
-    ipnft: "tab-ipnft.html",
-    merchandise: "tab-merchandise.html",
-    platform: "tab-platform.html",
-    blockchain: "tab-blockchain.html",
-  };
-
-  function loadTab(tab) {
-    const file = tabFiles[tab] || tabFiles["auth"];
-    fetch(file)
-      .then((res) => res.text())
+  const loadTabContent = (tabName) => {
+    fetch(`tab-${tabName}.html`)
+      .then((response) => (response.ok ? response.text() : ""))
       .then((html) => {
         tabContent.innerHTML = html;
-        // 탭 로드 후 이벤트 핸들러 등록
-        registerTabHandlers(tab);
-      });
-  }
-
-  function registerTabHandlers(tab) {
-    switch (tab) {
-      case "auth":
-        registerAuthHandlers();
-        break;
-      case "sbt":
-        registerSBTHandlers();
-        break;
-      case "ipnft":
-        registerIPNFTHandlers();
-        break;
-      case "merchandise":
-        registerMerchandiseHandlers();
-        break;
-      case "platform":
-        registerPlatformHandlers();
-        break;
-      case "blockchain":
-        registerBlockchainHandlers();
-        break;
-    }
-  }
-
-  tabButtons.forEach((btn) => {
-    btn.addEventListener("click", function () {
-      tabButtons.forEach((b) => b.classList.remove("active"));
-      this.classList.add("active");
-      const tab = this.getAttribute("data-tab");
-      loadTab(tab);
-    });
-  });
-
-  // 최초 로드시 auth 탭
-  loadTab("auth");
-});
-
-// 공통 API 호출 함수
-async function callAPI(
-  endpoint,
-  method = "GET",
-  data = null,
-  isFormData = false,
-  accessToken = null
-) {
-  const options = {
-    method: method,
-    headers: {},
+        initializeTabScripts(tabName);
+      })
+      .catch((error) => console.error(`Error loading ${tabName}.html:`, error));
   };
 
-  // Authorization 헤더는 항상 추가
-  if (accessToken) {
-    options.headers["Authorization"] = `Bearer ${accessToken}`;
-  }
+  const setActiveTab = (tabItem) => {
+    navItems.forEach((item) => item.classList.remove("active"));
+    tabItem.classList.add("active");
+    const tabName = tabItem.dataset.tab;
+    const titleText = tabItem.querySelector("span")?.textContent || "Dashboard";
+    contentTitle.textContent = titleText;
+    loadTabContent(tabName);
+  };
 
-  if (data && !isFormData) {
-    options.headers["Content-Type"] = "application/json";
-    options.body = JSON.stringify(data);
-  } else if (data && isFormData) {
-    options.body = data;
-    // Content-Type은 직접 지정하지 않음
-  }
+  sidebarNav.addEventListener("click", (e) => {
+    e.preventDefault();
+    const navItem = e.target.closest(".nav-item");
+    if (navItem) {
+      setActiveTab(navItem);
+    }
+  });
 
+  const initialTab = document.querySelector(".nav-item.active");
+  if (initialTab) {
+    setActiveTab(initialTab);
+  }
+});
+
+const showResult = (elementId, message, type = "info") => {
+  const resultElement = document.getElementById(elementId);
+  if (resultElement) {
+    if (typeof message === "object") {
+      resultElement.textContent = JSON.stringify(message, null, 2);
+    } else {
+      resultElement.textContent = message;
+    }
+    resultElement.className = `result ${type}`;
+    resultElement.style.display = "block";
+  }
+};
+
+const makeRequest = async (url, options = {}) => {
   try {
-    const response = await fetch(`/api${endpoint}`, options);
+    const response = await fetch(url, options);
     const result = await response.json();
-    return { success: response.ok, data: result, status: response.status };
+    if (!response.ok) {
+      throw new Error(result.message || "API request failed");
+    }
+    return result;
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error("Request failed:", error);
+    return { status: "error", message: error.message, data: null };
   }
-}
+};
 
-// Auth 핸들러들
-function registerAuthHandlers() {
-  // 회원가입
-  const registerForm = document.getElementById("register-form");
-  if (registerForm) {
-    registerForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(registerForm);
-      const data = Object.fromEntries(formData);
+// 각 탭의 스크립트를 초기화하는 함수
+const initializeTabScripts = (tabName) => {
+  console.log(`${tabName} tab loaded and scripts initialized.`);
+  if (tabName === "auth") {
+    setupAuthTab();
+  } else if (tabName === "sbt") {
+    setupSbtTab();
+  } else if (tabName === "ipnft") {
+    setupIpNftTab();
+  } else if (tabName === "merchandise") {
+    setupMerchandiseTab();
+  } else if (tabName === "platform") {
+    setupPlatformTab();
+  } else if (tabName === "blockchain") {
+    setupBlockchainTab();
+  }
+  // 다른 탭들의 초기화 함수도 여기에 추가
+};
 
-      const result = await callAPI("/auth/register", "POST", data);
-      document.getElementById("register-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
+const getMpcWalletData = () => {
+  const data = localStorage.getItem("MpcWalletData");
+  return data ? JSON.parse(data) : null;
+};
+
+// =================================================================
+//  공용 헬퍼 함수 (전역 스코프로 이동)
+// =================================================================
+
+const handleFormSubmit = async (
+  formId,
+  resultId,
+  endpoint,
+  requiresAuth = false
+) => {
+  const form = document.getElementById(formId);
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      console.log(
+        `[FORM SUBMIT] Form '${formId}' submitted. Endpoint: '${endpoint}'`
       );
-    });
-  }
-
-  // 로그인
-  const loginForm = document.getElementById("login-form");
-  if (loginForm) {
-    loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const formData = new FormData(loginForm);
-      const data = Object.fromEntries(formData);
+      const formData = new FormData(e.target);
+      const body = Object.fromEntries(formData.entries());
 
-      const result = await callAPI("/auth/login", "POST", data);
-      document.getElementById("login-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
+      // 폼에 storedWalletData가 없으면, 로컬 스토리지에서 가져오도록 수정
+      if (!body.storedWalletData) {
+        const storedWalletDataFromStorage = getMpcWalletData();
+        if (storedWalletDataFromStorage) {
+          body.storedWalletData = storedWalletDataFromStorage;
+        }
+      }
 
-  // 토큰 리프레시
-  const refreshForm = document.getElementById("refresh-form");
-  if (refreshForm) {
-    refreshForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(refreshForm);
-      const data = Object.fromEntries(formData);
+      const options = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      };
 
-      const result = await callAPI("/auth/refresh-token", "POST", data);
-      document.getElementById("refresh-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
+      if (requiresAuth && body.accessToken) {
+        options.headers.Authorization = `Bearer ${body.accessToken}`;
+      }
 
-  // 인증코드 발송
-  const sendCodeForm = document.getElementById("send-code-form");
-  if (sendCodeForm) {
-    sendCodeForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(sendCodeForm);
-      const data = Object.fromEntries(formData);
+      let finalEndpoint = endpoint;
+      if (endpoint.includes(":projectId")) {
+        finalEndpoint = endpoint.replace(":projectId", body.projectId);
+      }
+      if (endpoint.includes(":requestId")) {
+        finalEndpoint = endpoint.replace(":requestId", body.requestId);
+      }
 
-      // 쿼리 파라미터 구성
-      const params = new URLSearchParams();
-      if (data.lang) params.append("lang", data.lang);
-      if (data.template) params.append("template", data.template);
-
-      const queryString = params.toString();
-      const url = `/auth/${data.email}/send-code${
-        queryString ? `?${queryString}` : ""
-      }`;
-
-      const result = await callAPI(url, "GET");
-      document.getElementById("send-code-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 인증코드 확인
-  const verifyCodeForm = document.getElementById("verify-code-form");
-  if (verifyCodeForm) {
-    verifyCodeForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(verifyCodeForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/auth/${data.email}/verify-code`,
-        "POST",
-        data
-      );
-      document.getElementById("verify-code-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 이메일 인증
-  const verifyEmailForm = document.getElementById("verify-email-form");
-  if (verifyEmailForm) {
-    verifyEmailForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(verifyEmailForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(`/auth/${data.email}/verify-email`, "GET");
-      document.getElementById("verify-email-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 비밀번호 재설정
-  const resetPasswordForm = document.getElementById("reset-password-form");
-  if (resetPasswordForm) {
-    resetPasswordForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(resetPasswordForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI("/auth/reset-password", "POST", data);
-      document.getElementById("reset-password-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 비밀번호 변경
-  const changePasswordForm = document.getElementById("change-password-form");
-  if (changePasswordForm) {
-    changePasswordForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(changePasswordForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI("/auth/change-password", "POST", data);
-      document.getElementById("change-password-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 내 계정 정보
-  const accountForm = document.getElementById("account-form");
-  if (accountForm) {
-    accountForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(accountForm);
-      const data = Object.fromEntries(formData);
-      const result = await callAPI(
-        "/auth/account",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("account-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 잔액 조회
-  const balanceForm = document.getElementById("balance-form");
-  if (balanceForm) {
-    balanceForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(balanceForm);
-      const data = Object.fromEntries(formData);
-      const result = await callAPI(
-        "/auth/balance",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("balance-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-}
-
-// SBT 핸들러들
-function registerSBTHandlers() {
-  // SBT 발급
-  const mintSbtForm = document.getElementById("mint-sbt-form");
-  if (mintSbtForm) {
-    mintSbtForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(mintSbtForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/sbt/mint",
-        "POST",
-        data,
-        false,
-        data.accessToken
-      );
-      document.getElementById("mint-sbt-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 전체 SBT 목록 조회
-  const getAllSbtBtn = document.getElementById("get-all-sbt-btn");
-  if (getAllSbtBtn) {
-    getAllSbtBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/sbt", "GET");
-      document.getElementById("get-all-sbt-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // SBT 정보 조회
-  const getSbtInfoForm = document.getElementById("get-sbt-info-form");
-  if (getSbtInfoForm) {
-    getSbtInfoForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(getSbtInfoForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(`/nft/sbt/info/${data.sbtId}`, "GET");
-      document.getElementById("get-sbt-info-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 주소별 SBT 목록 조회
-  const getSbtByAddressForm = document.getElementById(
-    "get-sbt-by-address-form"
-  );
-  if (getSbtByAddressForm) {
-    getSbtByAddressForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(getSbtByAddressForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(`/nft/sbt/${data.address}`, "GET");
-      document.getElementById("get-sbt-by-address-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-}
-
-// IPNFT 핸들러들
-function registerIPNFTHandlers() {
-  // IPNFT 발급
-  const mintIpnftForm = document.getElementById("mint-ipnft-form");
-  const ipfsImageInput = document.getElementById("ipfsImageInput");
-  const ipfsImagePreview = document.getElementById("ipfsImagePreview");
-
-  // 이미지 미리보기 기능 추가
-  if (ipfsImageInput && ipfsImagePreview) {
-    ipfsImageInput.addEventListener("change", function () {
-      const file = this.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          ipfsImagePreview.src = e.target.result;
-          ipfsImagePreview.style.display = "block";
-        };
-        reader.readAsDataURL(file);
-      } else {
-        ipfsImagePreview.src = "";
-        ipfsImagePreview.style.display = "none";
+      try {
+        console.log(`[FETCH] Sending POST request to: ${finalEndpoint}`);
+        const response = await fetch(finalEndpoint, options);
+        console.log(`[FETCH] Response status: ${response.status}`);
+        const result = await response.json();
+        showResult(resultId, result, response.ok ? "success" : "error");
+      } catch (error) {
+        console.error(`[FETCH] Error for endpoint ${finalEndpoint}:`, error);
+        showResult(resultId, `Error: ${error.message}`, "error");
       }
     });
   }
+};
 
-  if (mintIpnftForm) {
-    mintIpnftForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(mintIpnftForm);
-      const accessToken = formData.get("accessToken");
-      formData.delete("accessToken"); // FormData에서 제거
-      const result = await callAPI(
-        "/nft/ip/mint",
-        "POST",
-        formData,
-        true,
-        accessToken
-      );
-      document.getElementById("mint-ipnft-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
+const handleGetRequest = async (btnId, resultId, endpoint) => {
+  const btn = document.getElementById(btnId);
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      let finalEndpoint = endpoint;
+      const options = { headers: {} };
+      const form = btn.closest("form");
+
+      if (form) {
+        const accessTokenElement = form.querySelector(
+          "textarea[name='accessToken']"
+        );
+        if (accessTokenElement && accessTokenElement.value) {
+          options.headers.Authorization = `Bearer ${accessTokenElement.value}`;
+        }
+
+        if (endpoint.includes(":tokenId")) {
+          const tokenIdElement = form.querySelector("input[name='tokenId']");
+          if (!tokenIdElement || !tokenIdElement.value) {
+            showResult(resultId, "토큰 ID가 필요합니다.", "error");
+            return;
+          }
+          finalEndpoint = endpoint.replace(":tokenId", tokenIdElement.value);
+        }
+        if (endpoint.includes(":sbtId")) {
+          const sbtIdElement = form.querySelector("input[name='sbtId']");
+          if (!sbtIdElement || !sbtIdElement.value) {
+            showResult(resultId, "SBT ID가 필요합니다.", "error");
+            return;
+          }
+          finalEndpoint = endpoint.replace(":sbtId", sbtIdElement.value);
+        }
+        if (endpoint.includes(":address")) {
+          const addressElement = form.querySelector("input[name='address']");
+          if (!addressElement || !addressElement.value) {
+            showResult(resultId, "지갑 주소가 필요합니다.", "error");
+            return;
+          }
+          finalEndpoint = endpoint.replace(":address", addressElement.value);
+        }
+        if (endpoint.includes(":projectId")) {
+          const projectIdElement = form.querySelector(
+            "input[name='projectId']"
+          );
+          if (!projectIdElement || !projectIdElement.value) {
+            showResult(resultId, "프로젝트 ID가 필요합니다.", "error");
+            return;
+          }
+          finalEndpoint = endpoint.replace(
+            ":projectId",
+            projectIdElement.value
+          );
+        }
+        if (endpoint.includes(":receiptId")) {
+          const receiptIdElement = form.querySelector(
+            "input[name='receiptId']"
+          );
+          if (!receiptIdElement || !receiptIdElement.value) {
+            showResult(resultId, "영수증 ID가 필요합니다.", "error");
+            return;
+          }
+          finalEndpoint = endpoint.replace(
+            ":receiptId",
+            receiptIdElement.value
+          );
+        }
+      }
+
+      try {
+        const result = await makeRequest(finalEndpoint, options);
+        showResult(resultId, result, result.success ? "success" : "error");
+      } catch (error) {
+        showResult(resultId, `Error: ${error.message}`, "error");
+      }
     });
   }
+};
 
-  // 내 IPNFT 조회
-  const myIpnftForm = document.getElementById("my-ipnft-form");
-  if (myIpnftForm) {
-    myIpnftForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(myIpnftForm);
-      const data = Object.fromEntries(formData);
+const setupMerchandiseTab = () => {
+  const API_BASE_URL = "/api/nft/merchandise";
 
-      const result = await callAPI(
-        `/nft/ip/my`,
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("my-ipnft-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
+  // 1. 상품 프로젝트 생성
+  handleFormSubmit(
+    "createProjectForm",
+    "createProjectResult",
+    `${API_BASE_URL}/create`,
+    true
+  );
 
-  // 전체 IPNFT 조회
-  const getAllIpnftBtn = document.getElementById("get-all-ipnft-btn");
-  if (getAllIpnftBtn) {
-    getAllIpnftBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/ip/list", "GET");
-      document.getElementById("all-ipnft-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
+  // 2. 내 프로젝트 목록
+  handleGetRequest(
+    "getMyProjectsBtn",
+    "getMyProjectsResult",
+    `${API_BASE_URL}/my`,
+    true
+  );
 
-  // IPNFT 정보 조회
-  const getIpnftInfoForm = document.getElementById("get-ipnft-info-form");
-  if (getIpnftInfoForm) {
-    getIpnftInfoForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(getIpnftInfoForm);
-      const data = Object.fromEntries(formData);
+  // 3. 전체 프로젝트 목록
+  handleGetRequest(
+    "getAllProjectsBtn",
+    "getAllProjectsResult",
+    `${API_BASE_URL}/list`
+  );
 
-      const result = await callAPI(`/nft/ip/info/${data.tokenId}`, "GET");
-      document.getElementById("get-ipnft-info-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
+  // 4. 브랜드 활성화 대기 프로젝트
+  handleGetRequest(
+    "getBrandPendingProjectsBtn",
+    "getBrandPendingProjectsResult",
+    `${API_BASE_URL}/brand-pending`,
+    true
+  );
 
-  // 민팅 수수료 조회
-  const getMintingFeeBtn = document.getElementById("get-minting-fee-btn");
-  if (getMintingFeeBtn) {
-    getMintingFeeBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/ip/minting-fee", "GET");
-      document.getElementById("minting-fee-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
+  // 5. 프로젝트 활성화
+  handleFormSubmit(
+    "activateProjectForm",
+    "activateProjectResult",
+    `${API_BASE_URL}/activate/:projectId`, // :projectId 추가
+    true
+  );
 
-  // 민팅 수수료 변경
-  const setMintingFeeForm = document.getElementById("set-minting-fee-form");
-  if (setMintingFeeForm) {
-    setMintingFeeForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(setMintingFeeForm);
-      const data = Object.fromEntries(formData);
+  // 6. 상품 구매 요청
+  handleFormSubmit(
+    "requestPurchaseForm",
+    "requestPurchaseResult",
+    `${API_BASE_URL}/request-purchase`,
+    true
+  );
 
-      const result = await callAPI("/nft/ip/minting-fee", "POST", data);
-      document.getElementById("set-minting-fee-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-}
+  // 7. 내 구매 요청 목록
+  handleGetRequest(
+    "getMyPurchaseRequestsBtn",
+    "getMyPurchaseRequestsResult",
+    `${API_BASE_URL}/my-purchase-requests`,
+    true
+  );
 
-// Merchandise 핸들러들
-function registerMerchandiseHandlers() {
-  // 프로젝트 생성
-  const createProjectForm = document.getElementById("create-project-form");
-  if (createProjectForm) {
-    createProjectForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(createProjectForm);
-      const accessToken = formData.get("accessToken");
+  // 8. 구매 확정
+  handleFormSubmit(
+    "confirmPurchaseForm",
+    "confirmPurchaseResult",
+    `${API_BASE_URL}/confirm-purchase`,
+    true
+  );
 
-      const result = await callAPI(
-        "/nft/merchandise/create",
-        "POST",
-        formData,
-        true,
-        accessToken
-      );
-      document.getElementById("create-project-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
+  // 9. 내가 소유한 NFT 조회
+  handleGetRequest(
+    "getMyNftsBtn",
+    "getMyNftsResult",
+    `${API_BASE_URL}/my-nfts`,
+    true
+  );
 
-  // 내 프로젝트 목록
-  const myProjectsForm = document.getElementById("my-projects-form");
-  if (myProjectsForm) {
-    myProjectsForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(myProjectsForm);
-      const data = Object.fromEntries(formData);
+  // 10. 전체 Merchandise NFT 조회
+  handleGetRequest(
+    "getAllNftsBtn",
+    "getAllNftsResult",
+    `${API_BASE_URL}/all-nfts`
+  );
 
-      const result = await callAPI(
-        "/nft/merchandise/my",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("my-projects-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
+  // 11. 특정 NFT 상세 조회
+  handleGetRequest(
+    "getNftInfoBtn",
+    "getNftInfoResult",
+    `${API_BASE_URL}/nft/:tokenId`
+  );
 
-  // 3. 전체 프로젝트 목록 카드 렌더링 함수
-  async function renderMerchandiseProjects() {
-    try {
-      const res = await fetch("/api/nft/merchandise/list");
-      const result = await res.json();
-      // 응답 구조에 따라 아래 라인 조정 (data.data 또는 data)
-      const list = result.data?.data || result.data || [];
-      const container = document.getElementById("project-list");
-      if (!container) return;
-      container.innerHTML = "";
-      if (!Array.isArray(list) || list.length === 0) {
-        container.innerHTML =
-          '<div style="color:#888;padding:2em;">No projects found.</div>';
+  // 12. 구매 취소
+  handleFormSubmit(
+    "cancelPurchaseForm",
+    "cancelPurchaseResult",
+    `${API_BASE_URL}/cancel-purchase`,
+    true
+  );
+
+  // 13. 프로젝트별 구매 요청 목록
+  handleGetRequest(
+    "getProjectPurchaseRequestsBtn",
+    "getProjectPurchaseRequestsResult",
+    `${API_BASE_URL}/purchase-requests/:projectId`
+  );
+
+  // 14. 플랫폼 수수료 정보
+  handleGetRequest(
+    "getPlatformFeeInfoBtn",
+    "getPlatformFeeInfoResult",
+    `${API_BASE_URL}/platform-fee-info`
+  );
+
+  // 15. 모든 영수증 목록
+  handleGetRequest(
+    "getAllReceiptsBtn",
+    "getAllReceiptsResult",
+    `${API_BASE_URL}/receipts`
+  );
+
+  // 16. 특정 영수증 조회
+  handleGetRequest(
+    "getReceiptByIdBtn",
+    "getReceiptByIdResult",
+    `${API_BASE_URL}/receipt/:receiptId`
+  );
+
+  // 17. 프로젝트별 영수증 목록
+  handleGetRequest(
+    "getReceiptsByProjectBtn",
+    "getReceiptsByProjectResult",
+    `${API_BASE_URL}/receipts/project/:projectId`
+  );
+
+  // 18. PDF 영수증 다운로드
+  const downloadPdfBtn = document.getElementById("downloadPdfBtn");
+  if (downloadPdfBtn) {
+    downloadPdfBtn.addEventListener("click", async () => {
+      const form = downloadPdfBtn.closest("form");
+      const receiptId = form.querySelector('input[name="receiptId"]').value;
+      const resultElementId = "downloadPdfResult";
+
+      if (!receiptId) {
+        showResult(resultElementId, "Receipt ID is required.", "error");
         return;
       }
-      list.forEach((project) => {
-        const card = document.createElement("div");
-        card.style.border = "1px solid #ddd";
-        card.style.borderRadius = "8px";
-        card.style.padding = "16px";
-        card.style.width = "280px";
-        card.style.background = "#fafbfc";
-        card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)";
-        card.style.marginBottom = "8px";
-        card.innerHTML = `
-          <div style="text-align:center;">
-            <img src="${
-              project.projectImageURI || ""
-            }" alt="project image" style="max-width:100%;max-height:160px;border-radius:6px;object-fit:cover;background:#eee;">
-          </div>
-          <h3 style="margin:12px 0 4px 0;">${project.projectName || ""}</h3>
-          <div style="color:#666;font-size:13px;margin-bottom:8px;">${
-            project.description || ""
-          }</div>
-          <div><b>Project ID:</b> ${project.projectId ?? ""}</div>
-          <div><b>Influencer:</b> ${project.influencer || ""}</div>
-          <div><b>Brand IPNFT:</b> ${project.brandIPNFTTokenId ?? ""}</div>
-          <div><b>Artist IPNFTs:</b> ${(project.artistIPNFTTokenIds || []).join(
-            ", "
-          )}</div>
-          <div><b>Total Supply:</b> ${project.totalSupply ?? ""}</div>
-          <div><b>Sale Price:</b> ${project.salePrice ?? ""} DP</div>
-          <div><b>Minted:</b> ${project.mintedCount ?? ""}</div>
-          <div><b>Active:</b> ${project.isActive ? "✅" : "❌"}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:6px;">Created: ${
-            project.createdAt
-              ? new Date(Number(project.createdAt) * 1000).toLocaleString()
-              : ""
-          }</div>
-        `;
-        container.appendChild(card);
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/receipt/${receiptId}/pdf`
+        );
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Download failed");
+        }
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        const contentDisposition = response.headers.get("content-disposition");
+        let fileName = `receipt-${receiptId}.pdf`;
+        if (contentDisposition) {
+          const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (fileNameMatch && fileNameMatch.length === 2)
+            fileName = fileNameMatch[1];
+        }
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+        showResult(
+          resultElementId,
+          { success: true, message: `File ${fileName} downloaded.` },
+          "success"
+        );
+      } catch (error) {
+        showResult(resultElementId, `Error: ${error.message}`, "error");
+      }
+    });
+  }
+
+  // 19. PDF 영수증 생성
+  handleFormSubmit(
+    "generatePdfForm",
+    "generatePdfResult",
+    `${API_BASE_URL}/receipt/:receiptId/generate-pdf`
+  );
+};
+
+function setupSbtTab() {
+  handleFormSubmit(
+    "mint-sbt-form",
+    "mint-sbt-result",
+    "/api/nft/sbt/mint",
+    true
+  );
+
+  handleGetRequest(
+    "get-all-sbt-btn",
+    "get-all-sbt-result",
+    "/api/nft/sbt/list"
+  );
+
+  handleGetRequest(
+    "get-sbt-info-btn",
+    "get-sbt-info-result",
+    "/api/nft/sbt/info/:sbtId"
+  );
+
+  handleGetRequest(
+    "get-sbt-by-address-btn",
+    "get-sbt-by-address-result",
+    "/api/nft/sbt/:address"
+  );
+}
+
+function setupIpNftTab() {
+  handleFormSubmit(
+    "mint-ipnft-form",
+    "mint-ipnft-result",
+    "/api/nft/ip/mint",
+    true
+  );
+  handleFormSubmit(
+    "set-minting-fee-form",
+    "set-minting-fee-result",
+    "/api/nft/ip/set-minting-fee",
+    true
+  );
+
+  handleGetRequest(
+    "list-all-ipnfts-btn",
+    "list-all-ipnfts-result",
+    "/api/nft/ip/list"
+  );
+
+  handleGetRequest(
+    "get-my-ipnfts-btn",
+    "get-my-ipnfts-result",
+    "/api/nft/ip/my"
+  );
+
+  handleGetRequest(
+    "get-ipnft-info-btn",
+    "get-ipnft-info-result",
+    "/api/nft/ip/info/:tokenId"
+  );
+
+  handleGetRequest(
+    "get-minting-fee-btn",
+    "get-minting-fee-result",
+    "/api/nft/ip/minting-fee"
+  );
+}
+
+const setupPlatformTab = () => {
+  const API_BASE_URL = "/api/nft/platform";
+
+  // 1. 통합 소유권 이전
+  handleFormSubmit(
+    "transferAllOwnershipForm",
+    "transferAllOwnershipResponse",
+    `${API_BASE_URL}/transfer-all-ownership`,
+    true
+  );
+
+  // 2. 현재 소유자 조회
+  handleGetRequest(
+    "get-owner-btn",
+    "get-owner-result",
+    `${API_BASE_URL}/owner`
+  );
+
+  // 3. PlatformRegistry 상태 조회
+  handleGetRequest(
+    "get-status-btn",
+    "get-status-result",
+    `${API_BASE_URL}/status`
+  );
+
+  // 4. 팩토리 설정
+  handleFormSubmit(
+    "set-factory-form",
+    "set-factory-result",
+    `${API_BASE_URL}/set-factory`,
+    true
+  );
+
+  // 5. 주요 컨트랙트 주소 조회
+  handleGetRequest(
+    "get-addresses-btn",
+    "get-addresses-result",
+    `${API_BASE_URL}/addresses`
+  );
+
+  // 6. 개별 소유권 이전
+  handleFormSubmit(
+    "transferOwnershipForm",
+    "transferOwnershipResponse",
+    `${API_BASE_URL}/transfer-ownership`,
+    true
+  );
+};
+
+const setupAuthTab = () => {
+  // 1. 소셜 로그인 URL 요청
+  document
+    .getElementById("social-login-url-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const provider = document.getElementById("loginProvider").value;
+      const callbackUrl = document.getElementById("loginCallbackUrl").value;
+      const result = await makeRequest(
+        `/api/auth/social/login-url?provider=${provider}&callbackUrl=${encodeURIComponent(
+          callbackUrl
+        )}`
+      );
+      showResult(
+        "social-login-url-result",
+        result.url || result.message,
+        result.success ? "success" : "error"
+      );
+    });
+
+  // 2. 소셜 로그인 완료
+  document
+    .getElementById("finalize-login-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = document.getElementById("authIdInput").value;
+      const result = await makeRequest("/api/auth/social/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
       });
-    } catch (e) {
-      const container = document.getElementById("project-list");
-      if (container)
-        container.innerHTML =
-          '<div style="color:red;">Error loading projects</div>';
+      showResult("finalize-login-result", result, "success");
+    });
+
+  // 3. MPC 지갑 생성/복구
+  document
+    .getElementById("create-wallet-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const devicePassword = document.getElementById("devicePassword").value;
+      const email = document.getElementById("createWalletEmail").value;
+      const accessToken = document.getElementById(
+        "createWalletAccessToken"
+      ).value;
+      const result = await makeRequest(
+        "/api/auth/mpc/wallet/create-or-recover",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ devicePassword, email, accessToken }),
+        }
+      );
+      if (result.success) {
+        localStorage.setItem("MpcWalletData", JSON.stringify(result.data));
+        showResult(
+          "create-wallet-result",
+          { ...result, message: "Wallet data stored in localStorage." },
+          "success"
+        );
+      } else {
+        showResult("create-wallet-result", result.message, "error");
+      }
+    });
+
+  // 4. 계정 정보 조회
+  document
+    .getElementById("get-account-info-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const accessToken = document.getElementById(
+        "accountInfoAccessToken"
+      ).value;
+      const result = await makeRequest("/api/auth/account", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      showResult("get-account-info-result", result, "success");
+    });
+
+  // 5. 잔액 조회
+  document
+    .getElementById("get-balance-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const accessToken = document.getElementById("balanceAccessToken").value;
+      const result = await makeRequest("/api/auth/balance", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      showResult("get-balance-result", result, "success");
+    });
+
+  // 6. 토큰 리프레시
+  document
+    .getElementById("refresh-token-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const refreshToken = document.getElementById("refreshTokenInput").value;
+      const result = await makeRequest("/api/auth/refresh-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      showResult("refresh-token-result", result, "success");
+    });
+
+  // 7. 소셜 회원가입
+  document
+    .getElementById("social-register-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      // Checkbox values
+      data.overage = !!data.overage;
+      data.agree = !!data.agree;
+      data.collect = !!data.collect;
+      data.thirdParty = !!data.thirdParty;
+      data.advertise = !!data.advertise;
+
+      const result = await makeRequest("/api/auth/social/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      showResult("social-register-result", result, "success");
+    });
+
+  // '계정 정보' 카드 내 버튼 이벤트 핸들러
+  const accountInfoCard = document.getElementById("account-info-card");
+  if (accountInfoCard) {
+    const accessTokenTextarea = accountInfoCard.querySelector(
+      "#accountInfoAccessToken"
+    );
+
+    // 계정 정보 조회 버튼
+    const getAccountInfoBtn = accountInfoCard.querySelector(
+      "#get-account-info-btn"
+    );
+    if (getAccountInfoBtn) {
+      getAccountInfoBtn.addEventListener("click", async () => {
+        const accessToken = accessTokenTextarea.value;
+        if (!accessToken) {
+          showResult(
+            "get-account-info-result",
+            "액세스 토큰을 입력하세요.",
+            "error"
+          );
+          return;
+        }
+        const result = await makeRequest("/api/auth/account", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        showResult(
+          "get-account-info-result",
+          result,
+          result.success ? "success" : "error"
+        );
+      });
+    }
+
+    // 잔액 조회 버튼
+    const getBalanceBtn = accountInfoCard.querySelector("#get-balance-btn");
+    if (getBalanceBtn) {
+      getBalanceBtn.addEventListener("click", async () => {
+        const accessToken = accessTokenTextarea.value;
+        if (!accessToken) {
+          showResult(
+            "get-balance-result",
+            "액세스 토큰을 입력하세요.",
+            "error"
+          );
+          return;
+        }
+        const result = await makeRequest("/api/auth/balance", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        showResult(
+          "get-balance-result",
+          result,
+          result.success ? "success" : "error"
+        );
+      });
     }
   }
+};
 
-  // 3. 전체 프로젝트 목록 버튼 이벤트 등록
-  const loadProjectsBtn = document.getElementById("load-projects-btn");
-  if (loadProjectsBtn) {
-    loadProjectsBtn.onclick = renderMerchandiseProjects;
-  }
-  // 외부에서 호출 가능하도록 window에 등록
-  window.renderMerchandiseProjects = renderMerchandiseProjects;
+const setupBlockchainTab = () => {
+  console.log("Blockchain tab initialized");
+  handleFormSubmit("faucet-form", "faucet-result", "/api/utils/faucet", false);
 
-  // 브랜드 활성화 대기 프로젝트
-  const brandPendingForm = document.getElementById("brand-pending-form");
-  if (brandPendingForm) {
-    brandPendingForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(brandPendingForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/merchandise/brand-pending",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("brand-pending-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 프로젝트 활성화
-  const activateProjectForm = document.getElementById("activate-project-form");
-  if (activateProjectForm) {
-    activateProjectForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(activateProjectForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/nft/merchandise/activate/${data.projectId}`,
-        "POST",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("activate-project-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 구매 요청
-  const requestPurchaseForm = document.getElementById("request-purchase-form");
-  if (requestPurchaseForm) {
-    requestPurchaseForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(requestPurchaseForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/merchandise/request-purchase",
-        "POST",
-        data,
-        false,
-        data.accessToken
-      );
-      document.getElementById("request-purchase-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 구매 확정
-  const confirmPurchaseForm = document.getElementById("confirm-purchase-form");
-  if (confirmPurchaseForm) {
-    confirmPurchaseForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(confirmPurchaseForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/merchandise/confirm-purchase",
-        "POST",
-        data,
-        false,
-        data.accessToken
-      );
-      document.getElementById("confirm-purchase-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 내가 소유한 NFT 조회
-  const myNftsForm = document.getElementById("my-nfts-form");
-  if (myNftsForm) {
-    myNftsForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(myNftsForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/merchandise/my-nfts",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("my-nfts-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 전체 Merchandise NFT 조회
-  const allNftsBtn = document.getElementById("all-nfts-btn");
-  if (allNftsBtn) {
-    allNftsBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/merchandise/all-nfts", "GET");
-      document.getElementById("all-nfts-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 특정 NFT 상세 조회
-  const nftDetailForm = document.getElementById("nft-detail-form");
-  if (nftDetailForm) {
-    nftDetailForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(nftDetailForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/nft/merchandise/nft/${data.tokenId}`,
-        "GET"
-      );
-      document.getElementById("nft-detail-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 구매 취소
-  const cancelPurchaseForm = document.getElementById("cancel-purchase-form");
-  if (cancelPurchaseForm) {
-    cancelPurchaseForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(cancelPurchaseForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/merchandise/cancel-purchase",
-        "POST",
-        data,
-        false,
-        data.accessToken
-      );
-      document.getElementById("cancel-purchase-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 내 구매 요청 목록
-  const myPurchaseRequestsForm = document.getElementById(
-    "my-purchase-requests-form"
-  );
-  if (myPurchaseRequestsForm) {
-    myPurchaseRequestsForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(myPurchaseRequestsForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/merchandise/my-purchase-requests",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("my-purchase-requests-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 프로젝트별 구매 요청 목록
-  const projectPurchaseRequestsForm = document.getElementById(
-    "project-purchase-requests-form"
-  );
-  if (projectPurchaseRequestsForm) {
-    projectPurchaseRequestsForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(projectPurchaseRequestsForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/nft/merchandise/purchase-requests/${data.projectId}`,
-        "GET"
-      );
-      document.getElementById("project-purchase-requests-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 플랫폼 수수료 정보
-  const platformFeeInfoBtn = document.getElementById("platform-fee-info-btn");
-  if (platformFeeInfoBtn) {
-    platformFeeInfoBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/merchandise/platform-fee-info", "GET");
-      document.getElementById("platform-fee-info-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 모든 영수증 목록
-  const allReceiptsBtn = document.getElementById("all-receipts-btn");
-  if (allReceiptsBtn) {
-    allReceiptsBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/merchandise/receipts", "GET");
-      document.getElementById("all-receipts-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 특정 영수증 조회
-  const receiptDetailForm = document.getElementById("receipt-detail-form");
-  if (receiptDetailForm) {
-    receiptDetailForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(receiptDetailForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/nft/merchandise/receipt/${data.receiptId}`,
-        "GET"
-      );
-      document.getElementById("receipt-detail-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 프로젝트별 영수증 목록
-  const projectReceiptsForm = document.getElementById("project-receipts-form");
-  if (projectReceiptsForm) {
-    projectReceiptsForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(projectReceiptsForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/nft/merchandise/receipts/project/${data.projectId}`,
-        "GET"
-      );
-      document.getElementById("project-receipts-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // PDF 영수증 다운로드
-  const pdfDownloadForm = document.getElementById("pdf-download-form");
-  if (pdfDownloadForm) {
-    pdfDownloadForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(pdfDownloadForm);
-      const data = Object.fromEntries(formData);
-
-      try {
-        const response = await fetch(
-          `/api/nft/merchandise/receipt/${data.receiptId}/pdf`,
-          {
-            method: "GET",
-          }
-        );
-
-        if (response.ok) {
-          // PDF 파일 다운로드
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${data.receiptId}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-
-          document.getElementById("pdf-download-result").innerHTML =
-            '<div style="color: green;">PDF 영수증이 성공적으로 다운로드되었습니다!</div>';
-        } else {
-          const errorData = await response.json();
-          document.getElementById(
-            "pdf-download-result"
-          ).innerHTML = `<div style="color: red;">다운로드 실패: ${errorData.message}</div>`;
-        }
-      } catch (error) {
-        document.getElementById(
-          "pdf-download-result"
-        ).innerHTML = `<div style="color: red;">오류: ${error.message}</div>`;
-      }
-    });
-  }
-
-  // PDF 영수증 생성
-  const pdfGenerateForm = document.getElementById("pdf-generate-form");
-  if (pdfGenerateForm) {
-    pdfGenerateForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(pdfGenerateForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        `/nft/merchandise/receipt/${data.receiptId}/generate-pdf`,
-        "POST"
-      );
-      document.getElementById("pdf-generate-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-}
-
-// Platform 핸들러들
-function registerPlatformHandlers() {
-  // 현재 소유자 조회
-  const getOwnerBtn = document.getElementById("get-owner-btn");
-  if (getOwnerBtn) {
-    getOwnerBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/platform/owner", "GET");
-      document.getElementById("get-owner-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // PlatformRegistry 상태 조회
-  const getStatusBtn = document.getElementById("get-status-btn");
-  if (getStatusBtn) {
-    getStatusBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/platform/status", "GET");
-      document.getElementById("get-status-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 팩토리 설정
-  const setFactoryForm = document.getElementById("set-factory-form");
-  if (setFactoryForm) {
-    setFactoryForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(setFactoryForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/nft/platform/set-factory",
-        "POST",
-        data,
-        false,
-        data.accessToken
-      );
-      document.getElementById("set-factory-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 주요 컨트랙트 주소 조회
-  const getAddressesBtn = document.getElementById("get-addresses-btn");
-  if (getAddressesBtn) {
-    getAddressesBtn.addEventListener("click", async () => {
-      const result = await callAPI("/nft/platform/addresses", "GET");
-      document.getElementById("get-addresses-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 통합 소유권 이전
-  document
-    .getElementById("transferAllOwnershipForm")
-    ?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const accessToken = formData.get("accessToken");
-
-      try {
-        const response = await fetch(
-          "/api/nft/platform/transfer-all-ownership",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              newOwner: formData.get("newOwner"),
-            }),
-          }
-        );
-
-        const result = await response.json();
-        const responseArea = document.getElementById(
-          "transferAllOwnershipResponse"
-        );
-        responseArea.innerHTML = `<pre>${JSON.stringify(
-          result,
-          null,
-          2
-        )}</pre>`;
-      } catch (error) {
-        console.error("Error:", error);
-        document.getElementById(
-          "transferAllOwnershipResponse"
-        ).innerHTML = `<pre>Error: ${error.message}</pre>`;
-      }
-    });
-
-  // 개별 소유권 이전
-  document
-    .getElementById("transferOwnershipForm")
-    ?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const accessToken = formData.get("accessToken");
-
-      try {
-        const response = await fetch("/api/nft/platform/transfer-ownership", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            contractType: formData.get("contractType"),
-            newOwner: formData.get("newOwner"),
-          }),
-        });
-
-        const result = await response.json();
-        const responseArea = document.getElementById(
-          "transferOwnershipResponse"
-        );
-        responseArea.innerHTML = `<pre>${JSON.stringify(
-          result,
-          null,
-          2
-        )}</pre>`;
-      } catch (error) {
-        console.error("Error:", error);
-        document.getElementById(
-          "transferOwnershipResponse"
-        ).innerHTML = `<pre>Error: ${error.message}</pre>`;
-      }
-    });
-}
-
-// Blockchain 핸들러들
-function registerBlockchainHandlers() {
-  // Faucet (DP 토큰 받기)
-  const faucetForm = document.getElementById("faucet-form");
-  if (faucetForm) {
-    faucetForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(faucetForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI("/utils/faucet", "POST", data);
-      document.getElementById("faucet-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // IPFS 파일 업로드
+  // IPFS 파일 업로드 (FormData 사용)
   const ipfsUploadFileForm = document.getElementById("ipfs-upload-file-form");
   if (ipfsUploadFileForm) {
     ipfsUploadFileForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const formData = new FormData(ipfsUploadFileForm);
+      const formData = new FormData(e.target);
 
-      const result = await callAPI(
-        "/utils/ipfs/upload-file",
-        "POST",
-        formData,
-        true
-      );
-      document.getElementById("ipfs-upload-file-result").textContent =
-        JSON.stringify(result, null, 2);
+      try {
+        const response = await fetch("/api/utils/ipfs/upload-file", {
+          method: "POST",
+          body: formData,
+        });
+        const result = await response.json();
+        showResult(
+          "ipfs-upload-file-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "ipfs-upload-file-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
     });
   }
 
-  // IPFS JSON 업로드
-  const ipfsUploadJsonForm = document.getElementById("ipfs-upload-json-form");
-  if (ipfsUploadJsonForm) {
-    ipfsUploadJsonForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(ipfsUploadJsonForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI("/utils/ipfs/upload-json", "POST", data);
-      document.getElementById("ipfs-upload-json-result").textContent =
-        JSON.stringify(result, null, 2);
-    });
-  }
-
-  // 내 계정 정보
-  const accountForm = document.getElementById("account-form");
-  if (accountForm) {
-    accountForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(accountForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/auth/account",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("account-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 잔액 조회
-  const balanceForm = document.getElementById("balance-form");
-  if (balanceForm) {
-    balanceForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(balanceForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/auth/balance",
-        "GET",
-        null,
-        false,
-        data.accessToken
-      );
-      document.getElementById("balance-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 트랜잭션 서명
-  const signTxForm = document.getElementById("sign-tx-form");
-  if (signTxForm) {
-    signTxForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(signTxForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/auth/blockchain/sign/transaction",
-        "POST",
-        data,
-        false,
-        data.accessToken
-      );
-      document.getElementById("sign-tx-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-
-  // 트랜잭션 전송
-  const sendTxForm = document.getElementById("send-tx-form");
-  if (sendTxForm) {
-    sendTxForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(sendTxForm);
-      const data = Object.fromEntries(formData);
-
-      const result = await callAPI(
-        "/auth/blockchain/raw-tx/send",
-        "POST",
-        data
-      );
-      document.getElementById("send-tx-result").textContent = JSON.stringify(
-        result,
-        null,
-        2
-      );
-    });
-  }
-}
+  handleFormSubmit(
+    "ipfs-upload-json-form",
+    "ipfs-upload-json-result",
+    "/api/utils/ipfs/upload-json",
+    false
+  );
+};

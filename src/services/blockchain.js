@@ -64,6 +64,15 @@ service.signTransaction = async (
     let nonce = await web3.eth.getTransactionCount(walletData.sid, "pending");
     let gasPrice = await web3.eth.getGasPrice();
 
+    // 가스 가격이 0이어도 프라이빗 네트워크에서는 유효하므로, 강제로 올리는 로직을 제거합니다.
+    // const minGasPrice = web3.utils.toWei("1", "gwei");
+    // if (BigInt(gasPrice) < BigInt(minGasPrice)) {
+    //   logger.warn(
+    //     `Fetched gas price is too low (${gasPrice}). Setting to minimum: ${minGasPrice}`
+    //   );
+    //   gasPrice = minGasPrice;
+    // }
+
     let gasEstimate = 450000;
     try {
       // data 필드가 없거나 빈 문자열이면 0x로 설정
@@ -123,6 +132,18 @@ service.signTransaction = async (
       accessToken
     );
 
+    logger.info("ABC WaaS sign/hash API response:", signResult);
+
+    // 응답 객체에 에러가 있는지 또는 필수 필드가 없는지 확인
+    if (signResult.iserr || !signResult.signstr) {
+      const errorMessage =
+        signResult.msg ||
+        signResult.message ||
+        "Unknown signing error from API";
+      logger.error("Error from sign/hash API:", errorMessage);
+      throw new Error(errorMessage);
+    }
+
     let signobj = JSON.parse(signResult.signstr);
     console.log(signobj);
 
@@ -149,64 +170,23 @@ service.signHash = async (
   transactionData,
   accessToken
 ) => {
-  let encDP = authService.encrypt(
+  // WaaS sign/hash API는 transport를 위해 모든 민감 정보를
+  // 현재 보안 채널로 다시 암호화해야 합니다.
+  const encDP = authService.encrypt(
     secureChannel,
     walletData.encryptDevicePassword
   );
-  let epvencstr = authService.encrypt(secureChannel, walletData.pvencstr);
-  let ewid = authService.encrypt(secureChannel, walletData.wid);
+  const epvencstr = authService.encrypt(secureChannel, walletData.pvencstr);
+  const ewid = authService.encrypt(secureChannel, String(walletData.wid));
 
   try {
-    let inputData = {
+    const inputData = {
       encryptDevicePassword: encDP,
       pvencstr: epvencstr,
       uid: walletData.uid,
       wid: ewid,
-      sid: walletData.sid,
+      sid: walletData.sid, // sid는 주소이므로 암호화하지 않음
       hash: transactionData.hash,
-    };
-
-    const data = qs.stringify(inputData);
-
-    const response = await axios.post(
-      `${abcWalletBaseUrl}/wapi/v2/sign/hash`,
-      data,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Secure-Channel": secureChannel.ChannelID,
-        },
-      }
-    );
-    return response.data;
-  } catch (error) {
-    console.log(error);
-    throw new Error(`Message signing failed: ${error}`);
-  }
-};
-
-service.signMessage = async (
-  secureChannel,
-  walletData,
-  transactionData,
-  accessToken
-) => {
-  let encDP = authService.encrypt(
-    secureChannel,
-    walletData.encryptDevicePassword
-  );
-  let epvencstr = authService.encrypt(secureChannel, walletData.pvencstr);
-  let ewid = authService.encrypt(secureChannel, walletData.wid);
-
-  try {
-    let inputData = {
-      encryptDevicePassword: encDP,
-      pvencstr: epvencstr,
-      uid: walletData.uid,
-      wid: ewid,
-      sid: walletData.sid,
-      hash: ethers.hashMessage(transactionData.message || ""),
     };
 
     const data = qs.stringify(inputData);
@@ -239,7 +219,7 @@ service.sendTransaction = async (signedSerializeTx) => {
     console.log("Transaction receipt:", receipt);
     console.log("Transaction hash:", receipt.transactionHash);
 
-    return receipt.transactionHash;
+    return receipt;
   } catch (error) {
     console.log("sendTransaction error:", error);
     console.log("Error message:", error.message);
@@ -808,6 +788,84 @@ service.isERC20Approved = async (owner, operator, contractAddress) => {
     console.log("Problem in isERC20Approved");
     console.log(error);
     throw new Error(error.message);
+  }
+};
+
+// Faucet용 DP 토큰 전송 함수 (관리자 프라이빗 키 사용)
+service.transferDP = async (toAddress, amountInWei) => {
+  try {
+    const adminAddress = process.env.DRESSDIO_ADMIN_WALLET_ADDRESS;
+    const adminPrivateKey = process.env.DRESSDIO_ADMIN_PRIVATE_KEY;
+
+    if (!adminAddress || !adminPrivateKey) {
+      throw new Error("Admin wallet address or private key not configured");
+    }
+
+    // DP 토큰 컨트랙트 ABI (transfer 함수만)
+    const dpTokenAbi = [
+      {
+        constant: false,
+        inputs: [
+          { name: "_to", type: "address" },
+          { name: "_value", type: "uint256" },
+        ],
+        name: "transfer",
+        outputs: [{ name: "", type: "bool" }],
+        type: "function",
+      },
+    ];
+
+    const dpTokenAddress = process.env.DP_TOKEN_ADDRESS;
+    if (!dpTokenAddress) {
+      throw new Error("DP_TOKEN_ADDRESS not configured");
+    }
+
+    const dpTokenContract = new web3.eth.Contract(dpTokenAbi, dpTokenAddress);
+
+    // transfer 함수 호출 데이터 생성
+    const transferData = dpTokenContract.methods
+      .transfer(toAddress, amountInWei)
+      .encodeABI();
+
+    // 트랜잭션 객체 생성
+    const nonce = await web3.eth.getTransactionCount(adminAddress, "pending");
+    const gasPrice = await web3.eth.getGasPrice();
+
+    const tx = {
+      from: adminAddress,
+      to: dpTokenAddress,
+      data: transferData,
+      value: "0",
+      nonce: nonce,
+      gasPrice: gasPrice,
+    };
+
+    // 가스 추정
+    const gasEstimate = await web3.eth.estimateGas(tx);
+    tx.gas = Math.floor(parseInt(gasEstimate) * 1.2); // 20% 버퍼
+
+    // 트랜잭션 서명
+    const signedTx = await web3.eth.accounts.signTransaction(
+      tx,
+      adminPrivateKey
+    );
+
+    // 트랜잭션 전송
+    const receipt = await web3.eth.sendSignedTransaction(
+      signedTx.rawTransaction
+    );
+
+    logger.info("DP token transfer successful:", {
+      from: adminAddress,
+      to: toAddress,
+      amount: web3.utils.fromWei(amountInWei, "ether"),
+      txHash: receipt.transactionHash,
+    });
+
+    return receipt;
+  } catch (error) {
+    logger.error("DP token transfer failed:", error);
+    throw new Error(`DP token transfer failed: ${error.message}`);
   }
 };
 

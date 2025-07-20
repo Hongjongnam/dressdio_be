@@ -5,6 +5,11 @@ const FormData = require("form-data");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const multer = require("multer"); // multer 추가
+
+// Multer 설정
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // Pinata API keys (환경변수로 관리하는 것이 안전합니다)
 const PINATA_API_KEY = process.env.PINATA_API_KEY;
@@ -81,6 +86,7 @@ async function uploadBase64ImageToIPFS(
 }
 
 module.exports = {
+  upload, // upload 미들웨어 export
   uploadJSONToIPFS,
   uploadFileToIPFS,
   uploadBase64ImageToIPFS,

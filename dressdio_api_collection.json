@@ -1,0 +1,1053 @@
+{
+  "info": {
+    "name": "DressDio API Collection",
+    "description": "Complete API collection for DressDio NFT Marketplace backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://fs.dressdio.me",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth APIs",
+      "item": [
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/:email/verify-email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", ":email", "verify-email"],
+              "variable": [
+                {
+                  "key": "email",
+                  "value": "user@example.com",
+                  "description": "Email address to verify"
+                }
+              ]
+            },
+            "description": "Check if user email exists in the system"
+          }
+        },
+        {
+          "name": "Send Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/:email/send-code?lang=en&template=register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", ":email", "send-code"],
+              "query": [
+                {
+                  "key": "lang",
+                  "value": "en",
+                  "description": "Language code"
+                },
+                {
+                  "key": "template",
+                  "value": "register",
+                  "description": "Email template type"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "email",
+                  "value": "user@example.com",
+                  "description": "Email address"
+                }
+              ]
+            },
+            "description": "Send verification code to email"
+          }
+        },
+        {
+          "name": "Verify Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/:email/verify-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", ":email", "verify-code"],
+              "variable": [
+                {
+                  "key": "email",
+                  "value": "user@example.com",
+                  "description": "Email address"
+                }
+              ]
+            },
+            "description": "Verify email code"
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"code\": \"123456\",\n  \"overage\": true,\n  \"agree\": true,\n  \"collect\": true,\n  \"thirdParty\": true,\n  \"advertise\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register new user account"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"devicePassword\": \"device123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with email and password"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your_refresh_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh-token"]
+            },
+            "description": "Refresh access token"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"newpassword123\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "reset-password"]
+            },
+            "description": "Reset user password"
+          }
+        },
+        {
+          "name": "Get Account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/account",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "account"]
+            },
+            "description": "Get user account information"
+          }
+        },
+        {
+          "name": "Get Account Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "balance"]
+            },
+            "description": "Get user DP token balance"
+          }
+        },
+        {
+          "name": "Get Social Login URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/social/login-url?provider=google&callbackUrl=https://example.com/callback",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "social", "login-url"],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "google",
+                  "description": "Social provider (google, facebook, etc.)"
+                },
+                {
+                  "key": "callbackUrl",
+                  "value": "https://example.com/callback",
+                  "description": "Callback URL after social login"
+                }
+              ]
+            },
+            "description": "Get social login URL"
+          }
+        },
+        {
+          "name": "Finalize Social Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"social_login_id_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/social/finalize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "social", "finalize"]
+            },
+            "description": "Complete social login process"
+          }
+        },
+        {
+          "name": "Social Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"code\": \"123456\",\n  \"provider\": \"google\",\n  \"overage\": true,\n  \"agree\": true,\n  \"collect\": true,\n  \"thirdParty\": true,\n  \"advertise\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/social/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "social", "register"]
+            },
+            "description": "Register with social account"
+          }
+        },
+        {
+          "name": "Social Login Full Flow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"callbackUrl\": \"https://example.com/callback\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/social/login-full",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "social", "login-full"]
+            },
+            "description": "Complete social login flow"
+          }
+        },
+        {
+          "name": "Create/Recover MPC Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"email\": \"user@example.com\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/mpc/wallet/create-or-recover",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "mpc", "wallet", "create-or-recover"]
+            },
+            "description": "Create or recover MPC wallet"
+          }
+        }
+      ]
+    },
+    {
+      "name": "IP NFT APIs",
+      "item": [
+        {
+          "name": "Mint IP NFT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessToken\": \"your_access_token_here\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"ipfsImage\": \"ipfs://Qm...\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/mint",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "mint"]
+            },
+            "description": "Mint new IP NFT"
+          }
+        },
+        {
+          "name": "Get All IP NFTs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "list"]
+            },
+            "description": "Get all IP NFTs"
+          }
+        },
+        {
+          "name": "Get My IP NFTs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "my"]
+            },
+            "description": "Get user's IP NFTs"
+          }
+        },
+        {
+          "name": "Get IP NFT Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/info/:tokenId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "info", ":tokenId"],
+              "variable": [
+                {
+                  "key": "tokenId",
+                  "value": "0",
+                  "description": "Token ID (uint)"
+                }
+              ]
+            },
+            "description": "Get specific IP NFT information"
+          }
+        },
+        {
+          "name": "Get Minting Fee",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/minting-fee",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "minting-fee"]
+            },
+            "description": "Get current minting fee"
+          }
+        },
+        {
+          "name": "Set Minting Fee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fee\": \"10\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/set-minting-fee",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "set-minting-fee"]
+            },
+            "description": "Set minting fee (admin only)"
+          }
+        },
+        {
+          "name": "Upload Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/ip/upload-image",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "ip", "upload-image"]
+            },
+            "description": "Upload image to IPFS"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Merchandise APIs",
+      "item": [
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectName\": \"My Merchandise Project\",\n  \"description\": \"Project description\",\n  \"quantity\": 100,\n  \"salePrice\": \"50\",\n  \"ipnftTokenIds\": \"0,1,2\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\",\n  \"projectImageUrl\": \"https://example.com/image.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "create"]
+            },
+            "description": "Create merchandise project"
+          }
+        },
+        {
+          "name": "Get My Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "my"]
+            },
+            "description": "Get user's merchandise projects"
+          }
+        },
+        {
+          "name": "Get All Projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "list"]
+            },
+            "description": "Get all merchandise projects"
+          }
+        },
+        {
+          "name": "Request Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": 0,\n  \"quantity\": 1,\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/request-purchase",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "request-purchase"]
+            },
+            "description": "Request purchase of merchandise"
+          }
+        },
+        {
+          "name": "Confirm Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": 0,\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/confirm-purchase",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "confirm-purchase"]
+            },
+            "description": "Confirm purchase request"
+          }
+        },
+        {
+          "name": "Cancel Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": 0,\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/cancel-purchase",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "cancel-purchase"]
+            },
+            "description": "Cancel purchase request"
+          }
+        },
+        {
+          "name": "Get Purchase Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/my-purchase-requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "my-purchase-requests"]
+            },
+            "description": "Get user's purchase requests"
+          }
+        },
+        {
+          "name": "Get Project Purchase Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/purchase-requests/:projectId",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "nft",
+                "merchandise",
+                "purchase-requests",
+                ":projectId"
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "0",
+                  "description": "Project ID (uint)"
+                }
+              ]
+            },
+            "description": "Get purchase requests for specific project"
+          }
+        },
+        {
+          "name": "Get Brand Pending Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/brand-pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "brand-pending"]
+            },
+            "description": "Get brand's pending projects"
+          }
+        },
+        {
+          "name": "Activate Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/activate/:projectId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "activate", ":projectId"],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "0",
+                  "description": "Project ID (uint)"
+                }
+              ]
+            },
+            "description": "Activate merchandise project"
+          }
+        },
+        {
+          "name": "Get My Merchandise NFTs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/my-nfts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "my-nfts"]
+            },
+            "description": "Get user's merchandise NFTs"
+          }
+        },
+        {
+          "name": "Get All Merchandise NFTs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/all-nfts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "all-nfts"]
+            },
+            "description": "Get all merchandise NFTs"
+          }
+        },
+        {
+          "name": "Get Merchandise NFT Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/nft/:tokenId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "nft", ":tokenId"],
+              "variable": [
+                {
+                  "key": "tokenId",
+                  "value": "0",
+                  "description": "Token ID (uint)"
+                }
+              ]
+            },
+            "description": "Get specific merchandise NFT information"
+          }
+        },
+        {
+          "name": "Get Platform Fee Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/platform-fee-info",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "platform-fee-info"]
+            },
+            "description": "Get platform fee information"
+          }
+        },
+        {
+          "name": "Get All Receipts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/receipts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "receipts"]
+            },
+            "description": "Get all receipts"
+          }
+        },
+        {
+          "name": "Get Receipt by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/merchandise/receipt/:receiptId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "merchandise", "receipt", ":receiptId"],
+              "variable": [
+                {
+                  "key": "receiptId",
+                  "value": "receipt_123",
+                  "description": "Receipt ID (string)"
+                }
+              ]
+            },
+            "description": "Get specific receipt"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Platform APIs",
+      "item": [
+        {
+          "name": "Transfer All Ownership",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newOwner\": \"0x...\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/platform/transfer-all-ownership",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "platform", "transfer-all-ownership"]
+            },
+            "description": "Transfer ownership of all contracts"
+          }
+        },
+        {
+          "name": "Transfer Ownership",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newOwner\": \"0x...\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/platform/transfer-ownership",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "platform", "transfer-ownership"]
+            },
+            "description": "Transfer PlatformRegistry ownership"
+          }
+        },
+        {
+          "name": "Get Owner",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/platform/owner",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "platform", "owner"]
+            },
+            "description": "Get PlatformRegistry owner"
+          }
+        },
+        {
+          "name": "Get Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/platform/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "platform", "status"]
+            },
+            "description": "Get PlatformRegistry status"
+          }
+        },
+        {
+          "name": "Set Factory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"factoryType\": \"merchandise\",\n  \"factoryAddress\": \"0x...\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/platform/set-factory",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "platform", "set-factory"]
+            },
+            "description": "Set factory address"
+          }
+        },
+        {
+          "name": "Get Addresses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/platform/addresses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "platform", "addresses"]
+            },
+            "description": "Get all contract addresses"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SBT APIs",
+      "item": [
+        {
+          "name": "Get All SBTs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/sbt/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "sbt", "list"]
+            },
+            "description": "Get all SBTs"
+          }
+        },
+        {
+          "name": "Mint SBT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"creatorWalletAddress\": \"0x...\",\n  \"creatorType\": \"brand\",\n  \"creatorName\": \"Brand Name\",\n  \"description\": \"SBT description\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/sbt/mint",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "sbt", "mint"]
+            },
+            "description": "Mint SBT (admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Utility APIs",
+      "item": [
+        {
+          "name": "Faucet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletAddress\": \"0x...\",\n  \"amount\": \"100\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/utils/faucet",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "utils", "faucet"]
+            },
+            "description": "Get DP tokens from faucet"
+          }
+        },
+        {
+          "name": "Debug IP NFT State",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/utils/debug/ipnft/:tokenId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "utils", "debug", "ipnft", ":tokenId"],
+              "variable": [
+                {
+                  "key": "tokenId",
+                  "value": "0",
+                  "description": "Token ID (uint)"
+                }
+              ]
+            },
+            "description": "Debug IP NFT state"
+          }
+        }
+      ]
+    }
+  ]
+}

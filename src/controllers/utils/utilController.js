@@ -1,5 +1,18 @@
-const { web3, dpTokenContract } = require("../../config/web3");
+const {
+  web3,
+  sbtContract,
+  dpTokenContract,
+  ipnftFactoryContract,
+  platformRegistryContract,
+  creatorSBTContract,
+  IPNFTABI, // IPNFT ABI 추가
+} = require("../../config/web3");
 const { uploadFileToIPFS, uploadJSONToIPFS } = require("../../services/upload");
+const { stringifyBigInts } = require("../../utils/utils");
+const authService = require("../../services/auth");
+const walletService = require("../../services/wallet");
+const blockchainService = require("../../services/blockchain");
+const logger = require("../../utils/logger");
 
 // faucet에서만 직접 .env의 DRESSDIO_ADMIN_WALLET_ADDRESS, DRESSDIO_ADMIN_PRIVATE_KEY 사용
 const FAUCET_ADMIN_ADDRESS = process.env.DRESSDIO_ADMIN_WALLET_ADDRESS;
@@ -7,7 +20,6 @@ const FAUCET_ADMIN_PRIVATE_KEY = process.env.DRESSDIO_ADMIN_PRIVATE_KEY;
 
 let faucetLock = false;
 
-// POST /api/utils/faucet
 exports.faucet = async (req, res) => {
   if (faucetLock) {
     return res.status(429).json({
@@ -19,57 +31,28 @@ exports.faucet = async (req, res) => {
   faucetLock = true;
   try {
     const { walletAddress, amount } = req.body;
-    if (!walletAddress || !web3.utils.isAddress(walletAddress)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "유효한 지갑 주소를 입력하세요." });
+    if (!walletAddress || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet address and amount are required.",
+      });
     }
-    const dpAmount = Number(amount);
-    if (!dpAmount || dpAmount < 1 || dpAmount > 10000) {
-      return res
-        .status(400)
-        .json({ success: false, message: "1~10,000 DP만 요청할 수 있습니다." });
-    }
-    // amount(DP)를 wei로 변환
-    const weiAmount = web3.utils.toWei(dpAmount.toString(), "ether");
 
-    // 트랜잭션 데이터 생성 (ERC20 transfer)
-    const data = dpTokenContract.methods
-      .transfer(walletAddress, weiAmount)
-      .encodeABI();
-
-    // 최신 web3 및 EIP-1559 호환 트랜잭션 옵션
-    const gas = 100000;
-    const gasPrice = await web3.eth.getGasPrice();
-    const nonce = await web3.eth.getTransactionCount(
-      FAUCET_ADMIN_ADDRESS,
-      "pending"
+    const receipt = await blockchainService.transferDP(
+      walletAddress,
+      web3.utils.toWei(amount.toString(), "ether")
     );
-    console.log(FAUCET_ADMIN_ADDRESS, "FAUCET_ADMIN_ADDRESS");
-
-    const tx = {
-      from: FAUCET_ADMIN_ADDRESS,
-      to: dpTokenContract.options.address,
-      data,
-      gas: web3.utils.toHex(gas),
-      gasPrice: web3.utils.toHex(gasPrice),
-      nonce: web3.utils.toHex(nonce),
-    };
-
-    // 서명 및 전송
-    const signed = await web3.eth.accounts.signTransaction(
-      tx,
-      FAUCET_ADMIN_PRIVATE_KEY
-    );
-    const receipt = await web3.eth.sendSignedTransaction(signed.rawTransaction);
-
-    return res.json({
+    res.json({
       success: true,
-      txHash: receipt.transactionHash,
-      message: `${dpAmount} DP 토큰이 성공적으로 지급되었습니다.`,
+      message: "DP tokens transferred successfully.",
+      data: {
+        to: walletAddress,
+        amount: amount,
+        receipt: stringifyBigInts(receipt),
+      },
     });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   } finally {
     faucetLock = false;
   }
@@ -78,14 +61,14 @@ exports.faucet = async (req, res) => {
 // POST /api/utils/ipfs/upload-file
 exports.uploadFileToIPFS = async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
+    if (!req.file) {
       return res.status(400).json({
         success: false,
         message: "업로드할 파일을 선택해주세요.",
       });
     }
 
-    const file = req.files[0];
+    const file = req.file;
     console.log("IPFS 파일 업로드 시작:", {
       originalName: file.originalname,
       size: file.size,
@@ -182,4 +165,111 @@ exports.uploadJSONToIPFS = async (req, res) => {
       error: error.message,
     });
   }
+};
+
+const debugIpNftState = async (req, res) => {
+  const { tokenId } = req.params;
+  const logs = [];
+  let ipnftContract;
+
+  const log = (message, data = "") => {
+    const logMessage = `[Debug IPNFT ${tokenId}] ${message}`;
+    console.log(logMessage, data);
+    logs.push({ message: logMessage, data: stringifyBigInts(data) });
+  };
+
+  try {
+    // 1. IPNFT 컨트랙트 인스턴스 가져오기
+    try {
+      const ipnftAddress = await ipnftFactoryContract.methods
+        .getIPNFTAddress()
+        .call();
+      log("Successfully fetched IPNFT contract address:", ipnftAddress);
+      ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
+    } catch (e) {
+      log("❌ FAILED to get IPNFT contract address.", e.message);
+      return res.status(500).json({ success: false, logs });
+    }
+
+    // 2. PlatformRegistry에 토큰이 등록되었는지 확인
+    try {
+      const isRegistered = await platformRegistryContract.methods
+        .validIPNFTTokenIds(tokenId)
+        .call();
+      log(`Is token registered in PlatformRegistry?`, isRegistered);
+      if (!isRegistered) {
+        log(
+          "❌ CRITICAL: Token is not registered in PlatformRegistry. This is a likely cause of failure."
+        );
+      }
+    } catch (e) {
+      log(
+        "❌ FAILED to check token registration in PlatformRegistry.",
+        e.message
+      );
+    }
+
+    // 3. IPNFT 컨트랙트에서 토큰 정보 조회
+    let tokenInfo;
+    try {
+      tokenInfo = await ipnftContract.methods.getTokenInfo(tokenId).call();
+      log("Successfully fetched token info from IPNFT contract:", tokenInfo);
+    } catch (e) {
+      log(
+        "❌ FAILED to get token info from IPNFT contract. This might be the root cause of the revert.",
+        e.message
+      );
+      return res.status(500).json({ success: false, logs });
+    }
+
+    // 4. CreatorSBT 컨트랙트에서 SBT 정보 조회
+    try {
+      const { creator, creatorSBTId } = tokenInfo;
+      log(
+        `Fetching SBT info for creator ${creator} with SBT ID ${creatorSBTId}`
+      );
+      const sbtInfo = await creatorSBTContract.methods
+        .getSBTInfoById(creatorSBTId)
+        .call();
+      log("Successfully fetched SBT info:", sbtInfo);
+    } catch (e) {
+      log("❌ FAILED to get SBT info from CreatorSBT contract.", e.message);
+    }
+
+    // 5. PlatformRegistry에서 Brand 유효성 검증
+    try {
+      const isBrand = await platformRegistryContract.methods
+        .validateBrandIPNFT(tokenId)
+        .call();
+      log("Result of validateBrandIPNFT:", isBrand);
+    } catch (e) {
+      log("❌ FAILED to execute validateBrandIPNFT.", e.message);
+    }
+
+    // 6. PlatformRegistry에서 Artist 유효성 검증
+    try {
+      const isArtist = await platformRegistryContract.methods
+        .validateArtistIPNFT(tokenId)
+        .call();
+      log("Result of validateArtistIPNFT:", isArtist);
+    } catch (e) {
+      log("❌ FAILED to execute validateArtistIPNFT.", e.message);
+    }
+
+    res.json({
+      success: true,
+      message: "Debug check complete. See server logs for details.",
+      logs,
+    });
+  } catch (error) {
+    log("An unexpected error occurred during debug check.", error.message);
+    res.status(500).json({ success: false, logs });
+  }
+};
+
+module.exports = {
+  faucet: exports.faucet,
+  uploadFileToIPFS: exports.uploadFileToIPFS,
+  uploadJSONToIPFS: exports.uploadJSONToIPFS,
+  debugIpNftState,
 };

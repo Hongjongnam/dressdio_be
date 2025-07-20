@@ -1,5 +1,32 @@
 const fs = require("fs").promises;
 const path = require("path");
+const { web3 } = require("../config/web3");
+
+/**
+ * 숫자를 읽기 쉬운 형태로 포맷팅하는 함수
+ * @param {string|number} value - 포맷팅할 값
+ * @returns {string} 포맷팅된 문자열
+ */
+const formatNumber = (value) => {
+  if (!value) return "0";
+
+  // 문자열을 숫자로 변환
+  const num = parseFloat(value);
+
+  // 매우 작은 값 (1e-10 미만)은 0으로 처리
+  if (Math.abs(num) < 1e-10) {
+    return "0.00";
+  }
+
+  // 과학적 표기법을 일반 소수점으로 변환
+  if (Math.abs(num) < 0.01 && num !== 0) {
+    // 매우 작은 값은 소수점 8자리까지 표시
+    return num.toFixed(8).replace(/\.?0+$/, "");
+  }
+
+  // 일반적인 값은 소수점 2자리까지 표시
+  return num.toFixed(2);
+};
 
 /**
  * 구매 영수증 생성 및 저장
@@ -33,12 +60,12 @@ const generateReceipt = async (
     distribution: distributionData.map((dist) => ({
       role: dist.role,
       recipient: dist.recipient,
-      expectedAmount: dist.expectedAmount.toString(),
-      fee: dist.fee.toString(),
-      netAmount: dist.netAmount.toString(),
+      expectedAmount: formatNumber(dist.expectedAmount),
+      fee: formatNumber(dist.fee),
+      netAmount: formatNumber(dist.netAmount),
       beforeBalance: dist.beforeBalance.toString(),
       afterBalance: dist.afterBalance.toString(),
-      actualIncrease: dist.actualIncrease.toString(),
+      actualIncrease: formatNumber(dist.actualIncrease),
       isMatched: dist.isMatched,
     })),
     transaction: {
@@ -54,14 +81,28 @@ const generateReceipt = async (
       tokenUri: purchaseData.tokenUri,
     },
     summary: {
-      totalAmount: purchaseData.amount.toString(),
-      totalFees: distributionData
-        .reduce((sum, dist) => sum + BigInt(dist.fee), 0n)
-        .toString(),
-      totalNetDistribution: distributionData
-        .reduce((sum, dist) => sum + BigInt(dist.netAmount), 0n)
-        .toString(),
-      participants: distributionData.length,
+      totalAmount: formatNumber(purchaseData.amount),
+      totalFees: formatNumber(
+        distributionData
+          .filter((dist) => dist.role.includes("Platform Fee"))
+          .reduce((sum, dist) => {
+            // DP 단위 문자열을 숫자로 변환하여 계산
+            const feeAmount = parseFloat(dist.fee);
+            return sum + feeAmount;
+          }, 0)
+      ),
+      totalNetDistribution: formatNumber(
+        distributionData
+          .filter((dist) => !dist.role.includes("Platform Fee"))
+          .reduce((sum, dist) => {
+            // DP 단위 문자열을 숫자로 변환하여 계산
+            const netAmount = parseFloat(dist.netAmount);
+            return sum + netAmount;
+          }, 0)
+      ),
+      participants: distributionData.filter(
+        (dist) => !dist.role.includes("Platform Fee")
+      ).length,
     },
   };
 

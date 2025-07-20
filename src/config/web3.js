@@ -59,7 +59,7 @@ const web3Config = {
   platformAdmin: process.env.PLATFORM_ADMIN_WALLET_ADDRESS,
   // ABC Wallet configuration
   abcWalletBaseUrl: process.env.BASEURL,
-  devicePassword: process.env.DEVICE_PASSWORD,
+  // devicePassword is now provided by user input, not environment variable
 };
 
 // Format and validate admin account
@@ -116,6 +116,17 @@ const creatorSBTContract = new web3.eth.Contract(
   contractAddresses.creatorSBT
 );
 
+let ipnftContract; // 내부에서 관리할 변수
+
+const getIpNftContract = () => {
+  if (!ipnftContract) {
+    throw new Error(
+      "IPNFT Contract is not initialized yet. Ensure initializeWeb3() has been called and completed."
+    );
+  }
+  return ipnftContract;
+};
+
 // Check network connection
 const checkConnection = async () => {
   try {
@@ -139,6 +150,18 @@ const initializeWeb3 = async () => {
     validateAddresses();
     initializeAdminAccount();
     await checkConnection();
+
+    const ipnftAddress = await ipnftFactoryContract.methods
+      .getIPNFTAddress()
+      .call();
+    if (ipnftAddress && web3.utils.isAddress(ipnftAddress)) {
+      ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
+      logger.info(`IPNFT contract instance created at: ${ipnftAddress}`);
+    } else {
+      throw new Error(
+        "Failed to retrieve a valid IPNFT contract address from the factory."
+      );
+    }
   } catch (error) {
     logger.error("Web3 initialization failed:", error);
     throw error;
@@ -176,6 +199,7 @@ module.exports = {
   platformRegistryContract,
   creatorSBTContract,
   merchandiseFactoryContract,
+  // ipnftContract는 initializeWeb3에서 동적으로 추가됩니다.
   // Contract addresses
   ipnftFactoryAddress: contractAddresses.ipnftFactory,
   dpTokenAddress: contractAddresses.dpToken,
@@ -185,7 +209,7 @@ module.exports = {
   merchandiseFactoryAddress: contractAddresses.merchandiseFactory,
   // ABC Wallet config
   abcWalletBaseUrl: web3Config.abcWalletBaseUrl,
-  devicePassword: web3Config.devicePassword,
+  // devicePassword is now provided by user input, not config
   // Admin account
   dressdioAdminAccount,
   // Web3 config
@@ -193,4 +217,5 @@ module.exports = {
   // Functions
   checkConnection,
   initializeWeb3,
+  getIpNftContract, // Getter 함수를 내보냄
 };

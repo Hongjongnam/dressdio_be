@@ -1,69 +1,112 @@
-<h2>IPNFT</h2>
 <div class="api-grid">
+  <!-- Card 1: IPNFT Minting -->
   <fieldset>
-    <legend>1. IPNFT 민팅 (POST /api/nft/ip/mint)</legend>
-    <form id="mint-ipnft-form" enctype="multipart/form-data">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <label>Name <input type="text" name="name" required /></label>
-      <label
-        >Description <input type="text" name="description" required
-      /></label>
-      <label>Price (DP) <input type="text" name="price" required /></label>
-      <label
-        >Supply Price (DP) <input type="text" name="supplyPrice" required
-      /></label>
-      <label
-        >Creator Type <input type="text" name="creatorType" required
-      /></label>
-      <label
-        >IPFS Image <input type="file" name="ipfsImage" id="ipfsImageInput"
-      /></label>
-      <img
-        id="ipfsImagePreview"
-        style="max-width: 200px; display: none; margin-top: 10px"
+    <legend>1. IPNFT 발행 (크리에이터)</legend>
+    <p class="description">
+      새로운 IPNFT를 발행합니다. 이 과정은 DP 토큰 수수료를 승인하고 NFT를
+      발행하는 두 개의 트랜잭션으로 이루어집니다. 크리에이터의 액세스 토큰과
+      로컬 지갑 데이터가 필요합니다.
+    </p>
+    <form id="mint-ipnft-form">
+      <label for="ipnftAccessToken">크리에이터 액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="크리에이터의 액세스 토큰을 입력하세요"
+      ></textarea>
+      <label for="ipnftDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        name="devicePassword"
+        required
+        placeholder="지갑의 장치 비밀번호를 입력하세요"
       />
-      <button type="submit">Mint IPNFT</button>
+      <label for="ipfsImage">IPFS 이미지 URI</label>
+      <input type="text" name="ipfsImage" value="ipfs://your-image-cid" />
+      <label for="ipnftName">이름</label>
+      <input type="text" name="name" value="나의 멋진 IP" />
+      <label for="ipnftDescription">설명</label>
+      <input
+        type="text"
+        name="description"
+        value="이 IP에 대한 간략한 설명입니다."
+      />
+      <label for="ipnftPrice">판매 가격 (DP)</label>
+      <input type="number" name="price" value="100" />
+      <label for="ipnftSupplyPrice">공급 가격 (DP)</label>
+      <input type="number" name="supplyPrice" value="50" />
+      <label for="ipnftCreatorType">크리에이터 타입 (SBT)</label>
+      <select name="creatorType">
+        <option value="brand">Brand</option>
+        <option value="artist">Artist</option>
+      </select>
+      <button type="submit">IPNFT 발행</button>
     </form>
     <pre id="mint-ipnft-result"></pre>
   </fieldset>
+
+  <!-- Card 2: List All IPNFTs -->
   <fieldset>
-    <legend>2. 내 IPNFT 조회 (GET /api/nft/ip/my)</legend>
-    <form id="my-ipnft-form">
-      <label
-        >Access Token <input type="text" name="accessToken" required
-      /></label>
-      <button type="submit">Get My IPNFTs</button>
+    <legend>2. 전체 IPNFT 목록 조회</legend>
+    <form id="list-all-ipnfts-form">
+      <button type="button" id="list-all-ipnfts-btn">전체 IPNFT 조회</button>
     </form>
-    <pre id="my-ipnft-result"></pre>
+    <pre id="list-all-ipnfts-result"></pre>
   </fieldset>
+
+  <!-- Card 3: Get My IPNFTs -->
   <fieldset>
-    <legend>3. 전체 IPNFT 조회 (GET /api/nft/ip/list)</legend>
-    <button id="get-all-ipnft-btn">Get All IPNFTs</button>
-    <pre id="all-ipnft-result"></pre>
+    <legend>3. 나의 IPNFT 목록 조회</legend>
+    <p class="description">
+      NFT 목록을 조회하려는 사용자의 액세스 토큰이 필요합니다.
+    </p>
+    <form id="get-my-ipnfts-form">
+      <label for="myIpnftAccessToken">나의 액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="나의 액세스 토큰을 입력하세요"
+      ></textarea>
+      <button type="button" id="get-my-ipnfts-btn">나의 IPNFT 조회</button>
+    </form>
+    <pre id="get-my-ipnfts-result"></pre>
   </fieldset>
+
+  <!-- Card 4: Get IPNFT Info by ID -->
   <fieldset>
-    <legend>4. IPNFT 정보 조회 (GET /api/nft/ip/info/:tokenId)</legend>
+    <legend>4. IPNFT 정보 조회 (ID)</legend>
     <form id="get-ipnft-info-form">
-      <label>Token ID <input type="text" name="tokenId" required /></label>
-      <button type="submit">Get IPNFT Info</button>
+      <label for="infoTokenId">토큰 ID</label>
+      <input type="text" name="tokenId" required />
+      <button type="button" id="get-ipnft-info-btn">IPNFT 정보 조회</button>
     </form>
     <pre id="get-ipnft-info-result"></pre>
   </fieldset>
+
+  <!-- Card 5: Minting Fee -->
   <fieldset>
-    <legend>5. 민팅 수수료 조회 (GET /api/nft/ip/minting-fee)</legend>
-    <button id="get-minting-fee-btn">Get Minting Fee</button>
-    <pre id="minting-fee-result"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>6. 민팅 수수료 변경 (관리자) (POST /api/nft/ip/minting-fee)</legend>
+    <legend>5. 발행 수수료 (GET & POST)</legend>
+    <form id="get-minting-fee-form">
+      <button type="button" id="get-minting-fee-btn">
+        현재 발행 수수료 조회
+      </button>
+    </form>
+    <pre id="get-minting-fee-result"></pre>
+    <hr />
+    <p class="description">
+      새로운 발행 수수료를 설정합니다. IPNFTFactory 소유자의 액세스 토큰과 장치
+      비밀번호가 필요합니다.
+    </p>
     <form id="set-minting-fee-form">
-      <label
-        >Access Token(관리자) <input type="text" name="accessToken" required
-      /></label>
-      <label>New Fee (DP) <input type="text" name="newFee" required /></label>
-      <button type="submit">Set Minting Fee</button>
+      <label for="setFeeAccessToken">팩토리 소유자 액세스 토큰</label>
+      <textarea name="accessToken" rows="3" required></textarea>
+      <label for="setFeeDevicePassword">팩토리 소유자 장치 비밀번호</label>
+      <input type="password" name="devicePassword" required />
+      <label for="newFee">새로운 수수료 (DP)</label>
+      <input type="number" name="newFee" required />
+      <button type="submit">새로운 발행 수수료 설정</button>
     </form>
     <pre id="set-minting-fee-result"></pre>
   </fieldset>

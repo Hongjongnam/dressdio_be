@@ -6,7 +6,7 @@ const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
 // POST /api/nft/merchandise/create - 상품 프로젝트 생성
-router.post("/create", auth, upload.any(), merchandiseController.createProject);
+router.post("/create", auth, merchandiseController.createProject);
 
 // GET /api/nft/merchandise/my - 인플루언서 자신의 프로젝트 목록 조회 (auth 미들웨어 사용)
 router.get("/my", auth, merchandiseController.getMyProjects);
@@ -79,12 +79,6 @@ router.get(
 
 // PDF 영수증 관련 라우트
 // GET /api/nft/merchandise/receipt/:receiptId/pdf - PDF 영수증 다운로드
-router.get("/receipt/:receiptId/pdf", merchandiseController.downloadPDFReceipt);
-
-// POST /api/nft/merchandise/receipt/:receiptId/generate-pdf - PDF 영수증 생성
-router.post(
-  "/receipt/:receiptId/generate-pdf",
-  merchandiseController.generatePDFReceipt
-);
+router.get("/receipt/:receiptId/pdf", merchandiseController.generatePDFReceipt);
 
 module.exports = router;

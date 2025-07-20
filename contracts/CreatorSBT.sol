@@ -118,20 +118,14 @@ contract CreatorSBT is ERC721, Ownable {
 
     // 토큰 ID로 크리에이터 타입 조회
     function getCreatorType(uint256 _tokenId) external view returns (string memory) {
-        try this.ownerOf(_tokenId) returns (address) {
-            return tokenTypes[_tokenId];
-        } catch {
-            revert("Token does not exist");
-        }
+        require(_exists(_tokenId), "Token does not exist");
+        return tokenTypes[_tokenId];
     }
 
     // 토큰 ID로 설명 조회
     function getDescription(uint256 _tokenId) external view returns (string memory) {
-        try this.ownerOf(_tokenId) returns (address) {
-            return tokenDescriptions[_tokenId];
-        } catch {
-            revert("Token does not exist");
-        }
+        require(_exists(_tokenId), "Token does not exist");
+        return tokenDescriptions[_tokenId];
     }
 
     // 현재까지 발행된 총 수량 반환
@@ -141,19 +135,16 @@ contract CreatorSBT is ERC721, Ownable {
 
     // 토큰 ID로 SBT 정보 조회
     function getSBTInfoById(uint256 _tokenId) external view returns (SBTInfo memory) {
-        try this.ownerOf(_tokenId) returns (address owner) {
-            return SBTInfo({
-                tokenId: _tokenId,
-                owner: owner,
-                creatorType: tokenTypes[_tokenId],
-                creatorName: creatorNames[_tokenId],
-                description: tokenDescriptions[_tokenId],
-                tokenUri: _tokenURIs[_tokenId],
-                useCount: useCount[_tokenId]
-            });
-        } catch {
-            revert("Token does not exist");
-        }
+        require(_exists(_tokenId), "Token does not exist");
+        return SBTInfo({
+            tokenId: _tokenId,
+            owner: ownerOf(_tokenId),
+            creatorType: tokenTypes[_tokenId],
+            creatorName: creatorNames[_tokenId],
+            description: tokenDescriptions[_tokenId],
+            tokenUri: _tokenURIs[_tokenId],
+            useCount: useCount[_tokenId]
+        });
     }
 
     // 지갑 주소로 SBT 정보 조회
@@ -162,12 +153,8 @@ contract CreatorSBT is ERC721, Ownable {
         
         // 해당 주소가 보유한 SBT 수 계산
         for (uint256 i = 0; i < nextTokenId; i++) {
-            try this.ownerOf(i) returns (address owner) {
-                if (owner == _address) {
-                    count++;
-                }
-            } catch {
-                continue;
+            if (_exists(i) && ownerOf(i) == _address) {
+                count++;
             }
         }
 
@@ -177,21 +164,17 @@ contract CreatorSBT is ERC721, Ownable {
 
         // SBT 정보 수집
         for (uint256 i = 0; i < nextTokenId; i++) {
-            try this.ownerOf(i) returns (address owner) {
-                if (owner == _address) {
-                    sbtInfos[index] = SBTInfo({
-                        tokenId: i,
-                        owner: owner,
-                        creatorType: tokenTypes[i],
-                        creatorName: creatorNames[i],
-                        description: tokenDescriptions[i],
-                        tokenUri: _tokenURIs[i],
-                        useCount: useCount[i]
-                    });
-                    index++;
-                }
-            } catch {
-                continue;
+            if (_exists(i) && ownerOf(i) == _address) {
+                sbtInfos[index] = SBTInfo({
+                    tokenId: i,
+                    owner: ownerOf(i),
+                    creatorType: tokenTypes[i],
+                    creatorName: creatorNames[i],
+                    description: tokenDescriptions[i],
+                    tokenUri: _tokenURIs[i],
+                    useCount: useCount[i]
+                });
+                index++;
             }
         }
 
@@ -206,11 +189,7 @@ contract CreatorSBT is ERC721, Ownable {
 
     // 토큰 존재 여부 확인 (내부 함수)
     function _exists(uint256 tokenId) internal view returns (bool) {
-        try this.ownerOf(tokenId) returns (address) {
-            return true;
-        } catch {
-            return false;
-        }
+        return _ownerOf(tokenId) != address(0);
     }
 
     // 모든 SBT 정보 조회
