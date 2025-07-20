@@ -399,14 +399,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"ipfsImage\": \"ipfs://Qm...\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  },\n  \"ipfsImage\": \"ipfs://QmYourImageCIDHere\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/ip/mint",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "ip", "mint"]
             },
-            "description": "Mint new IP NFT"
+            "description": "Mint new IP NFT with actual signature data"
           }
         },
         {
@@ -489,14 +489,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fee\": \"10\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  },\n  \"newFee\": \"10\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/ip/set-minting-fee",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "ip", "set-minting-fee"]
             },
-            "description": "Set minting fee (admin only)"
+            "description": "Set minting fee with actual signature data (admin only)"
           }
         },
         {

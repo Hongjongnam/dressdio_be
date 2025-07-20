@@ -98,12 +98,6 @@
           placeholder="encrypted_password"
           required
         ></textarea>
-
-        <small style="color: #666; font-size: 0.9rem">
-          MPC 지갑 생성 시 받은 데이터를 개별 필드에 입력하세요. auth.html에서
-          MPC 지갑 생성 후 localStorage에서 복사하거나, Postman 테스트용
-          데이터를 직접 입력하세요.
-        </small>
       </fieldset>
 
       <button type="submit">IPNFT 발행</button>
@@ -171,6 +165,81 @@
       <input type="password" name="devicePassword" required />
       <label for="newFee">새로운 수수료 (DP)</label>
       <input type="number" name="newFee" required />
+
+      <fieldset
+        style="
+          border: 1px solid #ddd;
+          padding: 15px;
+          margin: 10px 0;
+          border-radius: 5px;
+        "
+      >
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (필수)
+        </legend>
+
+        <label for="setFeeUid">UID</label>
+        <input
+          type="text"
+          id="setFeeUid"
+          name="storedWalletData_uid"
+          placeholder="user_id"
+          required
+        />
+
+        <label for="setFeeWid">WID</label>
+        <input
+          type="number"
+          id="setFeeWid"
+          name="storedWalletData_wid"
+          placeholder="wallet_id"
+          required
+        />
+
+        <label for="setFeeSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="setFeeSid"
+          name="storedWalletData_sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="setFeePvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="setFeePvencstr"
+          name="storedWalletData_pvencstr"
+          rows="4"
+          placeholder="encrypted_data"
+          required
+        ></textarea>
+
+        <label for="setFeeEncryptDevicePassword">암호화된 장치 비밀번호</label>
+        <textarea
+          id="setFeeEncryptDevicePassword"
+          name="storedWalletData_encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+
+        <label for="setFeeUcpubkey">UCPUBKEY</label>
+        <input
+          type="text"
+          id="setFeeUcpubkey"
+          name="storedWalletData_ucpubkey"
+          placeholder="null"
+        />
+
+        <label for="setFeeOurpubkey">OURPUBKEY</label>
+        <input
+          type="text"
+          id="setFeeOurpubkey"
+          name="storedWalletData_ourpubkey"
+          placeholder="null"
+        />
+      </fieldset>
+
       <button type="submit">새로운 발행 수수료 설정</button>
     </form>
     <pre id="set-minting-fee-result"></pre>

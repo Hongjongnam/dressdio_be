@@ -269,13 +269,27 @@ Authorization: Bearer {accessToken}
 - **Method**: POST
 - **Path**: `/api/nft/ip/set-minting-fee`
 - **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
-  "fee": "10"
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  },
+  "newFee": "10"
 }
 ```
+
+**설명**: IP NFT 팩토리 소유자만 수수료를 변경할 수 있습니다. 장치 비밀번호와 저장된 지갑 데이터가 필요합니다.
 
 ### 7. 이미지 업로드
 
