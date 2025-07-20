@@ -180,14 +180,31 @@ Authorization: Bearer {accessToken}
 
 - **Method**: POST
 - **Path**: `/api/auth/mpc/wallet/create-or-recover`
-- **Auth**: ❌
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
   "devicePassword": "device123",
-  "email": "user@example.com",
-  "accessToken": "your_access_token_here"
+  "email": "user@example.com"
+}
+```
+
+### 15. 비밀번호 변경
+
+- **Method**: POST
+- **Path**: `/api/auth/change-password`
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Body**:
+
+```json
+{
+  "oldpassword": "oldpassword123",
+  "newpassword": "newpassword123"
 }
 ```
 
@@ -200,11 +217,12 @@ Authorization: Bearer {accessToken}
 - **Method**: POST
 - **Path**: `/api/nft/ip/mint`
 - **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
-  "accessToken": "your_access_token_here",
   "devicePassword": "device123",
   "storedWalletData": {
     "sid": "0x...",
@@ -540,26 +558,118 @@ Authorization: Bearer {accessToken}
 - **Method**: GET
 - **Path**: `/api/nft/sbt/list`
 - **Auth**: ❌
+- **Description**: 모든 SBT 토큰 목록을 조회합니다.
 
-### 2. SBT 발행
+### 2. SBT 정보 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/sbt/:tokenId`
+- **Auth**: ❌
+- **Parameters**:
+  - `tokenId` (uint): SBT 토큰 ID
+- **Description**: 특정 SBT 토큰의 상세 정보를 조회합니다.
+
+### 3. 관리자 잔액 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/sbt/admin-balance`
+- **Auth**: ❌
+- **Description**: 관리자 지갑의 ETH 잔액을 조회합니다.
+
+### 4. SBT 발행 (Brand)
 
 - **Method**: POST
 - **Path**: `/api/nft/sbt/mint`
-- **Auth**: ✅
+- **Auth**: ✅ (관리자만)
 - **Body**:
 
 ```json
 {
   "devicePassword": "device123",
   "storedWalletData": {
-    "sid": "0x...",
-    "wid": "0x...",
-    "uid": "0x..."
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
   },
-  "creatorWalletAddress": "0x...",
+  "creatorWalletAddress": "0x1234567890123456789012345678901234567890",
   "creatorType": "brand",
-  "creatorName": "Brand Name",
-  "description": "SBT description"
+  "creatorName": "Test Brand",
+  "description": "Test SBT for Brand"
+}
+```
+
+### 5. SBT 발행 (Creator)
+
+- **Method**: POST
+- **Path**: `/api/nft/sbt/mint`
+- **Auth**: ✅ (관리자만)
+- **Body**:
+
+```json
+{
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  },
+  "creatorWalletAddress": "0x9876543210987654321098765432109876543210",
+  "creatorType": "creator",
+  "creatorName": "Test Creator",
+  "description": "Test SBT for Creator"
+}
+```
+
+### 6. SBT 발행 (Designer)
+
+- **Method**: POST
+- **Path**: `/api/nft/sbt/mint`
+- **Auth**: ✅ (관리자만)
+- **Body**:
+
+```json
+{
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  },
+  "creatorWalletAddress": "0x5555555555555555555555555555555555555555",
+  "creatorType": "designer",
+  "creatorName": "Test Designer",
+  "description": "Test SBT for Designer"
+}
+```
+
+**SBT Creator Types:**
+
+- `brand`: 브랜드용 SBT
+- `creator`: 크리에이터용 SBT
+- `designer`: 디자이너용 SBT
+
+**Response Example:**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "txHash": "0x...",
+    "tokenId": "1",
+    "message": "SBT minted successfully."
+  }
 }
 ```
 

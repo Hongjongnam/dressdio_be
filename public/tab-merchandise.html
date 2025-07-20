@@ -51,6 +51,21 @@
             placeholder="Enter image URL"
             required
           />
+
+          <label for="cp_storedWalletData">저장된 지갑 데이터 (필수)</label>
+          <textarea
+            id="cp_storedWalletData"
+            name="storedWalletData"
+            rows="8"
+            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
+            required
+          ></textarea>
+          <small style="color: #666; font-size: 0.9rem">
+            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
+            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
+            테스트용 데이터를 직접 입력하세요.
+          </small>
+
           <button type="submit">Create Project</button>
         </form>
         <pre id="createProjectResult"></pre>
@@ -115,6 +130,21 @@
           />
           <label for="ap_projectId">Project ID:</label>
           <input type="text" id="ap_projectId" name="projectId" required />
+
+          <label for="ap_storedWalletData">저장된 지갑 데이터 (필수)</label>
+          <textarea
+            id="ap_storedWalletData"
+            name="storedWalletData"
+            rows="8"
+            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
+            required
+          ></textarea>
+          <small style="color: #666; font-size: 0.9rem">
+            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
+            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
+            테스트용 데이터를 직접 입력하세요.
+          </small>
+
           <button type="submit">Activate Project</button>
         </form>
         <pre id="activateProjectResult"></pre>
@@ -140,6 +170,21 @@
           />
           <label for="rp_projectId">Project ID:</label>
           <input type="text" id="rp_projectId" name="projectId" required />
+
+          <label for="rp_storedWalletData">저장된 지갑 데이터 (필수)</label>
+          <textarea
+            id="rp_storedWalletData"
+            name="storedWalletData"
+            rows="8"
+            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
+            required
+          ></textarea>
+          <small style="color: #666; font-size: 0.9rem">
+            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
+            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
+            테스트용 데이터를 직접 입력하세요.
+          </small>
+
           <button type="submit">Request Purchase</button>
         </form>
         <pre id="requestPurchaseResult"></pre>
@@ -183,6 +228,21 @@
           <input type="text" id="confp_projectId" name="projectId" required />
           <label for="confp_requestId">Request ID:</label>
           <input type="text" id="confp_requestId" name="requestId" required />
+
+          <label for="confp_storedWalletData">저장된 지갑 데이터 (필수)</label>
+          <textarea
+            id="confp_storedWalletData"
+            name="storedWalletData"
+            rows="8"
+            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
+            required
+          ></textarea>
+          <small style="color: #666; font-size: 0.9rem">
+            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
+            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
+            테스트용 데이터를 직접 입력하세요.
+          </small>
+
           <button type="submit">Confirm Purchase</button>
         </form>
         <pre id="confirmPurchaseResult"></pre>

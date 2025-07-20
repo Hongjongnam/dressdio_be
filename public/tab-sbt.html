@@ -2,12 +2,17 @@
   <div class="api-grid">
     <fieldset>
       <legend>1. SBT 발급 (관리자)</legend>
+      <p class="description">
+        SBT를 발급하기 위해서는 관리자 권한과 서명 데이터가 필요합니다. Postman
+        테스트를 위해 모든 필드를 명시적으로 입력하세요.
+      </p>
       <form id="mint-sbt-form">
         <label for="sbtAccessToken">관리자 액세스 토큰</label>
         <textarea
           id="sbtAccessToken"
           name="accessToken"
           rows="3"
+          placeholder="Bearer 토큰을 입력하세요"
           required
         ></textarea>
 
@@ -16,6 +21,7 @@
           type="password"
           id="sbtDevicePassword"
           name="devicePassword"
+          placeholder="MPC 지갑 생성 시 사용한 장치 비밀번호"
           required
         />
 
@@ -41,6 +47,70 @@
 
         <label for="sbtDescription">설명</label>
         <input type="text" id="sbtDescription" name="description" required />
+
+        <fieldset
+          style="
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+          "
+        >
+          <legend style="font-size: 0.9rem; color: #666">
+            저장된 지갑 데이터 (필수)
+          </legend>
+
+          <label for="sbtUid">UID</label>
+          <input
+            type="text"
+            id="sbtUid"
+            name="storedWalletData_uid"
+            placeholder="user_id"
+            required
+          />
+
+          <label for="sbtWid">WID</label>
+          <input
+            type="number"
+            id="sbtWid"
+            name="storedWalletData_wid"
+            placeholder="wallet_id"
+            required
+          />
+
+          <label for="sbtSid">SID (지갑 주소)</label>
+          <input
+            type="text"
+            id="sbtSid"
+            name="storedWalletData_sid"
+            placeholder="0x..."
+            required
+          />
+
+          <label for="sbtPvencstr">PVENCSTR (암호화된 데이터)</label>
+          <textarea
+            id="sbtPvencstr"
+            name="storedWalletData_pvencstr"
+            rows="4"
+            placeholder="encrypted_data"
+            required
+          ></textarea>
+
+          <label for="sbtEncryptDevicePassword">암호화된 장치 비밀번호</label>
+          <textarea
+            id="sbtEncryptDevicePassword"
+            name="storedWalletData_encryptDevicePassword"
+            rows="2"
+            placeholder="encrypted_password"
+            required
+          ></textarea>
+
+          <small style="color: #666; font-size: 0.9rem">
+            MPC 지갑 생성 시 받은 데이터를 개별 필드에 입력하세요. auth.html에서
+            MPC 지갑 생성 후 localStorage에서 복사하거나, Postman 테스트용
+            데이터를 직접 입력하세요.
+          </small>
+        </fieldset>
 
         <button type="submit">SBT 발급</button>
       </form>

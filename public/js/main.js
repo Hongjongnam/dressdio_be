@@ -108,12 +108,56 @@ const handleFormSubmit = async (
       const formData = new FormData(e.target);
       const body = Object.fromEntries(formData.entries());
 
-      // 폼에 storedWalletData가 없으면, 로컬 스토리지에서 가져오도록 수정
-      if (!body.storedWalletData) {
+      // storedWalletData 처리 로직
+      let storedWalletData = null;
+
+      // 1. 개별 필드로 입력된 경우 조합
+      if (
+        body.storedWalletData_uid &&
+        body.storedWalletData_wid &&
+        body.storedWalletData_sid
+      ) {
+        storedWalletData = {
+          uid: body.storedWalletData_uid,
+          wid: parseInt(body.storedWalletData_wid),
+          sid: body.storedWalletData_sid,
+          pvencstr: body.storedWalletData_pvencstr || "",
+          encryptDevicePassword:
+            body.storedWalletData_encryptDevicePassword || "",
+        };
+
+        // 개별 필드 제거
+        delete body.storedWalletData_uid;
+        delete body.storedWalletData_wid;
+        delete body.storedWalletData_sid;
+        delete body.storedWalletData_pvencstr;
+        delete body.storedWalletData_encryptDevicePassword;
+      }
+      // 2. JSON 문자열로 입력된 경우 파싱
+      else if (body.storedWalletData && body.storedWalletData.trim() !== "") {
+        try {
+          storedWalletData = JSON.parse(body.storedWalletData);
+        } catch (error) {
+          console.error("Invalid storedWalletData JSON:", error);
+          showResult(
+            resultId,
+            "저장된 지갑 데이터 형식이 올바르지 않습니다.",
+            "error"
+          );
+          return;
+        }
+      }
+      // 3. localStorage에서 가져오기
+      else {
         const storedWalletDataFromStorage = getMpcWalletData();
         if (storedWalletDataFromStorage) {
-          body.storedWalletData = storedWalletDataFromStorage;
+          storedWalletData = storedWalletDataFromStorage;
         }
+      }
+
+      // 최종 storedWalletData 설정
+      if (storedWalletData) {
+        body.storedWalletData = storedWalletData;
       }
 
       const options = {
@@ -576,17 +620,49 @@ const setupAuthTab = () => {
         "/api/auth/mpc/wallet/create-or-recover",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ devicePassword, email, accessToken }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ devicePassword, email }),
         }
       );
       if (result.success) {
         localStorage.setItem("MpcWalletData", JSON.stringify(result.data));
-        showResult(
-          "create-wallet-result",
-          { ...result, message: "Wallet data stored in localStorage." },
-          "success"
-        );
+
+        // Postman용 데이터 복사 기능 추가
+        const postmanData = {
+          devicePassword: document.getElementById("devicePassword").value,
+          storedWalletData: result.data,
+        };
+
+        // 클립보드에 복사
+        navigator.clipboard
+          .writeText(JSON.stringify(postmanData, null, 2))
+          .then(() => {
+            showResult(
+              "create-wallet-result",
+              {
+                ...result,
+                message: "Wallet data stored in localStorage.",
+                postmanData: postmanData,
+              },
+              "success"
+            );
+          })
+          .catch(() => {
+            showResult(
+              "create-wallet-result",
+              {
+                ...result,
+                message:
+                  "Wallet data stored in localStorage. Postman용 데이터: " +
+                  JSON.stringify(postmanData, null, 2),
+                postmanData: postmanData,
+              },
+              "success"
+            );
+          });
       } else {
         showResult("create-wallet-result", result.message, "error");
       }

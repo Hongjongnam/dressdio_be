@@ -78,7 +78,7 @@ const _formatIpNftData = async (tokenInfo, tokenId) => {
 /**
  * IPNFT 발행 (DP 소모)
  * @param {Object} req - Express request object
- * @param {string} req.body.accessToken - 액세스 토큰
+ * @param {string} req.token - 액세스 토큰 (헤더에서)
  * @param {string} req.body.devicePassword - 장치 비밀번호
  * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
  * @param {string} req.body.ipfsImage - IPFS 이미지 URL
@@ -91,7 +91,6 @@ const _formatIpNftData = async (tokenInfo, tokenId) => {
  */
 const mintIpNft = async (req, res) => {
   const {
-    accessToken,
     devicePassword,
     storedWalletData,
     ipfsImage,
@@ -101,6 +100,7 @@ const mintIpNft = async (req, res) => {
     supplyPrice,
     creatorType,
   } = req.body;
+  const accessToken = req.token; // 헤더에서 accessToken 가져오기
 
   try {
     // 1. 필수 파라미터 검증
@@ -116,7 +116,7 @@ const mintIpNft = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required.",
+        message: "All fields are required. (accessToken from header)",
       });
     }
 
@@ -417,20 +417,21 @@ const getMintingFee = async (req, res) => {
 /**
  * IPNFT 발행 수수료 변경 (Owner Only)
  * @param {Object} req - Express request object
- * @param {string} req.body.accessToken - 액세스 토큰
+ * @param {string} req.token - 액세스 토큰 (헤더에서)
  * @param {string} req.body.devicePassword - 장치 비밀번호
  * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
  * @param {string} req.body.newFee - 새로운 수수료
  * @param {Object} res - Express response object
  */
 const setMintingFee = async (req, res) => {
-  const { accessToken, devicePassword, storedWalletData, newFee } = req.body;
+  const { devicePassword, storedWalletData, newFee } = req.body;
+  const accessToken = req.token; // 헤더에서 accessToken 가져오기
 
   try {
     if (!accessToken || !devicePassword || !storedWalletData || !newFee) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required.",
+        message: "All fields are required. (accessToken from header)",
       });
     }
 

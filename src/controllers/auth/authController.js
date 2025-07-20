@@ -366,7 +366,7 @@ exports.resetPassword = async (req, res) => {
 
 exports.changePassword = async (req, res) => {
   try {
-    let accessToken = req.body.accessToken || "";
+    let accessToken = req.token; // 헤더에서 accessToken 가져오기
     let oldpassword = req.body.oldpassword || "";
     let newpassword = req.body.newpassword || "";
 
@@ -694,9 +694,14 @@ exports.socialLoginFull = async (req, res) => {
  * @access Protected (auth 미들웨어 필요)
  */
 exports.createOrRecoverMpcWallet = async (req, res) => {
-  const { devicePassword, email, accessToken } = req.body;
-  // const accessToken = req.token;
-  // const email = req.user.email; // auth 미들웨어에서 설정된 사용자 이메일
+  const { devicePassword, email } = req.body;
+
+  // 헤더에서 accessToken 직접 가져오기
+  const authHeader = req.headers.authorization;
+  const accessToken =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
 
   // 디버깅 로그 추가
   logger.info(
@@ -706,7 +711,7 @@ exports.createOrRecoverMpcWallet = async (req, res) => {
   if (!devicePassword || !accessToken || !email) {
     return res.status(400).json({
       success: false,
-      message: "devicePassword, accessToken, and email are required.",
+      message: "devicePassword, accessToken (header), and email are required.",
     });
   }
 
@@ -754,7 +759,12 @@ exports.createOrRecoverMpcWallet = async (req, res) => {
  */
 exports.validateMpcWalletData = async (req, res) => {
   try {
-    const accessToken = req.token;
+    // 헤더에서 accessToken 직접 가져오기
+    const authHeader = req.headers.authorization;
+    const accessToken =
+      authHeader && authHeader.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : null;
     const { storedWalletData, devicePassword } = req.body;
 
     // 입력값 검증

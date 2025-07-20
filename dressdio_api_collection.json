@@ -236,6 +236,32 @@
           }
         },
         {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldpassword\": \"oldpassword123\",\n  \"newpassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "change-password"]
+            },
+            "description": "Change user password"
+          }
+        },
+        {
           "name": "Get Social Login URL",
           "request": {
             "method": "GET",
@@ -334,11 +360,15 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"email\": \"user@example.com\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"email\": \"user@example.com\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/mpc/wallet/create-or-recover",
@@ -369,7 +399,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"accessToken\": \"your_access_token_here\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"ipfsImage\": \"ipfs://Qm...\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"ipfsImage\": \"ipfs://Qm...\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/ip/mint",
@@ -518,7 +548,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectName\": \"My Merchandise Project\",\n  \"description\": \"Project description\",\n  \"quantity\": 100,\n  \"salePrice\": \"50\",\n  \"ipnftTokenIds\": \"0,1,2\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\",\n  \"projectImageUrl\": \"https://example.com/image.jpg\"\n}"
+              "raw": "{\n  \"projectName\": \"My Merchandise Project\",\n  \"description\": \"Project description\",\n  \"quantity\": 100,\n  \"salePrice\": \"50\",\n  \"ipnftTokenIds\": \"0,1,2\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"projectImageUrl\": \"https://example.com/image.jpg\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/create",
@@ -970,6 +1000,32 @@
           }
         },
         {
+          "name": "Get SBT by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/sbt/info/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "sbt", "info", "0"]
+            },
+            "description": "Get SBT by token ID"
+          }
+        },
+        {
+          "name": "Get Admin Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nft/sbt/admin-balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "nft", "sbt", "admin-balance"]
+            },
+            "description": "Get admin wallet balance"
+          }
+        },
+        {
           "name": "Mint SBT",
           "request": {
             "method": "POST",
@@ -985,14 +1041,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"creatorWalletAddress\": \"0x...\",\n  \"creatorType\": \"brand\",\n  \"creatorName\": \"Brand Name\",\n  \"description\": \"SBT description\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  },\n  \"creatorWalletAddress\": \"0x1234567890123456789012345678901234567890\",\n  \"creatorType\": \"brand\",\n  \"creatorName\": \"Test Brand\",\n  \"description\": \"Test SBT for Brand\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/sbt/mint",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "sbt", "mint"]
             },
-            "description": "Mint SBT (admin only)"
+            "description": "Mint SBT (admin only) - creatorType: brand, creator, designer"
           }
         }
       ]
