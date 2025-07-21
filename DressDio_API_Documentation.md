@@ -309,6 +309,8 @@ Authorization: Bearer {accessToken}
 - **Method**: POST
 - **Path**: `/api/nft/merchandise/create`
 - **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
@@ -318,16 +320,21 @@ Authorization: Bearer {accessToken}
   "quantity": 100,
   "salePrice": "50",
   "ipnftTokenIds": "0,1,2",
-  "storedWalletData": {
-    "sid": "0x...",
-    "wid": "0x...",
-    "uid": "0x..."
-  },
   "devicePassword": "device123",
-  "accessToken": "your_access_token_here",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  },
   "projectImageUrl": "https://example.com/image.jpg"
 }
 ```
+
+**설명**: 인플루언서가 상품 프로젝트를 생성합니다. 장치 비밀번호와 저장된 지갑 데이터가 필요합니다.
 
 ### 2. 내 프로젝트 목록 조회
 
@@ -346,61 +353,82 @@ Authorization: Bearer {accessToken}
 - **Method**: POST
 - **Path**: `/api/nft/merchandise/request-purchase`
 - **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
   "projectId": 0,
   "quantity": 1,
-  "storedWalletData": {
-    "sid": "0x...",
-    "wid": "0x...",
-    "uid": "0x..."
-  },
   "devicePassword": "device123",
-  "accessToken": "your_access_token_here"
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
 }
 ```
+
+**설명**: 구매자가 상품 구매를 요청합니다. 장치 비밀번호와 저장된 지갑 데이터가 필요합니다.
 
 ### 5. 구매 확정
 
 - **Method**: POST
 - **Path**: `/api/nft/merchandise/confirm-purchase`
 - **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
   "requestId": 0,
-  "storedWalletData": {
-    "sid": "0x...",
-    "wid": "0x...",
-    "uid": "0x..."
-  },
   "devicePassword": "device123",
-  "accessToken": "your_access_token_here"
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
 }
 ```
+
+**설명**: 구매자가 구매 요청을 확정합니다. 장치 비밀번호와 저장된 지갑 데이터가 필요합니다.
 
 ### 6. 구매 취소
 
 - **Method**: POST
 - **Path**: `/api/nft/merchandise/cancel-purchase`
 - **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
   "requestId": 0,
-  "storedWalletData": {
-    "sid": "0x...",
-    "wid": "0x...",
-    "uid": "0x..."
-  },
   "devicePassword": "device123",
-  "accessToken": "your_access_token_here"
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
 }
 ```
+
+**설명**: 구매자가 구매 요청을 취소합니다. 장치 비밀번호와 저장된 지갑 데이터가 필요합니다.
 
 ### 7. 내 구매 요청 목록 조회
 
@@ -425,23 +453,29 @@ Authorization: Bearer {accessToken}
 ### 10. 프로젝트 활성화
 
 - **Method**: POST
-- **Path**: `/api/nft/merchandise/activate/:projectId`
+- **Path**: `/api/nft/merchandise/activate`
 - **Auth**: ✅
-- **Parameters**:
-  - `projectId` (uint): 프로젝트 ID
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
 - **Body**:
 
 ```json
 {
-  "storedWalletData": {
-    "sid": "0x...",
-    "wid": "0x...",
-    "uid": "0x..."
-  },
+  "projectId": 0,
   "devicePassword": "device123",
-  "accessToken": "your_access_token_here"
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
 }
 ```
+
+**설명**: 브랜드가 인플루언서의 프로젝트를 활성화합니다. 장치 비밀번호와 저장된 지갑 데이터가 필요합니다.
 
 ### 11. 내 Merchandise NFT 목록 조회
 

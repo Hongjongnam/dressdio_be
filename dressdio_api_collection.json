@@ -548,14 +548,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectName\": \"My Merchandise Project\",\n  \"description\": \"Project description\",\n  \"quantity\": 100,\n  \"salePrice\": \"50\",\n  \"ipnftTokenIds\": \"0,1,2\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"projectImageUrl\": \"https://example.com/image.jpg\"\n}"
+              "raw": "{\n  \"projectName\": \"My Merchandise Project\",\n  \"description\": \"Project description\",\n  \"quantity\": 100,\n  \"salePrice\": \"50\",\n  \"ipnftTokenIds\": \"0,1,2\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  },\n  \"projectImageUrl\": \"https://example.com/image.jpg\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/create",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "merchandise", "create"]
             },
-            "description": "Create merchandise project"
+            "description": "Create merchandise project with actual signature data"
           }
         },
         {
@@ -605,14 +605,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectId\": 0,\n  \"quantity\": 1,\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+              "raw": "{\n  \"projectId\": 0,\n  \"quantity\": 1,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/request-purchase",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "merchandise", "request-purchase"]
             },
-            "description": "Request purchase of merchandise"
+            "description": "Request purchase of merchandise with actual signature data"
           }
         },
         {
@@ -631,14 +631,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"requestId\": 0,\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+              "raw": "{\n  \"requestId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/confirm-purchase",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "merchandise", "confirm-purchase"]
             },
-            "description": "Confirm purchase request"
+            "description": "Confirm purchase request with actual signature data"
           }
         },
         {
@@ -657,14 +657,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"requestId\": 0,\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+              "raw": "{\n  \"requestId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/cancel-purchase",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "merchandise", "cancel-purchase"]
             },
-            "description": "Cancel purchase request"
+            "description": "Cancel purchase request with actual signature data"
           }
         },
         {
@@ -745,21 +745,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  },\n  \"devicePassword\": \"device123\",\n  \"accessToken\": \"your_access_token_here\"\n}"
+              "raw": "{\n  \"projectId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  }\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/nft/merchandise/activate/:projectId",
+              "raw": "{{baseUrl}}/api/nft/merchandise/activate",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "nft", "merchandise", "activate", ":projectId"],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "0",
-                  "description": "Project ID (uint)"
-                }
-              ]
+              "path": ["api", "nft", "merchandise", "activate"]
             },
-            "description": "Activate merchandise project"
+            "description": "Activate merchandise project with actual signature data"
           }
         },
         {
@@ -880,14 +873,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"newOwner\": \"0x...\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"sid\": \"0x...\",\n    \"wid\": \"0x...\",\n    \"uid\": \"0x...\"\n  }\n}"
+              "raw": "{\n  \"newOwner\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\",\n    \"ucpubkey\": null,\n    \"ourpubkey\": null\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/platform/transfer-all-ownership",
               "host": ["{{baseUrl}}"],
               "path": ["api", "nft", "platform", "transfer-all-ownership"]
             },
-            "description": "Transfer ownership of all contracts"
+            "description": "Transfer ownership of all contracts with actual signature data"
           }
         },
         {

@@ -52,19 +52,63 @@
             required
           />
 
-          <label for="cp_storedWalletData">저장된 지갑 데이터 (필수)</label>
-          <textarea
-            id="cp_storedWalletData"
-            name="storedWalletData"
-            rows="8"
-            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
-            required
-          ></textarea>
-          <small style="color: #666; font-size: 0.9rem">
-            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
-            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
-            테스트용 데이터를 직접 입력하세요.
-          </small>
+          <fieldset
+            style="
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin: 10px 0;
+              border-radius: 5px;
+            "
+          >
+            <legend style="font-size: 0.9rem; color: #666">
+              저장된 지갑 데이터 (필수)
+            </legend>
+
+            <label for="cpUid">UID</label>
+            <input
+              type="text"
+              id="cpUid"
+              name="storedWalletData_uid"
+              placeholder="user_id"
+              required
+            />
+
+            <label for="cpWid">WID</label>
+            <input
+              type="number"
+              id="cpWid"
+              name="storedWalletData_wid"
+              placeholder="wallet_id"
+              required
+            />
+
+            <label for="cpSid">SID (지갑 주소)</label>
+            <input
+              type="text"
+              id="cpSid"
+              name="storedWalletData_sid"
+              placeholder="0x..."
+              required
+            />
+
+            <label for="cpPvencstr">PVENCSTR (암호화된 데이터)</label>
+            <textarea
+              id="cpPvencstr"
+              name="storedWalletData_pvencstr"
+              rows="4"
+              placeholder="encrypted_data"
+              required
+            ></textarea>
+
+            <label for="cpEncryptDevicePassword">암호화된 장치 비밀번호</label>
+            <textarea
+              id="cpEncryptDevicePassword"
+              name="storedWalletData_encryptDevicePassword"
+              rows="2"
+              placeholder="encrypted_password"
+              required
+            ></textarea>
+          </fieldset>
 
           <button type="submit">Create Project</button>
         </form>
@@ -131,19 +175,63 @@
           <label for="ap_projectId">Project ID:</label>
           <input type="text" id="ap_projectId" name="projectId" required />
 
-          <label for="ap_storedWalletData">저장된 지갑 데이터 (필수)</label>
-          <textarea
-            id="ap_storedWalletData"
-            name="storedWalletData"
-            rows="8"
-            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
-            required
-          ></textarea>
-          <small style="color: #666; font-size: 0.9rem">
-            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
-            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
-            테스트용 데이터를 직접 입력하세요.
-          </small>
+          <fieldset
+            style="
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin: 10px 0;
+              border-radius: 5px;
+            "
+          >
+            <legend style="font-size: 0.9rem; color: #666">
+              저장된 지갑 데이터 (필수)
+            </legend>
+
+            <label for="apUid">UID</label>
+            <input
+              type="text"
+              id="apUid"
+              name="storedWalletData_uid"
+              placeholder="user_id"
+              required
+            />
+
+            <label for="apWid">WID</label>
+            <input
+              type="number"
+              id="apWid"
+              name="storedWalletData_wid"
+              placeholder="wallet_id"
+              required
+            />
+
+            <label for="apSid">SID (지갑 주소)</label>
+            <input
+              type="text"
+              id="apSid"
+              name="storedWalletData_sid"
+              placeholder="0x..."
+              required
+            />
+
+            <label for="apPvencstr">PVENCSTR (암호화된 데이터)</label>
+            <textarea
+              id="apPvencstr"
+              name="storedWalletData_pvencstr"
+              rows="4"
+              placeholder="encrypted_data"
+              required
+            ></textarea>
+
+            <label for="apEncryptDevicePassword">암호화된 장치 비밀번호</label>
+            <textarea
+              id="apEncryptDevicePassword"
+              name="storedWalletData_encryptDevicePassword"
+              rows="2"
+              placeholder="encrypted_password"
+              required
+            ></textarea>
+          </fieldset>
 
           <button type="submit">Activate Project</button>
         </form>
@@ -171,19 +259,63 @@
           <label for="rp_projectId">Project ID:</label>
           <input type="text" id="rp_projectId" name="projectId" required />
 
-          <label for="rp_storedWalletData">저장된 지갑 데이터 (필수)</label>
-          <textarea
-            id="rp_storedWalletData"
-            name="storedWalletData"
-            rows="8"
-            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
-            required
-          ></textarea>
-          <small style="color: #666; font-size: 0.9rem">
-            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
-            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
-            테스트용 데이터를 직접 입력하세요.
-          </small>
+          <fieldset
+            style="
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin: 10px 0;
+              border-radius: 5px;
+            "
+          >
+            <legend style="font-size: 0.9rem; color: #666">
+              저장된 지갑 데이터 (필수)
+            </legend>
+
+            <label for="rpUid">UID</label>
+            <input
+              type="text"
+              id="rpUid"
+              name="storedWalletData_uid"
+              placeholder="user_id"
+              required
+            />
+
+            <label for="rpWid">WID</label>
+            <input
+              type="number"
+              id="rpWid"
+              name="storedWalletData_wid"
+              placeholder="wallet_id"
+              required
+            />
+
+            <label for="rpSid">SID (지갑 주소)</label>
+            <input
+              type="text"
+              id="rpSid"
+              name="storedWalletData_sid"
+              placeholder="0x..."
+              required
+            />
+
+            <label for="rpPvencstr">PVENCSTR (암호화된 데이터)</label>
+            <textarea
+              id="rpPvencstr"
+              name="storedWalletData_pvencstr"
+              rows="4"
+              placeholder="encrypted_data"
+              required
+            ></textarea>
+
+            <label for="rpEncryptDevicePassword">암호화된 장치 비밀번호</label>
+            <textarea
+              id="rpEncryptDevicePassword"
+              name="storedWalletData_encryptDevicePassword"
+              rows="2"
+              placeholder="encrypted_password"
+              required
+            ></textarea>
+          </fieldset>
 
           <button type="submit">Request Purchase</button>
         </form>
@@ -229,19 +361,65 @@
           <label for="confp_requestId">Request ID:</label>
           <input type="text" id="confp_requestId" name="requestId" required />
 
-          <label for="confp_storedWalletData">저장된 지갑 데이터 (필수)</label>
-          <textarea
-            id="confp_storedWalletData"
-            name="storedWalletData"
-            rows="8"
-            placeholder='{"uid": "user_id", "wid": "wallet_id", "sid": "wallet_address", "pvencstr": "encrypted_data", "encryptDevicePassword": "encrypted_password"}'
-            required
-          ></textarea>
-          <small style="color: #666; font-size: 0.9rem">
-            MPC 지갑 생성 시 받은 storedWalletData를 JSON 형식으로 입력하세요.
-            auth.html에서 MPC 지갑 생성 후 localStorage에서 복사하거나, Postman
-            테스트용 데이터를 직접 입력하세요.
-          </small>
+          <fieldset
+            style="
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin: 10px 0;
+              border-radius: 5px;
+            "
+          >
+            <legend style="font-size: 0.9rem; color: #666">
+              저장된 지갑 데이터 (필수)
+            </legend>
+
+            <label for="confpUid">UID</label>
+            <input
+              type="text"
+              id="confpUid"
+              name="storedWalletData_uid"
+              placeholder="user_id"
+              required
+            />
+
+            <label for="confpWid">WID</label>
+            <input
+              type="number"
+              id="confpWid"
+              name="storedWalletData_wid"
+              placeholder="wallet_id"
+              required
+            />
+
+            <label for="confpSid">SID (지갑 주소)</label>
+            <input
+              type="text"
+              id="confpSid"
+              name="storedWalletData_sid"
+              placeholder="0x..."
+              required
+            />
+
+            <label for="confpPvencstr">PVENCSTR (암호화된 데이터)</label>
+            <textarea
+              id="confpPvencstr"
+              name="storedWalletData_pvencstr"
+              rows="4"
+              placeholder="encrypted_data"
+              required
+            ></textarea>
+
+            <label for="confpEncryptDevicePassword"
+              >암호화된 장치 비밀번호</label
+            >
+            <textarea
+              id="confpEncryptDevicePassword"
+              name="storedWalletData_encryptDevicePassword"
+              rows="2"
+              placeholder="encrypted_password"
+              required
+            ></textarea>
+          </fieldset>
 
           <button type="submit">Confirm Purchase</button>
         </form>
@@ -303,6 +481,67 @@
           <input type="text" id="canp_projectId" name="projectId" required />
           <label for="canp_requestId">Request ID:</label>
           <input type="text" id="canp_requestId" name="requestId" required />
+
+          <fieldset
+            style="
+              border: 1px solid #ddd;
+              padding: 15px;
+              margin: 10px 0;
+              border-radius: 5px;
+            "
+          >
+            <legend style="font-size: 0.9rem; color: #666">
+              저장된 지갑 데이터 (필수)
+            </legend>
+
+            <label for="canpUid">UID</label>
+            <input
+              type="text"
+              id="canpUid"
+              name="storedWalletData_uid"
+              placeholder="user_id"
+              required
+            />
+
+            <label for="canpWid">WID</label>
+            <input
+              type="number"
+              id="canpWid"
+              name="storedWalletData_wid"
+              placeholder="wallet_id"
+              required
+            />
+
+            <label for="canpSid">SID (지갑 주소)</label>
+            <input
+              type="text"
+              id="canpSid"
+              name="storedWalletData_sid"
+              placeholder="0x..."
+              required
+            />
+
+            <label for="canpPvencstr">PVENCSTR (암호화된 데이터)</label>
+            <textarea
+              id="canpPvencstr"
+              name="storedWalletData_pvencstr"
+              rows="4"
+              placeholder="encrypted_data"
+              required
+            ></textarea>
+
+            <label for="canpEncryptDevicePassword"
+              >암호화된 장치 비밀번호</label
+            >
+            <textarea
+              id="canpEncryptDevicePassword"
+              name="storedWalletData_encryptDevicePassword"
+              rows="2"
+              placeholder="encrypted_password"
+              required
+            ></textarea>
+          </fieldset>
+
           <button type="submit">Cancel Purchase</button>
         </form>
         <pre id="cancelPurchaseResult"></pre>
