@@ -612,7 +612,12 @@ const setActive = async (req, res) => {
   const { projectId, devicePassword, storedWalletData } = req.body;
   const accessToken = req.token;
 
-  if (!projectId || !devicePassword || !storedWalletData) {
+  if (
+    projectId === undefined ||
+    projectId === null ||
+    !devicePassword ||
+    !storedWalletData
+  ) {
     return res.status(400).json({
       success: false,
       message: "모든 필수 필드를 입력해주세요.",
@@ -1829,6 +1834,43 @@ const getMyMerchandiseNFTs = async (req, res) => {
               .getTokenProject(tokenId)
               .call();
 
+            // tokenURI에서 image 필드 추출 (NFT가 많으면 느려질 수 있음)
+            let nftImageURI = null;
+            let metaResData = null;
+            let triedUrls = [];
+            try {
+              let metaUrl = tokenURI;
+              if (tokenURI && tokenURI.startsWith("ipfs://")) {
+                metaUrl = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
+              }
+              triedUrls.push(metaUrl);
+              try {
+                const metaRes = await axios.get(metaUrl);
+                metaResData = metaRes.data;
+              } catch (err) {
+                // ipfs.io 실패 시 dweb.link로 재시도
+                metaUrl = metaUrl.replace("ipfs.io", "dweb.link");
+                triedUrls.push(metaUrl);
+                const metaRes = await axios.get(metaUrl);
+                metaResData = metaRes.data;
+              }
+              if (metaResData && metaResData.image) {
+                nftImageURI = metaResData.image.startsWith("ipfs://")
+                  ? metaResData.image.replace(
+                      "ipfs://",
+                      "https://ipfs.io/ipfs/"
+                    )
+                  : metaResData.image;
+              }
+            } catch (err) {
+              console.warn(
+                `[NFT-DEBUG] tokenURI fetch 실패: ${triedUrls.join(" -> ")}, ${
+                  err.message
+                }`
+              );
+              nftImageURI = null;
+            }
+
             myNFTs.push({
               tokenId: tokenId.toString(),
               contract: merchandiseFactoryContract.options.address,
@@ -1848,6 +1890,7 @@ const getMyMerchandiseNFTs = async (req, res) => {
                 tokenURI && tokenURI.startsWith("ipfs://")
                   ? tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
                   : tokenURI,
+              nftImageURI, // 고유 NFT 이미지 주소 추가
               purchaseAmount: web3.utils.fromWei(
                 projectInfo._salePrice.toString(),
                 "ether"
@@ -1966,9 +2009,51 @@ const getAllMerchandiseNFTs = async (req, res) => {
               .tokenURI(tokenId)
               .call();
 
-            // 토큰별 프로젝트 ID 조회
-            const tokenProjectId = await merchandiseFactoryContract.methods
+            // tokenURI에서 image 필드 추출 (ipfs.io 실패 시 dweb.link로 fallback)
+            let nftImageURI = null;
+            let metaResData = null;
+            let triedUrls = [];
+            try {
+              let metaUrl = tokenURI;
+              if (tokenURI && tokenURI.startsWith("ipfs://")) {
+                metaUrl = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
+              }
+              triedUrls.push(metaUrl);
+              try {
+                const metaRes = await axios.get(metaUrl);
+                metaResData = metaRes.data;
+              } catch (err) {
+                // ipfs.io 실패 시 dweb.link로 재시도
+                metaUrl = metaUrl.replace("ipfs.io", "dweb.link");
+                triedUrls.push(metaUrl);
+                const metaRes = await axios.get(metaUrl);
+                metaResData = metaRes.data;
+              }
+              if (metaResData && metaResData.image) {
+                nftImageURI = metaResData.image.startsWith("ipfs://")
+                  ? metaResData.image.replace(
+                      "ipfs://",
+                      "https://ipfs.io/ipfs/"
+                    )
+                  : metaResData.image;
+              }
+            } catch (err) {
+              console.warn(
+                `[NFT-DEBUG] tokenURI fetch 실패: ${triedUrls.join(" -> ")}, ${
+                  err.message
+                }`
+              );
+              nftImageURI = null;
+            }
+
+            // 4. 토큰별 프로젝트 ID 조회
+            const projectId = await merchandiseFactoryContract.methods
               .getTokenProject(tokenId)
+              .call();
+
+            // 5. 프로젝트 정보 조회
+            const projectInfo = await merchandiseFactoryContract.methods
+              .getProjectInfo(projectId)
               .call();
 
             allNFTs.push({
@@ -1991,6 +2076,7 @@ const getAllMerchandiseNFTs = async (req, res) => {
                 tokenURI && tokenURI.startsWith("ipfs://")
                   ? tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
                   : tokenURI,
+              nftImageURI, // 고유 NFT 이미지 주소 추가
               purchaseAmount: web3.utils.fromWei(
                 projectInfo._salePrice.toString(),
                 "ether"
@@ -2075,6 +2161,40 @@ const getMerchandiseNFTInfo = async (req, res) => {
       .tokenURI(tokenId)
       .call();
 
+    // tokenURI에서 image 필드 추출 (ipfs.io 실패 시 dweb.link로 fallback)
+    let nftImageURI = null;
+    let metaResData = null;
+    let triedUrls = [];
+    try {
+      let metaUrl = tokenURI;
+      if (tokenURI && tokenURI.startsWith("ipfs://")) {
+        metaUrl = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
+      }
+      triedUrls.push(metaUrl);
+      try {
+        const metaRes = await axios.get(metaUrl);
+        metaResData = metaRes.data;
+      } catch (err) {
+        // ipfs.io 실패 시 dweb.link로 재시도
+        metaUrl = metaUrl.replace("ipfs.io", "dweb.link");
+        triedUrls.push(metaUrl);
+        const metaRes = await axios.get(metaUrl);
+        metaResData = metaRes.data;
+      }
+      if (metaResData && metaResData.image) {
+        nftImageURI = metaResData.image.startsWith("ipfs://")
+          ? metaResData.image.replace("ipfs://", "https://ipfs.io/ipfs/")
+          : metaResData.image;
+      }
+    } catch (err) {
+      console.warn(
+        `[NFT-DEBUG] tokenURI fetch 실패: ${triedUrls.join(" -> ")}, ${
+          err.message
+        }`
+      );
+      nftImageURI = null;
+    }
+
     // 4. 토큰별 프로젝트 ID 조회
     const projectId = await merchandiseFactoryContract.methods
       .getTokenProject(tokenId)
@@ -2105,6 +2225,7 @@ const getMerchandiseNFTInfo = async (req, res) => {
         tokenURI && tokenURI.startsWith("ipfs://")
           ? tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
           : tokenURI,
+      nftImageURI, // 고유 NFT 이미지 주소 추가
       purchaseAmount: web3.utils.fromWei(
         projectInfo._salePrice.toString(),
         "ether"
