@@ -308,7 +308,7 @@ const setupMerchandiseTab = () => {
   handleFormSubmit(
     "activateProjectForm",
     "activateProjectResult",
-    `${API_BASE_URL}/activate/:projectId`, // :projectId 추가
+    `${API_BASE_URL}/activate`,
     true
   );
 

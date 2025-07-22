@@ -25,6 +25,7 @@ contract IPNFT is ERC721, Ownable {
     mapping(uint256 => TokenInfo) public tokenInfo;
     mapping(address => uint256[]) public creatorTokens;
     mapping(uint256 => uint256) public creatorTokenIndex;
+    mapping(uint256 => string) private _tokenURIs;
 
     // Events
     event TokenCreated(
@@ -60,7 +61,8 @@ contract IPNFT is ERC721, Ownable {
         string memory name_,
         string memory description,
         uint256 price,
-        uint256 supplyPrice
+        uint256 supplyPrice,
+        string memory tokenURI_
     ) external onlyFactory returns (uint256) {
         uint256 tokenId = _nextTokenId++;
         
@@ -77,6 +79,7 @@ contract IPNFT is ERC721, Ownable {
             supplyPrice: supplyPrice,
             createdAt: block.timestamp
         });
+        _tokenURIs[tokenId] = tokenURI_;
 
         // Add token to creator's list
         creatorTokenIndex[tokenId] = creatorTokens[creator].length;
@@ -116,6 +119,11 @@ contract IPNFT is ERC721, Ownable {
         TokenInfo memory info = tokenInfo[tokenId];
         info.owner = _ownerOf(tokenId); // 최신 소유자 정보 업데이트
         return info;
+    }
+
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_exists(tokenId), "Token does not exist");
+        return _tokenURIs[tokenId];
     }
 
     // 주소를 string으로 변환하는 유틸리티 함수

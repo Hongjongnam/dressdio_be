@@ -5,7 +5,7 @@ const {
   creatorSBTContract,
   platformRegistryContract,
 } = require("../../config/web3");
-const { uploadFileToIPFS } = require("../../services/upload");
+const { uploadFileToIPFS, uploadJSONToIPFS } = require("../../services/upload");
 const walletService = require("../../services/wallet");
 const receiptGenerator = require("../../utils/receiptGenerator");
 const pdfReceiptGenerator = require("../../utils/pdfReceiptGenerator");
@@ -285,7 +285,6 @@ const calculateDistributionData = async (projectId, totalAmount) => {
  * @param {string} req.body.ipnftTokenIds - IPNFT 토큰 ID들
  * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
  * @param {string} req.body.devicePassword - 장치 비밀번호
- * @param {string} req.body.accessToken - 액세스 토큰
  * @param {string} req.body.projectImageUrl - 프로젝트 이미지 URL
  * @param {Object} res - Express response object
  */
@@ -298,21 +297,21 @@ const createProject = async (req, res) => {
     ipnftTokenIds,
     storedWalletData,
     devicePassword,
-    accessToken,
     projectImageUrl,
   } = req.body;
+  const accessToken = req.token; // 미들웨어에서 주입된 토큰 사용
 
   try {
     // 1. 필수 파라미터 검증
     if (
       !projectName ||
       !description ||
-      !quantity ||
+      quantity === undefined ||
+      quantity === null ||
       !salePrice ||
       !ipnftTokenIds ||
       !devicePassword ||
-      !storedWalletData ||
-      !accessToken
+      !storedWalletData
     ) {
       return res.status(400).json({
         success: false,
@@ -683,9 +682,13 @@ const setActive = async (req, res) => {
 const requestPurchase = async (req, res) => {
   const { projectId, devicePassword, storedWalletData } = req.body;
   const accessToken = req.token;
-  const quantity = 1; // 사용자의 제안에 따라 수량을 1로 고정합니다.
 
-  if (!projectId || !devicePassword || !storedWalletData) {
+  if (
+    projectId === undefined ||
+    projectId === null ||
+    !devicePassword ||
+    !storedWalletData
+  ) {
     return res.status(400).json({
       success: false,
       message: "프로젝트 ID, 장치 비밀번호, 지갑 데이터는 필수입니다.",
@@ -837,7 +840,7 @@ const requestPurchase = async (req, res) => {
 };
 
 /**
- * 상품 구매 확정 (NFT 발행 및 대금 정산)
+ * 상품 구매 확정 (NFT 발행 및 대금 정산, NFT별 고유 메타데이터 세팅)
  * @param {Object} req - Express request object
  * @param {string} req.body.projectId - 프로젝트 ID
  * @param {string} req.body.requestId - 요청 ID
@@ -849,7 +852,14 @@ const confirmPurchase = async (req, res) => {
   const { projectId, requestId, devicePassword, storedWalletData } = req.body;
   const accessToken = req.token;
 
-  if (!projectId || !requestId || !devicePassword || !storedWalletData) {
+  if (
+    projectId === undefined ||
+    projectId === null ||
+    requestId === undefined ||
+    requestId === null ||
+    !devicePassword ||
+    !storedWalletData
+  ) {
     return res.status(400).json({
       success: false,
       message: "모든 필수 필드를 입력해주세요.",
@@ -857,55 +867,64 @@ const confirmPurchase = async (req, res) => {
   }
 
   try {
+    // 1. 구매자/프로젝트 정보 조회
     const userWalletAddress = storedWalletData.sid;
-
-    logger.info(
-      `[Confirm Purchase] 구매자가 구매 확정 시도 - requestId: ${requestId}`
-    );
-    logger.info(`[Confirm Purchase] 구매자 주소: ${userWalletAddress}`);
-    logger.info(
-      `[Confirm Purchase] MerchandiseFactory 주소: ${merchandiseFactoryContract.options.address}`
-    );
-
+    const projectInfo = await merchandiseFactoryContract.methods
+      .getProjectInfo(projectId)
+      .call();
     const purchaseRequest = await merchandiseFactoryContract.methods
       .getPurchaseRequest(projectId, requestId)
       .call();
 
-    // 디버깅을 위한 로그 추가
-    logger.info(
-      `[Confirm Purchase] 권한 확인 - projectId: ${projectId}, requestId: ${requestId}`
-    );
-    logger.info(`[Confirm Purchase] 요청한 구매자 주소: ${userWalletAddress}`);
-    logger.info(
-      `[Confirm Purchase] 컨트랙트의 구매자 주소: ${purchaseRequest.buyer}`
-    );
+    // 2. 고유 메타데이터(JSON) 생성
+    const metadata = {
+      name: `${projectInfo._projectName} #${requestId}`,
+      description: projectInfo._productDescription,
+      image:
+        projectInfo._projectImageURI &&
+        projectInfo._projectImageURI.startsWith("ipfs://")
+          ? projectInfo._projectImageURI.replace(
+              "ipfs://",
+              "https://ipfs.io/ipfs/"
+            )
+          : projectInfo._projectImageURI,
+      attributes: [
+        { trait_type: "Project ID", value: String(projectId) },
+        { trait_type: "Request ID", value: String(requestId) },
+        { trait_type: "Buyer", value: userWalletAddress },
+        {
+          trait_type: "Sale Price",
+          value: projectInfo._salePrice
+            ? projectInfo._salePrice.toString()
+            : "",
+        },
+        { trait_type: "Created At", value: new Date().toISOString() },
+      ],
+    };
 
-    // 권한 확인 (구매자 본인만 확정 가능) - 양쪽 모두 소문자로 비교하여 안정성 강화
-    if (
-      userWalletAddress.toLowerCase() !== purchaseRequest.buyer.toLowerCase()
-    ) {
-      return res.status(403).json({
+    // 3. 메타데이터를 IPFS에 업로드
+    let tokenUri;
+    try {
+      tokenUri = await uploadJSONToIPFS(metadata); // ipfs://... 형식
+    } catch (err) {
+      logger.error("[ConfirmPurchase] IPFS 업로드 실패:", err);
+      return res.status(500).json({
         success: false,
-        message: "해당 구매 요청의 구매자만 확정할 수 있습니다.",
+        message: "NFT 메타데이터 업로드에 실패했습니다.",
       });
     }
 
-    const requiredAmount = purchaseRequest.amount; // .amount는 이미 Wei 단위의 BigInt 문자열
-    logger.info(
-      `[Confirm Purchase] Required DP token amount (Wei): ${requiredAmount}`
-    );
-
-    // 2. 구매 확정(confirmPurchase) 트랜잭션 생성
+    // 4. 구매확정+tokenURI 트랜잭션 생성
     const confirmTxData = {
       to: merchandiseFactoryContract.options.address,
       data: merchandiseFactoryContract.methods
-        .confirmPurchase(projectId, requestId)
+        .confirmPurchase(projectId, requestId, tokenUri)
         .encodeABI(),
       value: "0",
     };
 
-    // MPC 서명 및 전송
-    logger.info(`[Confirm Purchase] Confirming purchase...`);
+    // 5. MPC 서명 및 전송
+    logger.info(`[ConfirmPurchase] Confirming purchase with tokenURI...`);
     const receipt = await mpcService.executeTransactionWithStoredData(
       storedWalletData,
       devicePassword,
@@ -913,13 +932,12 @@ const confirmPurchase = async (req, res) => {
       accessToken
     );
 
+    // 6. 결과 파싱 (tokenId 추출)
     let tokenId = null;
-    let receiptId = null;
     try {
       const eventAbi = merchandiseFactoryContract.options.jsonInterface.find(
         (e) => e.name === "PurchaseConfirmed" && e.type === "event"
       );
-
       if (eventAbi) {
         const eventLog = receipt.logs.find(
           (log) =>
@@ -927,7 +945,6 @@ const confirmPurchase = async (req, res) => {
               merchandiseFactoryContract.options.address.toLowerCase() &&
             log.topics[0] === eventAbi.signature
         );
-
         if (eventLog) {
           const decodedLog = web3.eth.abi.decodeLog(
             eventAbi.inputs,
@@ -935,69 +952,10 @@ const confirmPurchase = async (req, res) => {
             eventLog.topics.slice(1)
           );
           tokenId = decodedLog.tokenId.toString();
-
-          // 영수증 생성 로직 추가
-          const projectInfo = await merchandiseFactoryContract.methods
-            .getProjectInfo(projectId)
-            .call();
-
-          // 영수증 생성을 위한 데이터 구성
-          const purchaseData = {
-            projectId: projectId.toString(),
-            requestId: requestId.toString(),
-            buyer: decodedLog.buyer,
-            tokenId: tokenId,
-            amount: purchaseRequest.amount,
-            amountInDP: web3.utils.fromWei(purchaseRequest.amount, "ether"),
-            projectName: projectInfo._projectName,
-            description: projectInfo._productDescription,
-            imageUri: projectInfo._projectImageURI,
-            tokenUri: "", // 토큰 URI는 별도로 조회 필요
-          };
-
-          // 실제 분배 데이터 계산
-          const distributionData = await calculateDistributionData(
-            projectId,
-            purchaseRequest.amount
-          );
-
-          // 트랜잭션 데이터
-          const transactionData = {
-            hash: receipt.transactionHash,
-            blockNumber: receipt.blockNumber || "0",
-            gasUsed: receipt.gasUsed || "0",
-            timestamp: new Date().toISOString(),
-          };
-
-          const receiptResult = await receiptGenerator.generateReceipt(
-            purchaseData,
-            distributionData,
-            transactionData
-          );
-          if (receiptResult.success) {
-            receiptId = receiptResult.receiptId;
-            logger.info(
-              `[Confirm Purchase] Receipt created successfully with ID: ${receiptId}`
-            );
-          } else {
-            logger.error(
-              `[Confirm Purchase] Failed to create receipt: ${receiptResult.error}`
-            );
-          }
-        } else {
-          logger.warn(
-            `[Confirm Purchase] PurchaseConfirmed event not found in transaction.`
-          );
         }
-      } else {
-        logger.warn(
-          `[Confirm Purchase] PurchaseConfirmed event ABI not found.`
-        );
       }
     } catch (err) {
-      logger.error(
-        `[Confirm Purchase] Error processing event or creating receipt: ${err.message}`
-      );
+      logger.error("[ConfirmPurchase] tokenId 파싱 실패:", err);
     }
 
     return res.json({
@@ -1005,12 +963,10 @@ const confirmPurchase = async (req, res) => {
       message: "구매가 성공적으로 확정되었습니다.",
       txHash: receipt.transactionHash,
       tokenId: tokenId,
-      receiptId: receiptId,
+      tokenUri: tokenUri,
     });
   } catch (error) {
-    logger.error("Error confirming purchase:", error);
-
-    // 장치 비밀번호 검증 실패 에러 처리
+    logger.error("[ConfirmPurchase] Error:", error);
     if (error.message.includes("Invalid device password")) {
       return res.status(401).json({
         success: false,
@@ -1018,7 +974,6 @@ const confirmPurchase = async (req, res) => {
         error: "INVALID_DEVICE_PASSWORD",
       });
     }
-
     return res.status(500).json({
       success: false,
       message: "구매 확정 중 오류가 발생했습니다.",
@@ -1039,7 +994,14 @@ const cancelPurchase = async (req, res) => {
   const { projectId, requestId, devicePassword, storedWalletData } = req.body;
   const accessToken = req.token;
 
-  if (!projectId || !requestId || !devicePassword || !storedWalletData) {
+  if (
+    projectId === undefined ||
+    projectId === null ||
+    requestId === undefined ||
+    requestId === null ||
+    !devicePassword ||
+    !storedWalletData
+  ) {
     return res.status(400).json({
       success: false,
       message: "모든 필수 필드를 입력해주세요.",
@@ -1102,6 +1064,15 @@ const _formatProjectInfo = async (projectId, projectInfo) => {
     .call();
   const artistIds = (artistIdsRaw || []).map((id) => id.toString());
 
+  // IPFS 이미지 URI 변환
+  let projectImageURI = projectInfo.projectImageURI;
+  if (projectImageURI && projectImageURI.startsWith("ipfs://")) {
+    projectImageURI = projectImageURI.replace(
+      "ipfs://",
+      "https://ipfs.io/ipfs/"
+    );
+  }
+
   return {
     projectId: projectId.toString(),
     influencer: projectInfo.influencer,
@@ -1113,7 +1084,7 @@ const _formatProjectInfo = async (projectId, projectInfo) => {
     salePrice: web3.utils.fromWei(projectInfo.salePrice.toString(), "ether"),
     isActive: projectInfo.isActive,
     createdAt: projectInfo.createdAt.toString(),
-    projectImageURI: projectInfo.projectImageURI,
+    projectImageURI: projectImageURI,
     mintedCount: projectInfo.mintedCount.toString(),
   };
 };
@@ -1431,7 +1402,7 @@ const getPurchaseRequest = async (req, res) => {
 const getProjectPurchaseRequests = async (req, res) => {
   const { projectId } = req.params;
 
-  if (!projectId) {
+  if (projectId === undefined || projectId === null) {
     return res.status(400).json({
       success: false,
       message: "프로젝트 ID를 입력해주세요.",
@@ -2073,7 +2044,7 @@ const getMerchandiseNFTInfo = async (req, res) => {
   try {
     const { tokenId } = req.params;
 
-    if (!tokenId || isNaN(tokenId)) {
+    if (tokenId === undefined || tokenId === null || isNaN(tokenId)) {
       return res.status(400).json({
         success: false,
         message: "유효한 토큰 ID를 입력해주세요.",
@@ -2291,7 +2262,7 @@ const getReceiptById = async (req, res) => {
 const getReceiptsByProject = async (req, res) => {
   const { projectId } = req.params;
 
-  if (!projectId) {
+  if (projectId === undefined || projectId === null) {
     return res.status(400).json({
       success: false,
       message: "프로젝트 ID를 입력해주세요.",

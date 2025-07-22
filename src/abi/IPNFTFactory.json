@@ -166,6 +166,11 @@
         "internalType": "uint256",
         "name": "creatorSBTId",
         "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "tokenURI_",
+        "type": "string"
       }
     ],
     "name": "createToken",

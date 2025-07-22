@@ -43,7 +43,8 @@ contract IPNFTFactory is Ownable {
         string memory description,
         uint256 price,
         uint256 supplyPrice,
-        uint256 creatorSBTId
+        uint256 creatorSBTId,
+        string memory tokenURI_
     ) external returns (uint256) {
         // SBT 검증 (artist 또는 brand)
         bool isBrand = platformRegistry.validateCreatorSBT(msg.sender, creatorSBTId, "brand");
@@ -71,7 +72,8 @@ contract IPNFTFactory is Ownable {
             name_,
             description,
             price,
-            supplyPrice
+            supplyPrice,
+            tokenURI_
         );
 
         // creatorType 결정 (artist/brand)

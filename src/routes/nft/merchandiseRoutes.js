@@ -45,8 +45,8 @@ router.get(
 // GET /api/nft/merchandise/platform-fee-info - 플랫폼 수수료 정보 조회
 router.get("/platform-fee-info", merchandiseController.getPlatformFeeInfo);
 
-// POST /api/nft/merchandise/activate/:projectId - 프로젝트 활성화 (브랜드만)
-router.post("/activate/:projectId", auth, merchandiseController.setActive);
+// POST /api/nft/merchandise/activate - 프로젝트 활성화 (브랜드만)
+router.post("/activate", auth, merchandiseController.setActive);
 
 // GET /api/nft/merchandise/brand-pending - 브랜드가 서명(활성화)해야 하는 프로젝트만 조회
 router.get(

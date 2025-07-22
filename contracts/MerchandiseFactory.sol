@@ -307,34 +307,29 @@ contract MerchandiseFactory is ERC721, Ownable {
         return requestId;
     }
     
-    // 구매 확정 (구매자만 가능)
+    // 구매 확정 (구매자만 가능, tokenURI 세팅 지원)
     function confirmPurchase(
-        uint256 projectId, 
-        uint256 requestId
-    ) 
-        external 
-        projectExists(projectId)
-        validPurchaseRequest(projectId, requestId)
-    {
+        uint256 projectId,
+        uint256 requestId,
+        string memory _tokenURI
+    ) external {
         ProjectInfo storage project = projects[projectId];
         PurchaseRequest storage request = purchaseRequests[projectId][requestId];
 
-        // 구매자만 확정할 수 있도록 수정
         require(msg.sender == request.buyer, "Only the buyer can confirm purchase");
         require(!request.isConfirmed, "Purchase already confirmed");
         require(!request.isCancelled, "Purchase already cancelled");
         require(project.mintedCount < project.totalSupply, "All tokens have been minted");
-        
-        // --- 핵심 로직을 내부 함수로 분리 ---
+
+        // NFT 민팅
         uint256 tokenId = _processPurchase(projectId, requestId, project, request);
 
         // 구매 요청 상태 업데이트
         request.isConfirmed = true;
         request.tokenId = tokenId;
 
-        // 버그 수정: 여기서 mintedCount를 증가시키면 이중으로 증가하게 됨.
-        // _processPurchase -> _mintMerchandise 내부에서 이미 증가시키고 있음.
-        // project.mintedCount++; // 이 라인을 삭제합니다.
+        // tokenURI 세팅 (구매자가 직접 세팅)
+        tokenURIs[tokenId] = _tokenURI;
 
         emit PurchaseConfirmed(projectId, requestId, request.buyer, tokenId);
     }

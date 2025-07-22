@@ -201,7 +201,8 @@ const mintIpNft = async (req, res) => {
           description,
           priceInWei,
           supplyPriceInWei,
-          creatorSBTId
+          creatorSBTId,
+          tokenURI // 추가: 메타데이터 URI 전달
         )
         .encodeABI(),
       value: "0",
@@ -380,7 +381,15 @@ const getIpNftInfo = async (req, res) => {
       });
     }
 
-    res.json({ success: true, nft: nftData });
+    // tokenURI도 함께 반환
+    let tokenURI = null;
+    try {
+      tokenURI = await ipnftContract.methods.tokenURI(tokenId).call();
+    } catch (e) {
+      tokenURI = null;
+    }
+
+    res.json({ success: true, nft: { ...nftData, tokenURI } });
   } catch (error) {
     logger.error(`Error fetching IPNFT info for token ${tokenId}:`, error);
     res.status(500).json({

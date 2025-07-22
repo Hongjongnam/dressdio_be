@@ -736,6 +736,11 @@
         "internalType": "uint256",
         "name": "requestId",
         "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_tokenURI",
+        "type": "string"
       }
     ],
     "name": "confirmPurchase",
