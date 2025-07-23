@@ -1963,12 +1963,20 @@ const getAllMerchandiseNFTs = async (req, res) => {
           .getProjectInfo(projectId)
           .call();
 
+        // 디버깅: 프로젝트 정보 출력
+        console.log(
+          `[DEBUG] projectId=${projectId}, mintedCount=${projectInfo._mintedCount}, influencer=${projectInfo._influencer}`
+        );
+
         // 프로젝트가 존재하지 않으면 건너뛰기
         if (
           !projectInfo._influencer ||
           projectInfo._influencer ===
             "0x0000000000000000000000000000000000000000"
         ) {
+          console.log(
+            `[DEBUG] projectId=${projectId} skipped: influencer is empty or zero`
+          );
           continue;
         }
 
@@ -1979,7 +1987,7 @@ const getAllMerchandiseNFTs = async (req, res) => {
 
         const mintedCount = projectInfo._mintedCount;
         console.log(
-          `[getAllMerchandiseNFTs] 프로젝트 ${projectId}: 토큰 시작 ID ${tokenStartId}, 민팅된 수 ${mintedCount}`
+          `[DEBUG] projectId=${projectId}: 토큰 시작 ID ${tokenStartId}, 민팅된 수 ${mintedCount}`
         );
 
         // 3. 각 토큰 확인
@@ -1991,11 +1999,10 @@ const getAllMerchandiseNFTs = async (req, res) => {
             const exists = await merchandiseFactoryContract.methods
               .exists(tokenId)
               .call();
+            console.log(`[DEBUG] tokenId=${tokenId}, exists=${exists}`);
 
             if (!exists) {
-              console.log(
-                `[getAllMerchandiseNFTs] 토큰 ${tokenId}는 존재하지 않음`
-              );
+              console.log(`[DEBUG] tokenId=${tokenId} skipped: not exists`);
               continue;
             }
 
@@ -2003,6 +2010,7 @@ const getAllMerchandiseNFTs = async (req, res) => {
             const owner = await merchandiseFactoryContract.methods
               .ownerOf(tokenId)
               .call();
+            console.log(`[DEBUG] tokenId=${tokenId}, owner=${owner}`);
 
             // 토큰 URI 조회
             const tokenURI = await merchandiseFactoryContract.methods
@@ -2060,7 +2068,7 @@ const getAllMerchandiseNFTs = async (req, res) => {
               tokenId: tokenId.toString(),
               contract: merchandiseFactoryContract.options.address,
               owner: owner,
-              projectId: tokenProjectId.toString(),
+              projectId: projectId.toString(),
               projectName: projectInfo._projectName,
               projectDescription: projectInfo._productDescription,
               influencer: projectInfo._influencer,
