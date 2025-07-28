@@ -16,7 +16,7 @@ const MerchandiseFactoryABI = require("../abi/MerchandiseFactory.json");
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 // Create Web3 instance first
-const web3 = new Web3(process.env.RPC_URL || "http://3.38.125.193:8545");
+const web3 = new Web3(process.env.RPC_URL || "https://besu.dressdio.me");
 
 // Contract Addresses
 const contractAddresses = {
@@ -50,8 +50,8 @@ const validateAddresses = () => {
 
 // Web3 configuration
 const web3Config = {
-  chainId: process.env.CHAIN_ID || "1337",
-  rpcUrl: process.env.RPC_URL || "http://3.38.125.193:8545",
+  chainId: process.env.CHAIN_ID || "2741",
+  rpcUrl: process.env.RPC_URL || "https://besu.dressdio.me",
   adminWallet: {
     address: process.env.PLATFORM_ADMIN_WALLET_ADDRESS,
     privateKey: process.env.DRESSDIO_ADMIN_PRIVATE_KEY,
