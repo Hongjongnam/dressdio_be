@@ -573,6 +573,135 @@ const setupPlatformTab = () => {
 };
 
 const setupAuthTab = () => {
+  // =================================================================
+  // 이메일/비밀번호 인증 기능들
+  // =================================================================
+
+  // 1. 이메일 회원가입
+  document
+    .getElementById("email-register-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      // Checkbox values - 기본값 설정
+      data.overage = !!data.overage;
+      data.agree = !!data.agree;
+      data.collect = !!data.collect;
+      data.thirdParty = !!data.thirdParty || false; // 기본값 false
+      data.advertise = !!data.advertise || false; // 기본값 false
+
+      const result = await makeRequest("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      showResult(
+        "email-register-result",
+        result,
+        result.status === "success" ? "success" : "error"
+      );
+    });
+
+  // 2. 이메일 로그인
+  document
+    .getElementById("email-login-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      const result = await makeRequest("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      showResult(
+        "email-login-result",
+        result,
+        result.status === "success" ? "success" : "error"
+      );
+    });
+
+  // 3. 이메일 존재 확인
+  document
+    .getElementById("check-email-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("checkEmail").value;
+
+      const result = await makeRequest(`/api/auth/${email}/verify-email`);
+      showResult(
+        "check-email-result",
+        result,
+        result.status === "success" ? "success" : "error"
+      );
+    });
+
+  // 4. 이메일 인증 코드 발송
+  document
+    .getElementById("send-code-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("sendCodeEmail").value;
+      const lang = document.getElementById("sendCodeLang").value;
+      const template = document.getElementById("sendCodeTemplate").value;
+
+      const result = await makeRequest(
+        `/api/auth/${email}/send-code?lang=${lang}&template=${template}`
+      );
+      showResult(
+        "send-code-result",
+        result,
+        result.status === "success" ? "success" : "error"
+      );
+    });
+
+  // 5. 이메일 인증 코드 확인
+  document
+    .getElementById("verify-code-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("verifyCodeEmail").value;
+      const code = document.getElementById("verifyCodeCode").value;
+
+      const result = await makeRequest(`/api/auth/${email}/verify-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      showResult(
+        "verify-code-result",
+        result,
+        result.status === "success" ? "success" : "error"
+      );
+    });
+
+  // 6. 비밀번호 재설정
+  document
+    .getElementById("reset-password-form")
+    ?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      const result = await makeRequest("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      showResult(
+        "reset-password-result",
+        result,
+        result.status === "success" ? "success" : "error"
+      );
+    });
+
+  // =================================================================
+  // 소셜 로그인 기능들 (기존 코드)
+  // =================================================================
+
   // 1. 소셜 로그인 URL 요청
   document
     .getElementById("social-login-url-form")

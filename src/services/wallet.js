@@ -39,7 +39,8 @@ service.getWallet = async (accessToken) => {
       }
 
       if (error.response?.data["code"] == 606) {
-        return error.response.data.msg;
+        // 지갑이 없는 경우 null 반환
+        return null;
       } else {
         const errorMsg = `HTTP ${error.response?.status}: ${
           error.response?.data?.message ||

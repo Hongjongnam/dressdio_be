@@ -266,9 +266,8 @@ exports.login = async (req, res) => {
     console.log("login", req.body);
     let email = req.body.email || "";
     let password = req.body.password || "";
-    let devicePassword = req.body.devicePassword || "";
 
-    // devicePassword는 지갑 생성이 필요한 경우에만 필수
+    // devicePassword 제거 - 이메일/비밀번호 로그인에서는 불필요
     let secureChannelRes = await service.createSecureChannel();
     const encryptedPassword = service.encrypt(secureChannelRes, password);
     const loginRes = await service.loginUser(
@@ -276,36 +275,20 @@ exports.login = async (req, res) => {
       encryptedPassword,
       secureChannelRes.ChannelID
     );
+
     let walletInfo;
     try {
-      walletInfo = (await walletService.getWallet(loginRes.accessToken))
-        .address;
-    } catch (_) {}
-    if (!walletInfo) {
-      if (!devicePassword) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Device password is required for wallet creation",
-        });
-      }
-      const encryptedDevicePassword = service.encrypt(
-        secureChannelRes,
-        devicePassword
-      );
-      try {
-        walletInfo = (
-          await walletService.createWallet(
-            email,
-            encryptedDevicePassword,
-            secureChannelRes.ChannelID,
-            loginRes.accessToken
-          )
-        ).sid;
-      } catch (_) {}
+      const walletResult = await walletService.getWallet(loginRes.accessToken);
+      walletInfo = walletResult ? walletResult.address : null;
+    } catch (_) {
+      // 지갑이 없어도 로그인은 성공
+      walletInfo = null;
     }
-    let _address = toLowerCase(walletInfo);
+
+    let _address = walletInfo ? toLowerCase(walletInfo) : null;
     let account = null; // DB 체크 생략
     let notificationSettings = null; // DB 체크 생략
+
     return res.status(200).json({
       status: "success",
       data: {
@@ -313,7 +296,9 @@ exports.login = async (req, res) => {
         refreshToken: loginRes.refreshToken,
         expireIn: loginRes.expireIn,
         address: walletInfo,
-        isAdmin: toLowerCase(walletInfo) === toLowerCase(ADMINADDRESS),
+        isAdmin: walletInfo
+          ? toLowerCase(walletInfo) === toLowerCase(ADMINADDRESS)
+          : false,
       },
       message: "Login successful",
     });
