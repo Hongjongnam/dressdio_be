@@ -338,11 +338,11 @@ const createProject = async (req, res) => {
       }
 
       // URL 길이 검증 (Data URL 고려하여 제한 증가)
-      if (projectImageUrl.length > 1048576) {
-        // 1MB (1,048,576자)
+      if (projectImageUrl.length > 10485760) {
+        // 10MB (10,485,760자)
         return res.status(400).json({
           success: false,
-          message: "이미지 URL이 너무 깁니다. (최대 1MB)",
+          message: "이미지 URL이 너무 깁니다. (최대 10MB)",
         });
       }
 

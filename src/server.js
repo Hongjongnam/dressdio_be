@@ -16,8 +16,8 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" })); // JSON body 크기 제한 증가
+app.use(express.urlencoded({ extended: true, limit: "10mb" })); // URL-encoded body 크기 제한 증가
 app.use(
   morgan("combined", {
     stream: { write: (message) => logger.info(message.trim()) },
@@ -40,6 +40,16 @@ app.get("/", (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   logger.error(err.stack);
+
+  // PayloadTooLargeError 특별 처리
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({
+      status: "error",
+      message: "요청 데이터가 너무 큽니다. (최대 10MB)",
+      error: "PAYLOAD_TOO_LARGE",
+    });
+  }
+
   res.status(500).json({
     status: "error",
     message: "Something went wrong!",
