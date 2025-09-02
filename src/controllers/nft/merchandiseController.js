@@ -323,30 +323,74 @@ const createProject = async (req, res) => {
     let projectImageUri = "";
 
     if (projectImageUrl) {
-      // URL에서 이미지 다운로드 후 업로드
-      if (
-        !projectImageUrl.startsWith("http://") &&
-        !projectImageUrl.startsWith("https://")
-      ) {
+      // Data URL 형식 검증 (data:image/...)
+      const isDataUrl = projectImageUrl.startsWith("data:image/");
+      const isHttpUrl =
+        projectImageUrl.startsWith("http://") ||
+        projectImageUrl.startsWith("https://");
+
+      if (!isDataUrl && !isHttpUrl) {
         return res.status(400).json({
           success: false,
-          message: "잘못된 이미지 URL 형식입니다.",
+          message:
+            "잘못된 이미지 URL 형식입니다. (HTTP/HTTPS URL 또는 Data URL만 지원)",
         });
       }
 
-      try {
-        const response = await axios.get(projectImageUrl, {
-          responseType: "arraybuffer",
+      // URL 길이 검증 (Data URL 고려하여 제한 증가)
+      if (projectImageUrl.length > 1048576) {
+        // 1MB (1,048,576자)
+        return res.status(400).json({
+          success: false,
+          message: "이미지 URL이 너무 깁니다. (최대 1MB)",
         });
-        const buffer = Buffer.from(response.data, "binary");
-        const filename =
-          new URL(projectImageUrl).pathname.split("/").pop() || "image.png";
+      }
+
+      // 매우 긴 URL에 대한 로깅 최적화
+      if (projectImageUrl.length > 1000) {
+        logger.info(
+          `[Create Project] Long URL detected (${
+            projectImageUrl.length
+          } chars): ${projectImageUrl.substring(0, 100)}...`
+        );
+      }
+
+      try {
+        let buffer;
+        let filename;
+
+        if (isDataUrl) {
+          // Data URL 처리
+          const base64Data = projectImageUrl.split(",")[1];
+          if (!base64Data) {
+            throw new Error("Invalid data URL format");
+          }
+          buffer = Buffer.from(base64Data, "base64");
+
+          // MIME 타입에서 확장자 추출
+          const mimeMatch = projectImageUrl.match(/data:image\/([^;]+)/);
+          const extension = mimeMatch ? mimeMatch[1] : "png";
+          filename = `image.${extension}`;
+
+          logger.info(
+            `[Create Project] Processing data URL with ${buffer.length} bytes`
+          );
+        } else {
+          // HTTP URL 처리
+          const response = await axios.get(projectImageUrl, {
+            responseType: "arraybuffer",
+          });
+          buffer = Buffer.from(response.data, "binary");
+          filename =
+            new URL(projectImageUrl).pathname.split("/").pop() || "image.png";
+        }
+
         projectImageUri = await uploadFileToIPFS(buffer, filename);
       } catch (err) {
-        logger.error("Failed to download or upload image from URL:", err);
+        logger.error("Failed to process image URL:", err);
         return res.status(500).json({
           success: false,
-          message: "URL에서 이미지를 처리하는 데 실패했습니다.",
+          message: "이미지를 처리하는 데 실패했습니다.",
         });
       }
     } else if (req.files && req.files.length > 0) {

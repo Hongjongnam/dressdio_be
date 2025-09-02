@@ -1,17 +1,21 @@
 const service = require("../../services/auth.js");
 const walletService = require("../../services/wallet.js");
 const mpcWalletService = require("../../services/mpcWallet.js");
-const blockchainMPCService = require("../../services/blockchainMPC.js");
 const { web3, dpTokenContract } = require("../../config/web3");
-const { ethers } = require("ethers");
 const { toLowerCase, stringifyBigInts } = require("../../utils/utils");
 const logger = require("../../utils/logger.js");
 const ADMINADDRESS = process.env.ADMINADDRESS;
 
-// MPC 지갑 데이터 저장을 위한 메모리 스토리지 (세션 관리 아님)
+// ============================================================================
+// MPC 지갑 데이터 저장소 (메모리 기반, 세션 관리 아님)
+// ============================================================================
 const walletDataStorage = new Map();
 
-// 지갑 데이터 조회 (서명용)
+/**
+ * 저장된 지갑 데이터 조회 (서명용)
+ * @param {string} userId - 사용자 ID
+ * @returns {Object|null} 지갑 데이터 또는 null
+ */
 const getStoredWalletData = (userId) => {
   const stored = walletDataStorage.get(userId);
   if (!stored) return null;
@@ -147,6 +151,15 @@ const clearWalletData = async (req, res) => {
   }
 };
 
+// ============================================================================
+// 기본 인증 API
+// ============================================================================
+
+/**
+ * @route GET /api/auth/verify-email/:email
+ * @desc 이메일 존재 여부 확인
+ * @access Public
+ */
 exports.verifyEmail = async (req, res) => {
   try {
     let email = req.params.email || "";
@@ -166,6 +179,11 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
+/**
+ * @route GET /api/auth/send-code/:email
+ * @desc 이메일 인증 코드 전송
+ * @access Public
+ */
 exports.sendCode = async (req, res) => {
   try {
     let email = req.params.email;
@@ -176,13 +194,18 @@ exports.sendCode = async (req, res) => {
       .status(200)
       .json({ status: "success", message: "Code sent successfully" });
   } catch (err) {
-    logger.error(err.message);
+    logger.error("sendCode error:", err.message);
     return res
-      .status(404)
+      .status(500)
       .json({ status: "failed", message: "Problem while sending code" });
   }
 };
 
+/**
+ * @route POST /api/auth/verify-code/:email
+ * @desc 이메일 인증 코드 검증
+ * @access Public
+ */
 exports.verifyCode = async (req, res) => {
   try {
     let email = req.params.email || "";
@@ -192,13 +215,18 @@ exports.verifyCode = async (req, res) => {
       .status(200)
       .json({ status: "success", message: "Code verification successful" });
   } catch (err) {
-    logger.error(err.message);
+    logger.error("verifyCode error:", err.message);
     return res
-      .status(404)
+      .status(400)
       .json({ status: "failed", message: "Code verification failed" });
   }
 };
 
+/**
+ * @route POST /api/auth/register
+ * @desc 사용자 회원가입 (이메일 중복 체크 포함)
+ * @access Public
+ */
 exports.register = async (req, res) => {
   try {
     let email = req.body.email;
@@ -211,11 +239,26 @@ exports.register = async (req, res) => {
     let advertise = req.body.advertise ? 1 : 0;
 
     logger.info(`Register attempt for email: ${email}`);
-    logger.info(`Code verification: ${code}`);
-    logger.info(
-      `Agreements: overage=${overage}, agree=${agree}, collect=${collect}, thirdParty=${thirdParty}, advertise=${advertise}`
-    );
 
+    // 1. 이메일 중복 체크
+    try {
+      let isUserExists = await service.isUserExists(email);
+      if (isUserExists) {
+        return res.status(409).json({
+          status: "failed",
+          message: "이미 존재하는 이메일입니다.",
+        });
+      }
+      logger.info("Email availability check passed");
+    } catch (emailCheckError) {
+      logger.error("Email check failed:", emailCheckError.message);
+      return res.status(500).json({
+        status: "failed",
+        message: "이메일 중복 체크 중 오류가 발생했습니다.",
+      });
+    }
+
+    // 2. 인증 코드 검증
     try {
       await service.verifyCode(email, code);
       logger.info("Code verification successful");
@@ -256,14 +299,19 @@ exports.register = async (req, res) => {
     logger.error("Registration error details:", err);
     logger.error("Error stack:", err.stack);
     return res
-      .status(404)
+      .status(500)
       .json({ status: "failed", message: "Problem while registering user" });
   }
 };
 
+/**
+ * @route POST /api/auth/login
+ * @desc 사용자 로그인
+ * @access Public
+ */
 exports.login = async (req, res) => {
   try {
-    console.log("login", req.body);
+    logger.info("Login attempt", { email: req.body.email });
     let email = req.body.email || "";
     let password = req.body.password || "";
 
@@ -286,8 +334,6 @@ exports.login = async (req, res) => {
     }
 
     let _address = walletInfo ? toLowerCase(walletInfo) : null;
-    let account = null; // DB 체크 생략
-    let notificationSettings = null; // DB 체크 생략
 
     return res.status(200).json({
       status: "success",
@@ -303,8 +349,8 @@ exports.login = async (req, res) => {
       message: "Login successful",
     });
   } catch (err) {
-    logger.error(err);
-    return res.status(404).json({ status: "failed", message: err.message });
+    logger.error("login error:", err);
+    return res.status(401).json({ status: "failed", message: err.message });
   }
 };
 
@@ -322,8 +368,8 @@ exports.refreshToken = async (req, res) => {
       message: "Reissue Accesstoken successful",
     });
   } catch (err) {
-    logger.error(err);
-    return res.status(404).json({ status: "failed", message: err.message });
+    logger.error("refreshToken error:", err);
+    return res.status(401).json({ status: "failed", message: err.message });
   }
 };
 
@@ -344,8 +390,8 @@ exports.resetPassword = async (req, res) => {
       .status(200)
       .json({ status: "success", message: "Password Reset successful" });
   } catch (err) {
-    logger.error(err);
-    return res.status(404).json({ status: "failed", message: err.message });
+    logger.error("resetPassword error:", err);
+    return res.status(500).json({ status: "failed", message: err.message });
   }
 };
 
@@ -388,8 +434,8 @@ exports.changePassword = async (req, res) => {
       .status(200)
       .json({ status: "success", message: "Change Password successful" });
   } catch (err) {
-    logger.error(err);
-    return res.status(404).json({ status: "failed", message: err.message });
+    logger.error("changePassword error:", err);
+    return res.status(500).json({ status: "failed", message: err.message });
   }
 };
 
@@ -430,6 +476,7 @@ exports.getAccount = async (req, res) => {
       },
     });
   } catch (err) {
+    logger.error("getAccount error:", err);
     return res.status(500).json({ status: "failed", message: err.message });
   }
 };
@@ -491,6 +538,10 @@ exports.getAccountBalance = async (req, res) => {
     });
   }
 };
+
+// ============================================================================
+// 소셜 로그인 API
+// ============================================================================
 
 /**
  * @route GET /api/auth/social/login-url
@@ -673,6 +724,10 @@ exports.socialLoginFull = async (req, res) => {
   }
 };
 
+// ============================================================================
+// MPC 지갑 API
+// ============================================================================
+
 /**
  * @route POST /api/auth/mpc/wallet/create-or-recover
  * @desc MPC 지갑을 생성하거나 복구합니다.
@@ -740,7 +795,9 @@ exports.createOrRecoverMpcWallet = async (req, res) => {
 };
 
 /**
- * 저장된 MPC 지갑 데이터 검증
+ * @route POST /api/auth/mpc/wallet/validate
+ * @desc 저장된 MPC 지갑 데이터 검증
+ * @access Protected (auth 미들웨어 필요)
  */
 exports.validateMpcWalletData = async (req, res) => {
   try {
@@ -822,6 +879,8 @@ exports.validateMpcWalletData = async (req, res) => {
   }
 };
 
-// 새로운 MPC 관련 함수들을 exports 형태로 정의
+// ============================================================================
+// 내부 함수 exports
+// ============================================================================
 exports.socialLoginCompleteFlow = socialLoginCompleteFlow;
 exports.clearWalletData = clearWalletData;
