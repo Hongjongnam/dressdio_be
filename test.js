@@ -897,72 +897,7 @@ const requestPurchase = async (req, res) => {
  * @param {Object} req.body.storedWalletData - 저장된 지갑 데이터
  * @param {Object} res - Express response object
  */
-// 구매확정 큐 시스템
-const purchaseQueue = [];
-let isProcessingQueue = false;
-
-// 큐 처리 함수
-const processPurchaseQueue = async () => {
-  if (isProcessingQueue || purchaseQueue.length === 0) {
-    return;
-  }
-
-  isProcessingQueue = true;
-  logger.info(
-    `[PurchaseQueue] 큐 처리 시작. 대기 중인 요청: ${purchaseQueue.length}개`
-  );
-
-  while (purchaseQueue.length > 0) {
-    const { req, res } = purchaseQueue.shift();
-    logger.info(
-      `[PurchaseQueue] 처리 중... 남은 요청: ${purchaseQueue.length}개`
-    );
-
-    try {
-      await executeConfirmPurchase(req, res);
-    } catch (error) {
-      logger.error(`[PurchaseQueue] 구매확정 처리 실패:`, error);
-      // 에러 응답은 executeConfirmPurchase에서 처리됨
-    }
-  }
-
-  isProcessingQueue = false;
-  logger.info(`[PurchaseQueue] 큐 처리 완료`);
-};
-
-// 메인 confirmPurchase 함수 (큐 기반)
 const confirmPurchase = async (req, res) => {
-  const { projectId, requestId, devicePassword, storedWalletData } = req.body;
-
-  // 필수 필드 검증
-  if (
-    projectId === undefined ||
-    projectId === null ||
-    requestId === undefined ||
-    requestId === null ||
-    !devicePassword ||
-    !storedWalletData
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "모든 필수 필드를 입력해주세요.",
-    });
-  }
-
-  // 큐에 추가
-  purchaseQueue.push({ req, res });
-  logger.info(
-    `[ConfirmPurchase] 구매확정 요청이 큐에 추가됨. 대기열 길이: ${purchaseQueue.length}`
-  );
-
-  // 큐 처리 시작 (비동기)
-  processPurchaseQueue().catch((error) => {
-    logger.error("[ConfirmPurchase] 큐 처리 중 오류:", error);
-  });
-};
-
-// 실제 구매확정 실행 함수
-const executeConfirmPurchase = async (req, res) => {
   const { projectId, requestId, devicePassword, storedWalletData } = req.body;
   const accessToken = req.token;
 
