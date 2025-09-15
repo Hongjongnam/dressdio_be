@@ -1334,100 +1334,107 @@ const getBrandPendingProjects = async (req, res) => {
       .getProjectCount()
       .call();
 
-    const result = [];
+    // 2. IPNFT 컨트랙트 정보를 미리 조회 (1번만)
+    console.log("[brand-pending] IPNFT 컨트랙트 정보 조회 중...");
+    const ipnftFactoryAddr = await platformRegistryContract.methods
+      .ipnftFactory()
+      .call();
+    const ipnftFactory = new web3.eth.Contract(
+      require("../../abi/IPNFTFactory.json"),
+      ipnftFactoryAddr
+    );
+    const ipnftContractAddress = await ipnftFactory.methods
+      .getIPNFTAddress()
+      .call();
+    const ipnftContract = new web3.eth.Contract(
+      require("../../abi/IPNFT.json"),
+      ipnftContractAddress
+    );
 
-    // 2. 모든 프로젝트를 순회하며 브랜드 소유자의 비활성화된 프로젝트 찾기
+    // 3. 모든 프로젝트 정보를 병렬로 조회
+    console.log("[brand-pending] 프로젝트 정보 병렬 조회 시작...");
+    const projectPromises = [];
     for (let i = 0; i < projectCount; i++) {
-      try {
-        const projectInfo = await merchandiseFactoryContract.methods
+      projectPromises.push(
+        merchandiseFactoryContract.methods
           .getProjectInfo(i)
-          .call();
-
-        // 프로젝트가 존재하고 비활성화 상태인지 확인
-        if (
-          !projectInfo._influencer ||
-          projectInfo._influencer ===
-            "0x0000000000000000000000000000000000000000"
-        ) {
-          console.log(
-            `[brand-pending] projectId=${i} : influencer 없음, 건너뜀`
-          );
-          continue; // 프로젝트가 존재하지 않음
-        }
-
-        if (projectInfo._isActive) {
-          console.log(`[brand-pending] projectId=${i} : 이미 활성화됨, 건너뜀`);
-          continue; // 이미 활성화된 프로젝트
-        }
-
-        // 브랜드 IPNFT 토큰 ID 확인 (0도 유효한 토큰 ID로 처리)
-        const brandIPNFTTokenId = projectInfo._brandIPNFTTokenId;
-        console.log(
-          `[brand-pending] projectId=${i} : brandIPNFTTokenId=${brandIPNFTTokenId}`
-        );
-
-        // IPNFT 컨트랙트에서 브랜드 소유자 확인
-        const ipnftFactoryAddr = await platformRegistryContract.methods
-          .ipnftFactory()
-          .call();
-        const ipnftFactory = new web3.eth.Contract( // 여기는 동적으로 생성해야 할 수 있으므로 유지
-          require("../../abi/IPNFTFactory.json"),
-          ipnftFactoryAddr
-        );
-        const ipnftContractAddress = await ipnftFactory.methods
-          .getIPNFTAddress()
-          .call();
-
-        const ipnftContract = new web3.eth.Contract(
-          require("../../abi/IPNFT.json"),
-          ipnftContractAddress
-        );
-
-        const brandOwner = await ipnftContract.methods
-          .ownerOf(brandIPNFTTokenId)
-          .call();
-
-        console.log(
-          `[brand-pending] projectId=${i} | brandIPNFTTokenId=${brandIPNFTTokenId} | brandOwner=${brandOwner} | myAddress=${myAddress} | isActive=${projectInfo._isActive}`
-        );
-
-        if (brandOwner.toLowerCase() === myAddress) {
-          console.log(
-            `[brand-pending] projectId=${i} : 내 브랜드 프로젝트로 추가!`
-          );
-          result.push({
-            projectId: i,
-            influencer: projectInfo._influencer,
-            projectName: projectInfo._projectName,
-            brandIPNFTTokenId: projectInfo._brandIPNFTTokenId,
-            artistIPNFTTokenIds: projectInfo._artistIPNFTTokenIds,
-            totalSupply: projectInfo._totalSupply,
-            salePrice: web3.utils.fromWei(
-              projectInfo._salePrice || "0",
-              "ether"
-            ),
-            isActive: projectInfo._isActive,
-            createdAt: projectInfo._createdAt,
-            projectImageURI:
-              projectInfo._projectImageURI &&
-              projectInfo._projectImageURI.startsWith("ipfs://")
-                ? projectInfo._projectImageURI.replace(
-                    "ipfs://",
-                    "https://ipfs.io/ipfs/"
-                  )
-                : projectInfo._projectImageURI,
-            mintedCount: projectInfo._mintedCount,
-          });
-        } else {
-          console.log(
-            `[brand-pending] projectId=${i} : 브랜드 소유자 불일치, 건너뜀`
-          );
-        }
-      } catch (e) {
-        console.error(`프로젝트 ${i} 조회 실패:`, e);
-        // 개별 프로젝트 오류 무시하고 계속 진행
-      }
+          .call()
+          .then((projectInfo) => ({ projectId: i, projectInfo }))
+          .catch((err) => {
+            console.error(`[brand-pending] 프로젝트 ${i} 조회 실패:`, err);
+            return null;
+          })
+      );
     }
+
+    const projectResults = await Promise.all(projectPromises);
+    const validProjects = projectResults.filter(
+      (result) =>
+        result &&
+        result.projectInfo._influencer &&
+        result.projectInfo._influencer !==
+          "0x0000000000000000000000000000000000000000" &&
+        !result.projectInfo._isActive
+    );
+
+    console.log(
+      `[brand-pending] 유효한 비활성화 프로젝트 수: ${validProjects.length}`
+    );
+
+    // 4. 브랜드 소유자 확인을 병렬로 조회
+    const brandOwnerPromises = validProjects.map(({ projectId, projectInfo }) =>
+      ipnftContract.methods
+        .ownerOf(projectInfo._brandIPNFTTokenId)
+        .call()
+        .then((brandOwner) => ({
+          projectId,
+          projectInfo,
+          brandOwner,
+        }))
+        .catch((err) => {
+          console.error(
+            `[brand-pending] 프로젝트 ${projectId} 브랜드 소유자 조회 실패:`,
+            err
+          );
+          return null;
+        })
+    );
+
+    const brandOwnerResults = await Promise.all(brandOwnerPromises);
+
+    // 5. 내 브랜드 프로젝트만 필터링
+    const result = brandOwnerResults
+      .filter(
+        (result) =>
+          result &&
+          result.brandOwner &&
+          result.brandOwner.toLowerCase() === myAddress
+      )
+      .map(({ projectId, projectInfo }) => {
+        console.log(
+          `[brand-pending] projectId=${projectId} : 내 브랜드 프로젝트로 추가!`
+        );
+        return {
+          projectId: projectId,
+          influencer: projectInfo._influencer,
+          projectName: projectInfo._projectName,
+          brandIPNFTTokenId: projectInfo._brandIPNFTTokenId,
+          artistIPNFTTokenIds: projectInfo._artistIPNFTTokenIds,
+          totalSupply: projectInfo._totalSupply,
+          salePrice: web3.utils.fromWei(projectInfo._salePrice || "0", "ether"),
+          isActive: projectInfo._isActive,
+          createdAt: projectInfo._createdAt,
+          projectImageURI:
+            projectInfo._projectImageURI &&
+            projectInfo._projectImageURI.startsWith("ipfs://")
+              ? projectInfo._projectImageURI.replace(
+                  "ipfs://",
+                  "https://ipfs.io/ipfs/"
+                )
+              : projectInfo._projectImageURI,
+          mintedCount: projectInfo._mintedCount,
+        };
+      });
 
     return res.json({
       success: true,
@@ -1734,81 +1741,110 @@ const getMyPurchaseRequests = async (req, res) => {
 
     const myPurchaseRequests = [];
 
-    // 3. 모든 프로젝트의 구매 요청들을 확인
+    // 3. 모든 프로젝트 정보를 병렬로 조회
+    console.log("[getMyPurchaseRequests] 프로젝트 정보 병렬 조회 시작...");
+    const projectPromises = [];
     for (let projectId = 0; projectId < projectCount; projectId++) {
-      try {
-        // 프로젝트 정보 조회
-        const projectInfo = await merchandiseFactoryContract.methods
+      projectPromises.push(
+        merchandiseFactoryContract.methods
           .getProjectInfo(projectId)
-          .call();
-
-        // 프로젝트가 존재하지 않으면 건너뛰기
-        if (
-          !projectInfo._influencer ||
-          projectInfo._influencer ===
-            "0x0000000000000000000000000000000000000000"
-        ) {
-          continue;
-        }
-
-        // 해당 프로젝트의 구매 요청 수 조회
-        const totalRequests = await merchandiseFactoryContract.methods
-          .projectTotalRequests(projectId)
-          .call();
-
-        console.log(
-          `[getMyPurchaseRequests] 프로젝트 ${projectId}의 구매 요청 수:`,
-          totalRequests
-        );
-
-        // 각 구매 요청 확인
-        for (let requestId = 0; requestId < totalRequests; requestId++) {
-          try {
-            const purchaseRequest = await merchandiseFactoryContract.methods
-              .getPurchaseRequest(projectId, requestId)
-              .call();
-
-            // 구매자가 일치하는지 확인
-            if (
-              purchaseRequest.buyer &&
-              purchaseRequest.buyer.toLowerCase() === buyerAddress
-            ) {
-              myPurchaseRequests.push({
-                projectId: projectId,
-                requestId: requestId,
-                buyer: purchaseRequest.buyer,
-                amount: web3.utils.fromWei(
-                  purchaseRequest.amount || "0",
-                  "ether"
-                ),
-                amountWei: purchaseRequest.amount.toString(),
-                timestamp: purchaseRequest.timestamp.toString(),
-                isConfirmed: purchaseRequest.isConfirmed,
-                isCancelled: purchaseRequest.isCancelled,
-                status: purchaseRequest.isConfirmed
-                  ? "confirmed"
-                  : purchaseRequest.isCancelled
-                  ? "cancelled"
-                  : "pending",
-                tokenId: purchaseRequest.tokenId.toString(),
-              });
-            }
-          } catch (err) {
+          .call()
+          .then((projectInfo) => ({ projectId, projectInfo }))
+          .catch((err) => {
             console.error(
-              `[getMyPurchaseRequests] 구매 요청 ${requestId} 조회 실패:`,
+              `[getMyPurchaseRequests] 프로젝트 ${projectId} 조회 실패:`,
               err
             );
-            // 개별 구매 요청 오류는 무시하고 계속 진행
-          }
-        }
-      } catch (err) {
-        console.error(
-          `[getMyPurchaseRequests] 프로젝트 ${projectId} 조회 실패:`,
-          err
-        );
-        // 개별 프로젝트 오류는 무시하고 계속 진행
-      }
+            return null;
+          })
+      );
     }
+
+    const projectResults = await Promise.all(projectPromises);
+    const validProjects = projectResults.filter(
+      (result) =>
+        result &&
+        result.projectInfo._influencer &&
+        result.projectInfo._influencer !==
+          "0x0000000000000000000000000000000000000000"
+    );
+
+    console.log(
+      `[getMyPurchaseRequests] 유효한 프로젝트 수: ${validProjects.length}`
+    );
+
+    // 4. 각 프로젝트의 구매 요청 수를 병렬로 조회
+    const requestCountPromises = validProjects.map(({ projectId }) =>
+      merchandiseFactoryContract.methods
+        .projectTotalRequests(projectId)
+        .call()
+        .then((totalRequests) => ({ projectId, totalRequests }))
+        .catch((err) => {
+          console.error(
+            `[getMyPurchaseRequests] 프로젝트 ${projectId} 요청 수 조회 실패:`,
+            err
+          );
+          return { projectId, totalRequests: 0 };
+        })
+    );
+
+    const requestCounts = await Promise.all(requestCountPromises);
+
+    // 5. 모든 구매 요청을 병렬로 조회
+    const allRequestPromises = [];
+    requestCounts.forEach(({ projectId, totalRequests }) => {
+      for (let requestId = 0; requestId < totalRequests; requestId++) {
+        allRequestPromises.push(
+          merchandiseFactoryContract.methods
+            .getPurchaseRequest(projectId, requestId)
+            .call()
+            .then((purchaseRequest) => ({
+              projectId,
+              requestId,
+              purchaseRequest,
+            }))
+            .catch((err) => {
+              console.error(
+                `[getMyPurchaseRequests] 구매 요청 ${projectId}-${requestId} 조회 실패:`,
+                err
+              );
+              return null;
+            })
+        );
+      }
+    });
+
+    console.log(
+      `[getMyPurchaseRequests] 총 구매 요청 조회 수: ${allRequestPromises.length}`
+    );
+    const allRequests = await Promise.all(allRequestPromises);
+
+    // 6. 내 구매 요청만 필터링
+    const myRequests = allRequests
+      .filter(
+        (result) =>
+          result &&
+          result.purchaseRequest.buyer &&
+          result.purchaseRequest.buyer.toLowerCase() === buyerAddress
+      )
+      .map(({ projectId, requestId, purchaseRequest }) => ({
+        projectId: projectId,
+        requestId: requestId,
+        buyer: purchaseRequest.buyer,
+        amount: web3.utils.fromWei(purchaseRequest.amount || "0", "ether"),
+        amountWei: purchaseRequest.amount.toString(),
+        timestamp: purchaseRequest.timestamp.toString(),
+        isConfirmed: purchaseRequest.isConfirmed,
+        isCancelled: purchaseRequest.isCancelled,
+        status: purchaseRequest.isConfirmed
+          ? "confirmed"
+          : purchaseRequest.isCancelled
+          ? "cancelled"
+          : "pending",
+        tokenId: purchaseRequest.tokenId.toString(),
+      }));
+
+    myPurchaseRequests.push(...myRequests);
 
     // 4. 최신 순으로 정렬 (BigInt 비교 사용)
     myPurchaseRequests.sort((a, b) => {
@@ -1873,156 +1909,177 @@ const getMyMerchandiseNFTs = async (req, res) => {
       `[getMyMerchandiseNFTs] 전체 프로젝트 수: ${totalProjects.toString()}`
     );
 
-    const myNFTs = [];
-
-    // 3. 각 프로젝트에서 발행된 NFT들을 확인
+    // 3. 모든 프로젝트 정보를 병렬로 조회
+    logger.info("[getMyMerchandiseNFTs] 프로젝트 정보 병렬 조회 시작...");
+    const projectPromises = [];
     for (let projectId = 0; projectId < totalProjects; projectId++) {
-      try {
-        // 프로젝트 정보 조회
-        const projectInfo = await merchandiseFactoryContract.methods
+      projectPromises.push(
+        merchandiseFactoryContract.methods
           .getProjectInfo(projectId)
-          .call();
+          .call()
+          .then((projectInfo) => ({ projectId, projectInfo }))
+          .catch((err) => {
+            logger.error(
+              `[getMyMerchandiseNFTs] 프로젝트 ${projectId} 조회 실패:`,
+              err
+            );
+            return null;
+          })
+      );
+    }
 
-        // 프로젝트가 존재하지 않으면 건너뛰기
-        if (
-          !projectInfo._influencer ||
-          projectInfo._influencer ===
-            "0x0000000000000000000000000000000000000000"
-        ) {
-          continue;
-        }
+    const projectResults = await Promise.all(projectPromises);
+    const validProjects = projectResults.filter(
+      (result) =>
+        result &&
+        result.projectInfo._influencer &&
+        result.projectInfo._influencer !==
+          "0x0000000000000000000000000000000000000000"
+    );
 
-        // 프로젝트별 토큰 시작 ID 조회
-        const tokenStartId = await merchandiseFactoryContract.methods
-          .getProjectTokenStart(projectId)
-          .call();
+    logger.info(
+      `[getMyMerchandiseNFTs] 유효한 프로젝트 수: ${validProjects.length}`
+    );
 
-        const mintedCount = projectInfo._mintedCount;
-        logger.info(
-          `[getMyMerchandiseNFTs] 프로젝트 ${projectId}: 토큰 시작 ID ${tokenStartId}, 민팅된 수 ${mintedCount}`
+    // 4. 각 프로젝트의 토큰 시작 ID를 병렬로 조회
+    const tokenStartPromises = validProjects.map(({ projectId }) =>
+      merchandiseFactoryContract.methods
+        .getProjectTokenStart(projectId)
+        .call()
+        .then((tokenStartId) => ({ projectId, tokenStartId }))
+        .catch((err) => {
+          logger.error(
+            `[getMyMerchandiseNFTs] 프로젝트 ${projectId} 토큰 시작 ID 조회 실패:`,
+            err
+          );
+          return { projectId, tokenStartId: 0 };
+        })
+    );
+
+    const tokenStarts = await Promise.all(tokenStartPromises);
+
+    // 5. 모든 토큰 정보를 병렬로 조회
+    const allTokenPromises = [];
+    validProjects.forEach(({ projectId, projectInfo }) => {
+      const tokenStart = tokenStarts.find((ts) => ts.projectId === projectId);
+      if (!tokenStart) return;
+
+      const mintedCount = projectInfo._mintedCount;
+      for (let i = 0; i < mintedCount; i++) {
+        const tokenId = BigInt(tokenStart.tokenStartId) + BigInt(i);
+
+        // 각 토큰의 모든 정보를 병렬로 조회
+        const tokenPromises = [
+          merchandiseFactoryContract.methods.exists(tokenId).call(),
+          merchandiseFactoryContract.methods.ownerOf(tokenId).call(),
+          merchandiseFactoryContract.methods.tokenURI(tokenId).call(),
+          merchandiseFactoryContract.methods.getTokenProject(tokenId).call(),
+        ];
+
+        allTokenPromises.push(
+          Promise.all(tokenPromises)
+            .then(([exists, owner, tokenURI, tokenProjectId]) => ({
+              projectId,
+              tokenId: tokenId.toString(),
+              projectInfo,
+              exists,
+              owner,
+              tokenURI,
+              tokenProjectId,
+            }))
+            .catch((err) => {
+              logger.error(
+                `[getMyMerchandiseNFTs] 토큰 ${tokenId} 조회 실패:`,
+                err
+              );
+              return null;
+            })
         );
+      }
+    });
 
-        // 4. 각 토큰 확인
-        for (let i = 0; i < mintedCount; i++) {
-          const tokenId = BigInt(tokenStartId) + BigInt(i);
+    logger.info(
+      `[getMyMerchandiseNFTs] 총 토큰 조회 수: ${allTokenPromises.length}`
+    );
+    const allTokens = await Promise.all(allTokenPromises);
+
+    // 6. 내가 소유한 토큰만 필터링하고 메타데이터 조회
+    const myTokenPromises = allTokens
+      .filter(
+        (token) =>
+          token &&
+          token.exists &&
+          token.owner &&
+          token.owner.toLowerCase() === walletInfo.address.toLowerCase()
+      )
+      .map(async (token) => {
+        // IPFS 메타데이터 조회 (병렬)
+        let nftImageURI = null;
+        try {
+          let metaUrl = token.tokenURI;
+          if (token.tokenURI && token.tokenURI.startsWith("ipfs://")) {
+            metaUrl = token.tokenURI.replace(
+              "ipfs://",
+              "https://ipfs.io/ipfs/"
+            );
+          }
 
           try {
-            // 토큰이 존재하는지 확인
-            const exists = await merchandiseFactoryContract.methods
-              .exists(tokenId)
-              .call();
-
-            if (!exists) {
-              logger.debug(
-                `[getMyMerchandiseNFTs] 토큰 ${tokenId}는 존재하지 않음`
-              );
-              continue;
+            const metaRes = await axios.get(metaUrl, { timeout: 5000 });
+            if (metaRes.data && metaRes.data.image) {
+              nftImageURI = metaRes.data.image.startsWith("ipfs://")
+                ? metaRes.data.image.replace("ipfs://", "https://ipfs.io/ipfs/")
+                : metaRes.data.image;
             }
-
-            // 토큰 소유자 확인
-            const owner = await merchandiseFactoryContract.methods
-              .ownerOf(tokenId)
-              .call();
-
-            logger.debug(
-              `[getMyMerchandiseNFTs] 토큰 ${tokenId} 소유자: ${owner}`
-            );
-
-            // 내가 소유한 토큰만 필터링
-            if (owner.toLowerCase() !== walletInfo.address.toLowerCase()) {
-              continue;
+          } catch (err) {
+            // ipfs.io 실패 시 dweb.link로 재시도
+            const fallbackUrl = metaUrl.replace("ipfs.io", "dweb.link");
+            const metaRes = await axios.get(fallbackUrl, { timeout: 5000 });
+            if (metaRes.data && metaRes.data.image) {
+              nftImageURI = metaRes.data.image.startsWith("ipfs://")
+                ? metaRes.data.image.replace("ipfs://", "https://ipfs.io/ipfs/")
+                : metaRes.data.image;
             }
-
-            // 토큰 URI 조회
-            const tokenURI = await merchandiseFactoryContract.methods
-              .tokenURI(tokenId)
-              .call();
-
-            // 토큰별 프로젝트 ID 조회
-            const tokenProjectId = await merchandiseFactoryContract.methods
-              .getTokenProject(tokenId)
-              .call();
-
-            // tokenURI에서 image 필드 추출 (NFT가 많으면 느려질 수 있음)
-            let nftImageURI = null;
-            let metaResData = null;
-            let triedUrls = [];
-            try {
-              let metaUrl = tokenURI;
-              if (tokenURI && tokenURI.startsWith("ipfs://")) {
-                metaUrl = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-              }
-              triedUrls.push(metaUrl);
-              try {
-                const metaRes = await axios.get(metaUrl);
-                metaResData = metaRes.data;
-              } catch (err) {
-                // ipfs.io 실패 시 dweb.link로 재시도
-                metaUrl = metaUrl.replace("ipfs.io", "dweb.link");
-                triedUrls.push(metaUrl);
-                const metaRes = await axios.get(metaUrl);
-                metaResData = metaRes.data;
-              }
-              if (metaResData && metaResData.image) {
-                nftImageURI = metaResData.image.startsWith("ipfs://")
-                  ? metaResData.image.replace(
-                      "ipfs://",
-                      "https://ipfs.io/ipfs/"
-                    )
-                  : metaResData.image;
-              }
-            } catch (err) {
-              console.warn(
-                `[NFT-DEBUG] tokenURI fetch 실패: ${triedUrls.join(" -> ")}, ${
-                  err.message
-                }`
-              );
-              nftImageURI = null;
-            }
-
-            myNFTs.push({
-              tokenId: tokenId.toString(),
-              contract: merchandiseFactoryContract.options.address,
-              owner: owner,
-              projectId: tokenProjectId.toString(),
-              projectName: projectInfo._projectName,
-              projectDescription: projectInfo._productDescription,
-              projectImageURI:
-                projectInfo._projectImageURI &&
-                projectInfo._projectImageURI.startsWith("ipfs://")
-                  ? projectInfo._projectImageURI.replace(
-                      "ipfs://",
-                      "https://ipfs.io/ipfs/"
-                    )
-                  : projectInfo._projectImageURI,
-              tokenURI:
-                tokenURI && tokenURI.startsWith("ipfs://")
-                  ? tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
-                  : tokenURI,
-              nftImageURI, // 고유 NFT 이미지 주소 추가
-              purchaseAmount: web3.utils.fromWei(
-                projectInfo._salePrice.toString(),
-                "ether"
-              ),
-              totalSupply: projectInfo._totalSupply.toString(),
-              mintedCount: projectInfo._mintedCount.toString(),
-              isActive: projectInfo._isActive,
-              createdAt: projectInfo._createdAt.toString(),
-            });
-          } catch (error) {
-            logger.error(
-              `[getMyMerchandiseNFTs] 토큰 ${tokenId} 조회 실패: ${error.message}`
-            );
-            // 개별 토큰 오류는 무시하고 계속 진행
           }
+        } catch (err) {
+          logger.warn(
+            `[getMyMerchandiseNFTs] 메타데이터 조회 실패: ${token.tokenId}`,
+            err.message
+          );
         }
-      } catch (error) {
-        logger.error(
-          `[getMyMerchandiseNFTs] 프로젝트 ${projectId} 조회 실패: ${error.message}`
-        );
-        // 개별 프로젝트 오류는 무시하고 계속 진행
-      }
-    }
+
+        return {
+          tokenId: token.tokenId,
+          contract: merchandiseFactoryContract.options.address,
+          owner: token.owner,
+          projectId: token.tokenProjectId.toString(),
+          projectName: token.projectInfo._projectName,
+          projectDescription: token.projectInfo._productDescription,
+          projectImageURI:
+            token.projectInfo._projectImageURI &&
+            token.projectInfo._projectImageURI.startsWith("ipfs://")
+              ? token.projectInfo._projectImageURI.replace(
+                  "ipfs://",
+                  "https://ipfs.io/ipfs/"
+                )
+              : token.projectInfo._projectImageURI,
+          tokenURI:
+            token.tokenURI && token.tokenURI.startsWith("ipfs://")
+              ? token.tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
+              : token.tokenURI,
+          nftImageURI,
+          purchaseAmount: web3.utils.fromWei(
+            token.projectInfo._salePrice.toString(),
+            "ether"
+          ),
+          totalSupply: token.projectInfo._totalSupply.toString(),
+          mintedCount: token.projectInfo._mintedCount.toString(),
+          isActive: token.projectInfo._isActive,
+          createdAt: token.projectInfo._createdAt.toString(),
+        };
+      });
+
+    const myNFTs = await Promise.all(myTokenPromises);
 
     logger.info(`[getMyMerchandiseNFTs] 조회된 NFT 수: ${myNFTs.length}`);
 
@@ -2062,163 +2119,170 @@ const getAllMerchandiseNFTs = async (req, res) => {
       totalProjects.toString()
     );
 
-    const allNFTs = [];
-
-    // 2. 각 프로젝트에서 발행된 NFT들을 확인
+    // 2. 모든 프로젝트 정보를 병렬로 조회
+    console.log("[getAllMerchandiseNFTs] 프로젝트 정보 병렬 조회 시작...");
+    const projectPromises = [];
     for (let projectId = 0; projectId < totalProjects; projectId++) {
-      try {
-        // 프로젝트 정보 조회
-        const projectInfo = await merchandiseFactoryContract.methods
+      projectPromises.push(
+        merchandiseFactoryContract.methods
           .getProjectInfo(projectId)
-          .call();
+          .call()
+          .then((projectInfo) => ({ projectId, projectInfo }))
+          .catch((err) => {
+            console.error(
+              `[getAllMerchandiseNFTs] 프로젝트 ${projectId} 조회 실패:`,
+              err
+            );
+            return null;
+          })
+      );
+    }
 
-        // 디버깅: 프로젝트 정보 출력
-        console.log(
-          `[DEBUG] projectId=${projectId}, mintedCount=${projectInfo._mintedCount}, influencer=${projectInfo._influencer}`
-        );
+    const projectResults = await Promise.all(projectPromises);
+    const validProjects = projectResults.filter(
+      (result) =>
+        result &&
+        result.projectInfo._influencer &&
+        result.projectInfo._influencer !==
+          "0x0000000000000000000000000000000000000000"
+    );
 
-        // 프로젝트가 존재하지 않으면 건너뛰기
-        if (
-          !projectInfo._influencer ||
-          projectInfo._influencer ===
-            "0x0000000000000000000000000000000000000000"
-        ) {
-          console.log(
-            `[DEBUG] projectId=${projectId} skipped: influencer is empty or zero`
+    console.log(
+      `[getAllMerchandiseNFTs] 유효한 프로젝트 수: ${validProjects.length}`
+    );
+
+    // 3. 각 프로젝트의 토큰 시작 ID를 병렬로 조회
+    const tokenStartPromises = validProjects.map(({ projectId }) =>
+      merchandiseFactoryContract.methods
+        .getProjectTokenStart(projectId)
+        .call()
+        .then((tokenStartId) => ({ projectId, tokenStartId }))
+        .catch((err) => {
+          console.error(
+            `[getAllMerchandiseNFTs] 프로젝트 ${projectId} 토큰 시작 ID 조회 실패:`,
+            err
           );
-          continue;
-        }
+          return { projectId, tokenStartId: 0 };
+        })
+    );
 
-        // 프로젝트별 토큰 시작 ID 조회
-        const tokenStartId = await merchandiseFactoryContract.methods
-          .getProjectTokenStart(projectId)
-          .call();
+    const tokenStarts = await Promise.all(tokenStartPromises);
 
-        const mintedCount = projectInfo._mintedCount;
-        console.log(
-          `[DEBUG] projectId=${projectId}: 토큰 시작 ID ${tokenStartId}, 민팅된 수 ${mintedCount}`
+    // 4. 모든 토큰 정보를 병렬로 조회
+    const allTokenPromises = [];
+    validProjects.forEach(({ projectId, projectInfo }) => {
+      const tokenStart = tokenStarts.find((ts) => ts.projectId === projectId);
+      if (!tokenStart) return;
+
+      const mintedCount = projectInfo._mintedCount;
+      for (let i = 0; i < mintedCount; i++) {
+        const tokenId = BigInt(tokenStart.tokenStartId) + BigInt(i);
+
+        // 각 토큰의 모든 정보를 병렬로 조회
+        const tokenPromises = [
+          merchandiseFactoryContract.methods.exists(tokenId).call(),
+          merchandiseFactoryContract.methods.ownerOf(tokenId).call(),
+          merchandiseFactoryContract.methods.tokenURI(tokenId).call(),
+        ];
+
+        allTokenPromises.push(
+          Promise.all(tokenPromises)
+            .then(([exists, owner, tokenURI]) => ({
+              projectId,
+              tokenId: tokenId.toString(),
+              projectInfo,
+              exists,
+              owner,
+              tokenURI,
+            }))
+            .catch((err) => {
+              console.error(
+                `[getAllMerchandiseNFTs] 토큰 ${tokenId} 조회 실패:`,
+                err
+              );
+              return null;
+            })
         );
+      }
+    });
 
-        // 3. 각 토큰 확인
-        for (let i = 0; i < mintedCount; i++) {
-          const tokenId = BigInt(tokenStartId) + BigInt(i);
+    console.log(
+      `[getAllMerchandiseNFTs] 총 토큰 조회 수: ${allTokenPromises.length}`
+    );
+    const allTokens = await Promise.all(allTokenPromises);
+
+    // 5. 존재하는 토큰만 필터링하고 메타데이터 조회
+    const nftPromises = allTokens
+      .filter((token) => token && token.exists)
+      .map(async (token) => {
+        // IPFS 메타데이터 조회 (병렬)
+        let nftImageURI = null;
+        try {
+          let metaUrl = token.tokenURI;
+          if (token.tokenURI && token.tokenURI.startsWith("ipfs://")) {
+            metaUrl = token.tokenURI.replace(
+              "ipfs://",
+              "https://ipfs.io/ipfs/"
+            );
+          }
 
           try {
-            // 토큰이 존재하는지 확인
-            const exists = await merchandiseFactoryContract.methods
-              .exists(tokenId)
-              .call();
-            console.log(`[DEBUG] tokenId=${tokenId}, exists=${exists}`);
-
-            if (!exists) {
-              console.log(`[DEBUG] tokenId=${tokenId} skipped: not exists`);
-              continue;
+            const metaRes = await axios.get(metaUrl, { timeout: 5000 });
+            if (metaRes.data && metaRes.data.image) {
+              nftImageURI = metaRes.data.image.startsWith("ipfs://")
+                ? metaRes.data.image.replace("ipfs://", "https://ipfs.io/ipfs/")
+                : metaRes.data.image;
             }
-
-            // 토큰 소유자 확인
-            const owner = await merchandiseFactoryContract.methods
-              .ownerOf(tokenId)
-              .call();
-            console.log(`[DEBUG] tokenId=${tokenId}, owner=${owner}`);
-
-            // 토큰 URI 조회
-            const tokenURI = await merchandiseFactoryContract.methods
-              .tokenURI(tokenId)
-              .call();
-
-            // tokenURI에서 image 필드 추출 (ipfs.io 실패 시 dweb.link로 fallback)
-            let nftImageURI = null;
-            let metaResData = null;
-            let triedUrls = [];
-            try {
-              let metaUrl = tokenURI;
-              if (tokenURI && tokenURI.startsWith("ipfs://")) {
-                metaUrl = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-              }
-              triedUrls.push(metaUrl);
-              try {
-                const metaRes = await axios.get(metaUrl);
-                metaResData = metaRes.data;
-              } catch (err) {
-                // ipfs.io 실패 시 dweb.link로 재시도
-                metaUrl = metaUrl.replace("ipfs.io", "dweb.link");
-                triedUrls.push(metaUrl);
-                const metaRes = await axios.get(metaUrl);
-                metaResData = metaRes.data;
-              }
-              if (metaResData && metaResData.image) {
-                nftImageURI = metaResData.image.startsWith("ipfs://")
-                  ? metaResData.image.replace(
-                      "ipfs://",
-                      "https://ipfs.io/ipfs/"
-                    )
-                  : metaResData.image;
-              }
-            } catch (err) {
-              console.warn(
-                `[NFT-DEBUG] tokenURI fetch 실패: ${triedUrls.join(" -> ")}, ${
-                  err.message
-                }`
-              );
-              nftImageURI = null;
+          } catch (err) {
+            // ipfs.io 실패 시 dweb.link로 재시도
+            const fallbackUrl = metaUrl.replace("ipfs.io", "dweb.link");
+            const metaRes = await axios.get(fallbackUrl, { timeout: 5000 });
+            if (metaRes.data && metaRes.data.image) {
+              nftImageURI = metaRes.data.image.startsWith("ipfs://")
+                ? metaRes.data.image.replace("ipfs://", "https://ipfs.io/ipfs/")
+                : metaRes.data.image;
             }
-
-            // 4. 토큰별 프로젝트 ID 조회
-            const projectId = await merchandiseFactoryContract.methods
-              .getTokenProject(tokenId)
-              .call();
-
-            // 5. 프로젝트 정보 조회
-            const projectInfo = await merchandiseFactoryContract.methods
-              .getProjectInfo(projectId)
-              .call();
-
-            allNFTs.push({
-              tokenId: tokenId.toString(),
-              contract: merchandiseFactoryContract.options.address,
-              owner: owner,
-              projectId: projectId.toString(),
-              projectName: projectInfo._projectName,
-              projectDescription: projectInfo._productDescription,
-              influencer: projectInfo._influencer,
-              projectImageURI:
-                projectInfo._projectImageURI &&
-                projectInfo._projectImageURI.startsWith("ipfs://")
-                  ? projectInfo._projectImageURI.replace(
-                      "ipfs://",
-                      "https://ipfs.io/ipfs/"
-                    )
-                  : projectInfo._projectImageURI,
-              tokenURI:
-                tokenURI && tokenURI.startsWith("ipfs://")
-                  ? tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
-                  : tokenURI,
-              nftImageURI, // 고유 NFT 이미지 주소 추가
-              purchaseAmount: web3.utils.fromWei(
-                projectInfo._salePrice.toString(),
-                "ether"
-              ),
-              totalSupply: projectInfo._totalSupply.toString(),
-              mintedCount: projectInfo._mintedCount.toString(),
-              isActive: projectInfo._isActive,
-              createdAt: projectInfo._createdAt.toString(),
-            });
-          } catch (error) {
-            console.error(
-              `[getAllMerchandiseNFTs] 토큰 ${tokenId} 조회 실패:`,
-              error
-            );
-            // 개별 토큰 오류는 무시하고 계속 진행
           }
+        } catch (err) {
+          console.warn(
+            `[getAllMerchandiseNFTs] 메타데이터 조회 실패: ${token.tokenId}`,
+            err.message
+          );
         }
-      } catch (error) {
-        console.error(
-          `[getAllMerchandiseNFTs] 프로젝트 ${projectId} 조회 실패:`,
-          error
-        );
-        // 개별 프로젝트 오류는 무시하고 계속 진행
-      }
-    }
+
+        return {
+          tokenId: token.tokenId,
+          contract: merchandiseFactoryContract.options.address,
+          owner: token.owner,
+          projectId: token.projectId.toString(),
+          projectName: token.projectInfo._projectName,
+          projectDescription: token.projectInfo._productDescription,
+          influencer: token.projectInfo._influencer,
+          projectImageURI:
+            token.projectInfo._projectImageURI &&
+            token.projectInfo._projectImageURI.startsWith("ipfs://")
+              ? token.projectInfo._projectImageURI.replace(
+                  "ipfs://",
+                  "https://ipfs.io/ipfs/"
+                )
+              : token.projectInfo._projectImageURI,
+          tokenURI:
+            token.tokenURI && token.tokenURI.startsWith("ipfs://")
+              ? token.tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/")
+              : token.tokenURI,
+          nftImageURI,
+          purchaseAmount: web3.utils.fromWei(
+            token.projectInfo._salePrice.toString(),
+            "ether"
+          ),
+          totalSupply: token.projectInfo._totalSupply.toString(),
+          mintedCount: token.projectInfo._mintedCount.toString(),
+          isActive: token.projectInfo._isActive,
+          createdAt: token.projectInfo._createdAt.toString(),
+        };
+      });
+
+    const allNFTs = await Promise.all(nftPromises);
 
     console.log("[getAllMerchandiseNFTs] 조회된 NFT 수:", allNFTs.length);
 
