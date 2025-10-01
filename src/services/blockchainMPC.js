@@ -102,7 +102,85 @@ async function getTokenBalance(address, tokenAddress) {
   }
 }
 
+/**
+ * Polygon 네트워크용 MPC 트랜잭션 실행 함수
+ * Besu와 달리 가스비가 있으므로 별도 처리 필요
+ */
+async function executeTransactionWithStoredDataForPolygon(
+  storedWalletData,
+  devicePassword,
+  txData,
+  accessToken
+) {
+  try {
+    logger.info("[MPC_POLYGON] Executing Polygon transaction with MPC", {
+      to: txData.to,
+      sid: storedWalletData.sid,
+    });
+
+    if (!storedWalletData || !devicePassword || !txData || !accessToken) {
+      throw new Error(
+        "storedWalletData, devicePassword, txData, and accessToken are all required."
+      );
+    }
+
+    // --- 보안 채널 생성 ---
+    logger.info("[MPC_POLYGON] Creating secure channel...");
+    const secureChannel = await authService.createSecureChannel(accessToken);
+
+    logger.info("[MPC_POLYGON] Secure channel created successfully", {
+      channelId: secureChannel.ChannelID,
+    });
+
+    // --- 1단계: 비밀번호 검증 ---
+    logger.info("[MPC_POLYGON] Step 1: Verifying password...");
+    const isPasswordValid = await authService.validatePasswordWithKeyShare(
+      secureChannel,
+      storedWalletData.pvencstr,
+      devicePassword,
+      accessToken
+    );
+
+    if (!isPasswordValid) {
+      logger.error("[MPC_POLYGON] Step 1 FAILED: Invalid device password.");
+      throw new Error("Invalid device password");
+    }
+    logger.info("[MPC_POLYGON] Step 1 SUCCEEDED: Device password is valid.");
+
+    // --- 2단계: Polygon 트랜잭션 서명 (Polygon 전용 함수 사용) ---
+    logger.info(
+      "[MPC_POLYGON] Step 2: Signing Polygon transaction with EIP-1559..."
+    );
+
+    const signedTx = await blockchainService.signTransactionForPolygon(
+      secureChannel,
+      storedWalletData,
+      txData,
+      accessToken
+    );
+
+    // --- 3단계: Polygon 네트워크로 전송 ---
+    logger.info("[MPC_POLYGON] Step 3: Sending to Polygon network...");
+    const receipt = await blockchainService.sendTransactionToPolygon(signedTx);
+
+    logger.info(
+      `[MPC_POLYGON] Transaction sent successfully. TxHash: ${receipt.transactionHash}`
+    );
+    return receipt;
+  } catch (error) {
+    logger.error("[MPC_POLYGON] Transaction failed:", {
+      error: error.message,
+      sid: storedWalletData.sid,
+      to: txData.to,
+    });
+
+    // 에러를 그대로 전파하여 Controller에서 처리
+    throw error;
+  }
+}
+
 module.exports = {
   getTokenBalance,
   executeTransactionWithStoredData,
+  executeTransactionWithStoredDataForPolygon,
 };

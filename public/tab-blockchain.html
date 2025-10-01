@@ -1,7 +1,74 @@
 <h2>Blockchain Utils</h2>
 <div class="api-grid">
   <fieldset>
-    <legend>1. Faucet (DP 토큰 받기) (POST /api/utils/faucet)</legend>
+    <legend>
+      1. Dress Token 잔액 조회 (Polygon) (GET /api/utils/dress-token/balance)
+    </legend>
+    <p class="description">
+      Polygon 네트워크에서 Dress Token 잔액을 조회합니다. MATIC 잔액도 함께
+      확인됩니다.
+    </p>
+    <form id="dress-token-balance-form">
+      <label for="dressBalanceAccessToken">액세스 토큰</label>
+      <textarea
+        id="dressBalanceAccessToken"
+        name="accessToken"
+        rows="3"
+        placeholder="Bearer 토큰 (자동으로 Bearer 추가됨)"
+        required
+      ></textarea>
+
+      <button type="submit">잔액 조회</button>
+    </form>
+
+    <div id="dress-token-balance-result">
+      <pre id="dress-balance-raw-result"></pre>
+
+      <div
+        id="dress-balance-summary"
+        style="
+          display: none;
+          margin-top: 20px;
+          padding: 15px;
+          background: #f5f5f5;
+          border-radius: 8px;
+        "
+      >
+        <h4 style="margin-top: 0">💰 잔액 요약</h4>
+        <div style="display: grid; gap: 10px">
+          <div>
+            <strong>지갑 주소:</strong>
+            <span id="summary-wallet-address"></span>
+          </div>
+          <div>
+            <strong>DRESS 잔액:</strong>
+            <span
+              id="summary-dress-balance"
+              style="font-size: 1.2em; color: #2196f3"
+            ></span>
+            DRESS
+          </div>
+          <div>
+            <strong>MATIC 잔액:</strong>
+            <span
+              id="summary-matic-balance"
+              style="font-size: 1.2em; color: #8b5cf6"
+            ></span>
+            MATIC
+          </div>
+          <div
+            id="summary-warning"
+            style="display: none; color: #f44336; font-weight: bold"
+          >
+            ⚠️ <span id="summary-warning-text"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Faucet (DP 토큰 받기) (POST /api/utils/faucet)</legend>
     <form id="faucet-form">
       <label
         >Wallet Address <input type="text" name="walletAddress" required
@@ -13,8 +80,639 @@
     </form>
     <pre id="faucet-result"></pre>
   </fieldset>
+
   <fieldset>
-    <legend>2. IPFS 파일 업로드 (POST /api/utils/ipfs/upload-file)</legend>
+    <legend>3. DP Token 전송 (MPC) (POST /api/utils/dp-token/transfer)</legend>
+    <p class="description">
+      DP 토큰을 다른 지갑으로 전송합니다. Merchandise 프로젝트 활성화와 동일한
+      MPC 패턴을 사용합니다.
+    </p>
+    <form id="dp-token-transfer-form">
+      <label for="dpTransferAccessToken">액세스 토큰</label>
+      <textarea
+        id="dpTransferAccessToken"
+        name="accessToken"
+        rows="3"
+        placeholder="Bearer 토큰 (자동으로 Bearer 추가됨)"
+        required
+      ></textarea>
+
+      <label for="dpTransferTo">받는 주소</label>
+      <input
+        type="text"
+        id="dpTransferTo"
+        name="to"
+        placeholder="0x..."
+        required
+      />
+
+      <label for="dpTransferAmount">전송 수량 (DP)</label>
+      <input
+        type="number"
+        id="dpTransferAmount"
+        name="amount"
+        step="0.01"
+        min="0"
+        placeholder="1.0"
+        required
+      />
+
+      <label for="dpTransferDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        id="dpTransferDevicePassword"
+        name="devicePassword"
+        placeholder="지갑 생성 시 사용한 비밀번호"
+        required
+      />
+
+      <fieldset style="border: 1px solid #ddd; padding: 15px; margin: 10px 0">
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (localStorage)
+        </legend>
+
+        <div style="margin-bottom: 10px">
+          <button
+            type="button"
+            id="loadDPWalletDataBtn"
+            style="
+              margin-right: 10px;
+              padding: 8px 16px;
+              background: #4caf50;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            "
+          >
+            📁 localStorage에서 불러오기
+          </button>
+          <button
+            type="button"
+            id="clearDPWalletDataBtn"
+            style="
+              padding: 8px 16px;
+              background: #f44336;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            "
+          >
+            🗑️ 필드 초기화
+          </button>
+        </div>
+
+        <label for="dpTransferUid">UID</label>
+        <input
+          type="text"
+          id="dpTransferUid"
+          name="uid"
+          placeholder="사용자 ID"
+          required
+        />
+
+        <label for="dpTransferWid">WID</label>
+        <input
+          type="number"
+          id="dpTransferWid"
+          name="wid"
+          placeholder="지갑 ID"
+          required
+        />
+
+        <label for="dpTransferSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="dpTransferSid"
+          name="sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="dpTransferPvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="dpTransferPvencstr"
+          name="pvencstr"
+          rows="3"
+          placeholder="암호화된 개인키 문자열"
+          required
+        ></textarea>
+
+        <label for="dpTransferEncryptDevicePassword"
+          >암호화된 장치 비밀번호</label
+        >
+        <textarea
+          id="dpTransferEncryptDevicePassword"
+          name="encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+      </fieldset>
+
+      <button type="submit">DP Token 전송</button>
+    </form>
+
+    <div id="dp-token-transfer-result">
+      <pre id="dp-transfer-raw-result"></pre>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>
+      4. Dress Token 전송 (Polygon, MPC) - 일반 (POST
+      /api/utils/dress-token/transfer)
+    </legend>
+
+    <div
+      style="
+        padding: 15px;
+        background: #e3f2fd;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 5px solid #2196f3;
+      "
+    >
+      <h4 style="margin: 0 0 10px 0; color: #1976d2">📤 순수 전송 기능</h4>
+      <p style="margin: 0; line-height: 1.8; color: #0d47a1">
+        Polygon 네트워크의 Dress Token을 <strong>원하는 주소</strong>로
+        전송합니다.<br />
+        DP 토큰 전송과 동일한 <strong>MPC 패턴</strong>을 사용합니다.
+      </p>
+    </div>
+
+    <div
+      style="
+        padding: 10px;
+        background: #fff3cd;
+        border-radius: 4px;
+        margin-bottom: 20px;
+      "
+    >
+      <p style="margin: 0; color: #856404">
+        💡 <strong>Tip:</strong> 플랫폼으로 스왑하려면 <strong>API #5</strong>를
+        사용하세요! (원클릭 통합 스왑)
+      </p>
+    </div>
+
+    <form id="dress-token-transfer-form">
+      <label for="dressTransferAccessToken">액세스 토큰</label>
+      <textarea
+        id="dressTransferAccessToken"
+        name="accessToken"
+        rows="3"
+        placeholder="Bearer 토큰 (자동으로 Bearer 추가됨)"
+        required
+      ></textarea>
+
+      <label for="dressTransferTo">받는 주소</label>
+      <input
+        type="text"
+        id="dressTransferTo"
+        name="to"
+        placeholder="0x... (전송할 지갑 주소)"
+        required
+      />
+
+      <label for="dressTransferAmount">전송 수량 (DRESS)</label>
+      <input
+        type="number"
+        id="dressTransferAmount"
+        name="amount"
+        step="0.01"
+        min="0"
+        placeholder="1.0"
+        required
+      />
+
+      <label for="dressTransferDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        id="dressTransferDevicePassword"
+        name="devicePassword"
+        placeholder="지갑 생성 시 사용한 비밀번호"
+        required
+      />
+
+      <fieldset style="border: 1px solid #ddd; padding: 15px; margin: 10px 0">
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (localStorage)
+        </legend>
+
+        <div style="margin-bottom: 10px">
+          <button
+            type="button"
+            id="loadDressWalletDataBtn"
+            style="
+              margin-right: 10px;
+              padding: 8px 16px;
+              background: #4caf50;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            "
+          >
+            📁 localStorage에서 불러오기
+          </button>
+          <button
+            type="button"
+            id="clearDressWalletDataBtn"
+            style="
+              padding: 8px 16px;
+              background: #f44336;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            "
+          >
+            🗑️ 필드 초기화
+          </button>
+        </div>
+
+        <label for="dressTransferUid">UID</label>
+        <input
+          type="text"
+          id="dressTransferUid"
+          name="uid"
+          placeholder="사용자 ID"
+          required
+        />
+
+        <label for="dressTransferWid">WID</label>
+        <input
+          type="number"
+          id="dressTransferWid"
+          name="wid"
+          placeholder="지갑 ID"
+          required
+        />
+
+        <label for="dressTransferSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="dressTransferSid"
+          name="sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="dressTransferPvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="dressTransferPvencstr"
+          name="pvencstr"
+          rows="3"
+          placeholder="암호화된 개인키 문자열"
+          required
+        ></textarea>
+
+        <label for="dressTransferEncryptDevicePassword"
+          >암호화된 장치 비밀번호</label
+        >
+        <textarea
+          id="dressTransferEncryptDevicePassword"
+          name="encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+      </fieldset>
+
+      <button type="submit">Dress Token 전송</button>
+    </form>
+
+    <div id="dress-token-transfer-result">
+      <pre id="dress-transfer-raw-result"></pre>
+    </div>
+  </fieldset>
+
+  <fieldset
+    style="
+      border: 3px solid #ff9800;
+      background: linear-gradient(135deg, #fff8e1 0%, #ffe0b2 100%);
+    "
+  >
+    <legend
+      style="
+        font-size: 1.1rem;
+        color: #e65100;
+        font-weight: bold;
+        padding: 5px 15px;
+        background: #fff;
+        border: 2px solid #ff9800;
+        border-radius: 8px;
+      "
+    >
+      ⚡ 5. Dress Token 전송 + 자동 스왑 (플랫폼 전용) (POST
+      /api/utils/dress-token/transfer-and-swap) 🔥
+    </legend>
+
+    <div
+      style="
+        padding: 15px;
+        background: #fff3cd;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 5px solid #ff9800;
+      "
+    >
+      <h4 style="margin: 0 0 10px 0; color: #e65100">🚀 원클릭 통합 스왝!</h4>
+      <p style="margin: 0; line-height: 1.8; color: #856404">
+        <strong>한 번의 클릭</strong>으로 Dress Token 전송과 DP Token 스왑을
+        모두 처리합니다!<br />
+        <strong>받는 주소 입력 불필요</strong> - 자동으로 플랫폼 어드민 지갑으로
+        전송됩니다.
+      </p>
+    </div>
+
+    <div
+      style="
+        padding: 15px;
+        background: #e3f2fd;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      "
+    >
+      <h4 style="margin: 0 0 10px 0; color: #1976d2">🔄 자동 프로세스:</h4>
+      <ol style="margin: 0; padding-left: 20px; line-height: 2">
+        <li>
+          <strong>Dress Token 전송</strong> (Polygon) → 플랫폼 어드민 지갑
+        </li>
+        <li><strong>트랜잭션 검증</strong> → Transfer 이벤트 파싱</li>
+        <li>
+          <strong>DP Token 자동 지급</strong> (Besu) → DRESS × 5배 (1:5 비율)
+        </li>
+      </ol>
+      <p style="margin: 10px 0 0 0; color: #d63384; font-weight: bold">
+        💡 예시: 100 DRESS 입력 → 자동으로 500 DP 받기!
+      </p>
+    </div>
+
+    <form id="dress-token-transfer-and-swap-form">
+      <label for="swapIntegratedAccessToken">액세스 토큰</label>
+      <textarea
+        id="swapIntegratedAccessToken"
+        name="accessToken"
+        rows="3"
+        placeholder="Bearer 토큰 (자동으로 Bearer 추가됨)"
+        required
+      ></textarea>
+
+      <label for="swapIntegratedAmount"
+        >전송 수량 (DRESS)
+        <span style="color: #e65100; font-weight: bold"
+          >← 이 금액의 5배 DP를 받습니다!</span
+        ></label
+      >
+      <input
+        type="number"
+        id="swapIntegratedAmount"
+        name="amount"
+        step="0.01"
+        min="0"
+        placeholder="1.0"
+        required
+      />
+
+      <div
+        style="
+          padding: 10px;
+          background: #fff3cd;
+          border-radius: 4px;
+          margin: 10px 0;
+        "
+      >
+        <p style="margin: 0; color: #856404">
+          ⚠️ <strong>주의:</strong> 받는 주소는 자동으로 플랫폼 어드민 지갑
+          (<code>0x2C686C...312871</code>)으로 설정됩니다.
+        </p>
+      </div>
+
+      <label for="swapIntegratedDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        id="swapIntegratedDevicePassword"
+        name="devicePassword"
+        placeholder="지갑 생성 시 사용한 비밀번호"
+        required
+      />
+
+      <fieldset style="border: 1px solid #ddd; padding: 15px; margin: 10px 0">
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (localStorage)
+        </legend>
+
+        <div style="margin-bottom: 10px">
+          <button
+            type="button"
+            id="loadSwapIntegratedWalletDataBtn"
+            style="
+              margin-right: 10px;
+              padding: 8px 16px;
+              background: #4caf50;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            "
+          >
+            📁 localStorage에서 불러오기
+          </button>
+          <button
+            type="button"
+            id="clearSwapIntegratedWalletDataBtn"
+            style="
+              padding: 8px 16px;
+              background: #f44336;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+            "
+          >
+            🗑️ 필드 초기화
+          </button>
+        </div>
+
+        <label for="swapIntegratedUid">UID</label>
+        <input
+          type="text"
+          id="swapIntegratedUid"
+          name="uid"
+          placeholder="사용자 ID"
+          required
+        />
+
+        <label for="swapIntegratedWid">WID</label>
+        <input
+          type="number"
+          id="swapIntegratedWid"
+          name="wid"
+          placeholder="지갑 ID"
+          required
+        />
+
+        <label for="swapIntegratedSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="swapIntegratedSid"
+          name="sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="swapIntegratedPvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="swapIntegratedPvencstr"
+          name="pvencstr"
+          rows="3"
+          placeholder="암호화된 개인키 문자열"
+          required
+        ></textarea>
+
+        <label for="swapIntegratedEncryptDevicePassword"
+          >암호화된 장치 비밀번호</label
+        >
+        <textarea
+          id="swapIntegratedEncryptDevicePassword"
+          name="encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+      </fieldset>
+
+      <button
+        type="submit"
+        style="
+          background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+          color: white;
+          font-weight: bold;
+          font-size: 1.1rem;
+          padding: 12px 20px;
+        "
+      >
+        ⚡ 전송 + 자동 스왑 실행! 🚀
+      </button>
+    </form>
+
+    <div id="swap-integrated-result">
+      <pre id="swap-integrated-raw-result"></pre>
+    </div>
+
+    <div
+      id="swap-integrated-summary"
+      style="
+        display: none;
+        margin-top: 20px;
+        padding: 20px;
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-radius: 8px;
+        border: 2px solid #4caf50;
+      "
+    >
+      <h4 style="margin: 0 0 15px 0; color: #2e7d32">✅ 스왑 완료!</h4>
+      <div style="display: grid; gap: 10px">
+        <div style="padding: 10px; background: white; border-radius: 4px">
+          <strong>전송한 DRESS:</strong>
+          <span
+            id="summary-swap-dress-amount"
+            style="font-size: 1.2em; color: #1976d2"
+          ></span>
+        </div>
+        <div style="padding: 10px; background: white; border-radius: 4px">
+          <strong>받은 DP:</strong>
+          <span
+            id="summary-swap-dp-amount"
+            style="font-size: 1.2em; color: #4caf50; font-weight: bold"
+          ></span>
+        </div>
+        <div style="padding: 10px; background: white; border-radius: 4px">
+          <strong>Polygon TxHash:</strong>
+          <code
+            id="summary-swap-polygon-tx"
+            style="font-size: 0.85em; word-break: break-all"
+          ></code>
+        </div>
+        <div style="padding: 10px; background: white; border-radius: 4px">
+          <strong>Besu TxHash:</strong>
+          <code
+            id="summary-swap-besu-tx"
+            style="font-size: 0.85em; word-break: break-all"
+          ></code>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>
+      6. Dress → DP Token Swap (수동) (POST /api/utils/swap-dress-to-dp)
+    </legend>
+    <p class="description">
+      <strong>💡 Tip:</strong> API #5에서 "전송 + 자동 스왑"을 사용하면 더
+      편리합니다!<br />
+      여기는 <strong>이미 전송한 트랜잭션을 수동으로 스왑</strong>할 때만
+      사용하세요.
+    </p>
+    <form id="swap-dress-to-dp-form">
+      <label for="swapTxHash">Polygon 트랜잭션 해시</label>
+      <input
+        type="text"
+        id="swapTxHash"
+        name="txHash"
+        placeholder="0x..."
+        required
+      />
+
+      <label for="swapFromAddress">전송한 지갑 주소 (본인 주소)</label>
+      <input
+        type="text"
+        id="swapFromAddress"
+        name="fromAddress"
+        placeholder="0x..."
+        required
+      />
+
+      <button type="submit">스왑 실행</button>
+    </form>
+
+    <div id="swap-result">
+      <pre id="swap-raw-result"></pre>
+    </div>
+
+    <div
+      style="
+        margin-top: 20px;
+        padding: 15px;
+        background: #fff3cd;
+        border-radius: 8px;
+      "
+    >
+      <h4 style="margin-top: 0">📝 사용 방법</h4>
+      <ol style="line-height: 1.8">
+        <li><strong>API #1</strong>로 DRESS & MATIC 잔액 확인</li>
+        <li>
+          <strong>API #4</strong>로 Dress Token을
+          <code>0x2C686C...312871</code>로 전송
+        </li>
+        <li>전송 완료 후 <strong>트랜잭션 해시</strong> 복사</li>
+        <li>
+          위 폼에 <strong>트랜잭션 해시</strong>와
+          <strong>본인 지갑 주소</strong> 입력
+        </li>
+        <li><strong>"스왑 실행"</strong> 클릭 → DP Token 자동 지급! 🎉</li>
+      </ol>
+      <p style="margin: 10px 0 0 0; color: #856404">
+        💡 <strong>예시:</strong> 100 DRESS 전송 → 500 DP 받기 (1:5 비율)
+      </p>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>6. IPFS 파일 업로드 (POST /api/utils/ipfs/upload-file)</legend>
     <form id="ipfs-upload-file-form">
       <label
         >File
@@ -29,7 +727,7 @@
     <pre id="ipfs-upload-file-result"></pre>
   </fieldset>
   <fieldset>
-    <legend>3. IPFS JSON 업로드 (POST /api/utils/ipfs/upload-json)</legend>
+    <legend>7. IPFS JSON 업로드 (POST /api/utils/ipfs/upload-json)</legend>
     <form id="ipfs-upload-json-form">
       <label
         >JSON Data

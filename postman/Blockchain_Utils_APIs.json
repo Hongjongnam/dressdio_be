@@ -1,0 +1,242 @@
+{
+  "info": {
+    "name": "Blockchain Utils APIs",
+    "description": "Dressdio Backend - Blockchain Utils 기능 (5개 API)\n\n최종 버전 - HTML UI와 완전 동기화",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "blockchain-utils-final",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "1. Dress Token 잔액 조회 (Polygon)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text",
+            "description": "ABC Wallet 액세스 토큰"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/utils/dress-token/balance",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "utils", "dress-token", "balance"]
+        },
+        "description": "Polygon 네트워크에서 Dress Token 잔액과 MATIC 잔액을 조회합니다.\n\n**필요한 것:**\n- Access Token (ABC Wallet JWT)\n\n**특징:**\n- 지갑 주소 자동 조회 (accessToken 기반)\n- Dress Token 잔액 조회\n- MATIC 잔액 조회 (가스비 확인)\n- 가스비 부족 시 경고\n\n**응답 예시:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"walletAddress\": \"0x58D7E7...\",\n    \"token\": {\n      \"name\": \"Dress\",\n      \"symbol\": \"DRESS\",\n      \"balance\": \"10000.0\"\n    },\n    \"matic\": {\n      \"balance\": \"0.5\",\n      \"warning\": null\n    }\n  }\n}\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "2. Faucet (DP 토큰 받기)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walletAddress\": \"{{recipientAddress}}\",\n  \"amount\": \"100\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/utils/faucet",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "utils", "faucet"]
+        },
+        "description": "Besu 네트워크에서 DP 토큰을 에어드랍 받습니다.\n\n**인증 불필요** (테스트용)\n\n**Body:**\n```json\n{\n  \"walletAddress\": \"받을 지갑 주소\",\n  \"amount\": \"토큰 수량\"\n}\n```\n\n**특징:**\n- Besu 프라이빗 네트워크 (가스비 0)\n- 수량 제한 없음\n- 관리자 프라이빗 키로 전송\n\n**응답 예시:**\n```json\n{\n  \"success\": true,\n  \"message\": \"DP tokens transferred successfully.\",\n  \"data\": {\n    \"to\": \"0x25D96413...\",\n    \"amount\": \"100\",\n    \"receipt\": { ... }\n  }\n}\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "3. DP Token 전송 (Besu, MPC)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text",
+            "description": "ABC Wallet 액세스 토큰"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"to\": \"{{recipientAddress}}\",\n  \"amount\": \"1\",\n  \"devicePassword\": \"{{devicePassword}}\",\n  \"storedWalletData\": {\n    \"uid\": \"{{uid}}\",\n    \"wid\": {{wid}},\n    \"sid\": \"{{senderAddress}}\",\n    \"pvencstr\": \"{{pvencstr}}\",\n    \"encryptDevicePassword\": \"{{encryptDevicePassword}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/utils/dp-token/transfer",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "utils", "dp-token", "transfer"]
+        },
+        "description": "Besu 네트워크에서 DP 토큰을 MPC 패턴으로 전송합니다.\n\n**필수 Headers:**\n- Authorization: Bearer {{accessToken}}\n\n**Body 구조:**\n```json\n{\n  \"to\": \"받는 지갑 주소\",\n  \"amount\": \"전송 수량 (DP)\",\n  \"devicePassword\": \"지갑 생성 시 사용한 비밀번호 (평문)\",\n  \"storedWalletData\": {\n    \"uid\": \"사용자 ID (문자열)\",\n    \"wid\": 지갑 ID (숫자, 따옴표 없음!),\n    \"sid\": \"지갑 주소 (0x...)\",\n    \"pvencstr\": \"암호화된 개인키 문자열\",\n    \"encryptDevicePassword\": \"암호화된 장치 비밀번호\"\n  }\n}\n```\n\n**⚠️ 중요:**\n- `wid`는 **숫자 타입** (따옴표 없음)\n- `devicePassword`는 **평문** (암호화 안 된 비밀번호)\n- `storedWalletData`는 localStorage의 MpcWalletData와 동일\n\n**특징:**\n- Besu 프라이빗 네트워크 (가스비 0)\n- MPC 패턴 (Multi-Party Computation)\n- SBT Mint와 동일한 패턴\n\n**MPC 데이터 가져오기:**\n브라우저 Console (F12)에서:\n```javascript\nconsole.log(JSON.parse(localStorage.getItem('MpcWalletData')))\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "4. Dress Token 전송 (Polygon, MPC) - 일반",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text",
+            "description": "ABC Wallet 액세스 토큰"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"to\": \"{{recipientAddress}}\",\n  \"amount\": \"1\",\n  \"devicePassword\": \"{{devicePassword}}\",\n  \"storedWalletData\": {\n    \"uid\": \"{{uid}}\",\n    \"wid\": {{wid}},\n    \"sid\": \"{{senderAddress}}\",\n    \"pvencstr\": \"{{pvencstr}}\",\n    \"encryptDevicePassword\": \"{{encryptDevicePassword}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/utils/dress-token/transfer",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "utils", "dress-token", "transfer"]
+        },
+        "description": "**스마트 전송 API** (조건부 자동 스왑)\n\nPolygon 네트워크에서 Dress 토큰을 전송합니다.\n\n## 🔄 **스마트 로직:**\n\n### **일반 주소로 전송:**\n```json\n{\n  \"to\": \"0x친구지갑주소\",\n  \"amount\": \"10\"\n}\n```\n→ 전송만 수행 ✅\n\n### **플랫폼 지갑으로 전송:**\n```json\n{\n  \"to\": \"0x2C686C46D3622d60CCAbEfb757158c8904312871\",\n  \"amount\": \"10\"\n}\n```\n→ 전송 + 자동 DP 지급 (50 DP) ✅\n\n## 🛡️ **검증 프로세스:**\n\n1. Dress Token 전송 (Polygon)\n2. txHash 획득\n3. **Transfer 이벤트 파싱** (블록체인에서)\n4. **실제 전송 금액 확인** (입력값 무시)\n5. 확인된 금액 × 5 = DP Token\n6. DP Token 지급 (Besu)\n\n## 💡 **특징:**\n\n- ✅ **Transfer 이벤트 기반 검증**\n- ✅ 입력값 대신 블록체인 데이터 사용\n- ✅ 악의적 입력 방지\n- ✅ 범용 전송 + 조건부 스왑\n\n**Body 구조:**\n```json\n{\n  \"to\": \"받는 지갑 주소\",\n  \"amount\": \"전송 수량 (DRESS)\",\n  \"devicePassword\": \"평문 비밀번호\",\n  \"storedWalletData\": { ... }\n}\n```\n\n**주의사항:**\n- Polygon 메인넷 (MATIC 가스비 필요)\n- 최소 0.1 MATIC 권장\n- EIP-1559 트랜잭션"
+      },
+      "response": []
+    },
+    {
+      "name": "5. Dress Token 전송 + 자동 스왑 (플랫폼 전용)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text",
+            "description": "ABC Wallet 액세스 토큰"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"1\",\n  \"devicePassword\": \"{{devicePassword}}\",\n  \"storedWalletData\": {\n    \"uid\": \"{{uid}}\",\n    \"wid\": {{wid}},\n    \"sid\": \"{{senderAddress}}\",\n    \"pvencstr\": \"{{pvencstr}}\",\n    \"encryptDevicePassword\": \"{{encryptDevicePassword}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/utils/dress-token/transfer-and-swap",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "utils", "dress-token", "transfer-and-swap"]
+        },
+        "description": "**원클릭 통합 스왑 API** (플랫폼 전용)\n\n한 번의 API 호출로 Dress Token 전송과 DP Token 스왑을 모두 처리합니다.\n\n## 🔄 **자동 프로세스:**\n\n1. **Dress Token 전송** (Polygon)\n   - 사용자 → 플랫폼 어드민 (0x2C686C...312871)\n   - 자동으로 설정 (to 파라미터 불필요)\n\n2. **트랜잭션 검증**\n   - Transfer 이벤트 파싱\n   - 실제 전송 금액 확인\n   - 플랫폼 어드민 지갑 확인\n\n3. **DP Token 자동 지급** (Besu)\n   - DRESS × 5배 계산\n   - 플랫폼 어드민 → 사용자\n   - Faucet 패턴 사용\n\n## 💡 **특징:**\n\n- ✅ **원클릭 스왑** (전송 + 스왑 통합)\n- ✅ **받는 주소 불필요** (자동 플랫폼 지갑)\n- ✅ **완전 검증** (Transfer 이벤트)\n- ✅ **1:5 고정 비율** (1 DRESS → 5 DP)\n\n**Body 구조:**\n```json\n{\n  \"amount\": \"전송 수량 (DRESS)\",\n  \"devicePassword\": \"평문 비밀번호\",\n  \"storedWalletData\": { ... }\n}\n```\n\n**⚠️ 주의:**\n- `to` 파라미터 없음 (자동 설정)\n- MATIC 가스비 필요 (최소 0.1 MATIC)\n\n**응답 예시:**\n```json\n{\n  \"success\": true,\n  \"message\": \"✅ 완료! 1 DRESS → 5 DP 스왑이 완료되었습니다.\",\n  \"data\": {\n    \"summary\": {\n      \"dressAmount\": \"1\",\n      \"dpAmount\": \"5\",\n      \"swapRate\": 5\n    },\n    \"polygon\": {\n      \"txHash\": \"0xabc...\",\n      \"network\": \"Polygon\"\n    },\n    \"besu\": {\n      \"txHash\": \"0xdef...\",\n      \"network\": \"Besu\"\n    }\n  }\n}\n```"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "default",
+      "description": "API 서버 주소"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "secret",
+      "description": "ABC Wallet 액세스 토큰 (로그인 후 받은 JWT)"
+    },
+    {
+      "key": "uid",
+      "value": "",
+      "type": "default",
+      "description": "MPC 지갑 사용자 ID (문자열)"
+    },
+    {
+      "key": "wid",
+      "value": "",
+      "type": "default",
+      "description": "MPC 지갑 ID (숫자, 따옴표 없음!)"
+    },
+    {
+      "key": "senderAddress",
+      "value": "",
+      "type": "default",
+      "description": "전송자 지갑 주소 (sid)"
+    },
+    {
+      "key": "recipientAddress",
+      "value": "",
+      "type": "default",
+      "description": "받는 지갑 주소"
+    },
+    {
+      "key": "pvencstr",
+      "value": "",
+      "type": "secret",
+      "description": "암호화된 개인키 문자열"
+    },
+    {
+      "key": "encryptDevicePassword",
+      "value": "",
+      "type": "secret",
+      "description": "암호화된 장치 비밀번호"
+    },
+    {
+      "key": "devicePassword",
+      "value": "",
+      "type": "secret",
+      "description": "평문 장치 비밀번호 (지갑 생성 시 사용한 비밀번호)"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// MPC 데이터 가져오기 가이드",
+          "// 브라우저 Console (F12)에서 실행:",
+          "// console.log(JSON.parse(localStorage.getItem('MpcWalletData')))",
+          "",
+          "// 출력된 데이터를 Variables에 복사하세요:",
+          "// - uid",
+          "// - wid (숫자만!)",
+          "// - sid → senderAddress",
+          "// - pvencstr",
+          "// - encryptDevicePassword"
+        ]
+      }
+    }
+  ]
+}
