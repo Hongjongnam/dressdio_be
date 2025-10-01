@@ -922,6 +922,362 @@ const setupBlockchainTab = () => {
   console.log("Blockchain tab initialized");
   handleFormSubmit("faucet-form", "faucet-result", "/api/utils/faucet", false);
 
+  // =================================================================
+  // Dress Token 잔액 조회 (Polygon)
+  // =================================================================
+  const dressTokenBalanceForm = document.getElementById(
+    "dress-token-balance-form"
+  );
+  if (dressTokenBalanceForm) {
+    dressTokenBalanceForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const accessToken = formData.get("accessToken");
+
+      const authHeader = accessToken.startsWith("Bearer ")
+        ? accessToken
+        : `Bearer ${accessToken}`;
+
+      try {
+        const response = await fetch("/api/utils/dress-token/balance", {
+          method: "GET",
+          headers: {
+            Authorization: authHeader,
+          },
+        });
+        const result = await response.json();
+
+        // Raw result 표시
+        showResult(
+          "dress-balance-raw-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+
+        // Summary 표시
+        if (response.ok && result.data) {
+          const summary = document.getElementById("dress-balance-summary");
+          summary.style.display = "block";
+
+          document.getElementById("summary-wallet-address").textContent =
+            result.data.walletAddress;
+          document.getElementById("summary-dress-balance").textContent =
+            result.data.token.balance;
+          document.getElementById("summary-matic-balance").textContent =
+            result.data.matic.balance;
+
+          const warningDiv = document.getElementById("summary-warning");
+          if (result.data.matic.warning) {
+            warningDiv.style.display = "block";
+            document.getElementById("summary-warning-text").textContent =
+              result.data.matic.warning;
+          } else {
+            warningDiv.style.display = "none";
+          }
+        } else {
+          document.getElementById("dress-balance-summary").style.display =
+            "none";
+        }
+      } catch (error) {
+        showResult(
+          "dress-balance-raw-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+        document.getElementById("dress-balance-summary").style.display = "none";
+      }
+    });
+  }
+
+  // =================================================================
+  // Dress → DP Token Swap (1:5)
+  // =================================================================
+  const swapDressToDpForm = document.getElementById("swap-dress-to-dp-form");
+  if (swapDressToDpForm) {
+    swapDressToDpForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+
+      const txHash = formData.get("txHash");
+      const fromAddress = formData.get("fromAddress");
+
+      try {
+        const response = await fetch("/api/utils/swap-dress-to-dp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            txHash,
+            fromAddress,
+          }),
+        });
+        const result = await response.json();
+
+        showResult(
+          "swap-raw-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+      } catch (error) {
+        showResult("swap-raw-result", `Error: ${error.message}`, "error");
+      }
+    });
+  }
+
+  // =================================================================
+  // DP Token 전송 (MPC 패턴)
+  // =================================================================
+  const dpTokenTransferForm = document.getElementById("dp-token-transfer-form");
+  if (dpTokenTransferForm) {
+    dpTokenTransferForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+
+      const accessToken = formData.get("accessToken");
+      const to = formData.get("to");
+      const amount = formData.get("amount");
+      const devicePassword = formData.get("devicePassword");
+
+      // localStorage의 MPC 지갑 데이터에서 개별 필드 수집
+      const uid = formData.get("uid");
+      const wid = formData.get("wid");
+      const sid = formData.get("sid");
+      const pvencstr = formData.get("pvencstr");
+      const encryptDevicePassword = formData.get("encryptDevicePassword");
+
+      // Bearer 접두사가 없으면 자동으로 추가
+      const authHeader = accessToken.startsWith("Bearer ")
+        ? accessToken
+        : `Bearer ${accessToken}`;
+
+      // storedWalletData 객체 생성
+      const storedWalletData = {
+        uid: uid,
+        wid: parseInt(wid),
+        sid: sid,
+        pvencstr: pvencstr,
+        encryptDevicePassword: encryptDevicePassword,
+      };
+
+      // 필수 필드 검증
+      if (!uid || !wid || !sid || !pvencstr || !encryptDevicePassword) {
+        showResult(
+          "dp-transfer-raw-result",
+          "모든 지갑 데이터 필드를 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/utils/dp-token/transfer", {
+          method: "POST",
+          headers: {
+            Authorization: authHeader,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to,
+            amount,
+            devicePassword,
+            storedWalletData,
+          }),
+        });
+        const result = await response.json();
+
+        showResult(
+          "dp-transfer-raw-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "dp-transfer-raw-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  // localStorage에서 DP 지갑 데이터 불러오기 버튼
+  const loadDPWalletDataBtn = document.getElementById("loadDPWalletDataBtn");
+  if (loadDPWalletDataBtn) {
+    loadDPWalletDataBtn.addEventListener("click", () => {
+      const walletData = getMpcWalletData();
+      if (walletData) {
+        document.getElementById("dpTransferUid").value = walletData.uid || "";
+        document.getElementById("dpTransferWid").value = walletData.wid || "";
+        document.getElementById("dpTransferSid").value = walletData.sid || "";
+        document.getElementById("dpTransferPvencstr").value =
+          walletData.pvencstr || "";
+        document.getElementById("dpTransferEncryptDevicePassword").value =
+          walletData.encryptDevicePassword || "";
+        showResult(
+          "dp-transfer-raw-result",
+          "지갑 데이터를 불러왔습니다.",
+          "success"
+        );
+      } else {
+        showResult(
+          "dp-transfer-raw-result",
+          "저장된 지갑 데이터가 없습니다.",
+          "error"
+        );
+      }
+    });
+  }
+
+  // DP 지갑 데이터 필드 초기화 버튼
+  const clearDPWalletDataBtn = document.getElementById("clearDPWalletDataBtn");
+  if (clearDPWalletDataBtn) {
+    clearDPWalletDataBtn.addEventListener("click", () => {
+      document.getElementById("dpTransferUid").value = "";
+      document.getElementById("dpTransferWid").value = "";
+      document.getElementById("dpTransferSid").value = "";
+      document.getElementById("dpTransferPvencstr").value = "";
+      document.getElementById("dpTransferEncryptDevicePassword").value = "";
+      showResult(
+        "dp-transfer-raw-result",
+        "지갑 데이터 필드를 초기화했습니다.",
+        "info"
+      );
+    });
+  }
+
+  // =================================================================
+  // Dress Token 전송 (Polygon, MPC 패턴) - 순수 전송 기능
+  // =================================================================
+  const dressTokenTransferForm = document.getElementById(
+    "dress-token-transfer-form"
+  );
+  if (dressTokenTransferForm) {
+    dressTokenTransferForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+
+      const accessToken = formData.get("accessToken");
+      const to = formData.get("to");
+      const amount = formData.get("amount");
+      const devicePassword = formData.get("devicePassword");
+
+      const uid = formData.get("uid");
+      const wid = formData.get("wid");
+      const sid = formData.get("sid");
+      const pvencstr = formData.get("pvencstr");
+      const encryptDevicePassword = formData.get("encryptDevicePassword");
+
+      const authHeader = accessToken.startsWith("Bearer ")
+        ? accessToken
+        : `Bearer ${accessToken}`;
+
+      const storedWalletData = {
+        uid: uid,
+        wid: parseInt(wid),
+        sid: sid,
+        pvencstr: pvencstr,
+        encryptDevicePassword: encryptDevicePassword,
+      };
+
+      if (!uid || !wid || !sid || !pvencstr || !encryptDevicePassword) {
+        showResult(
+          "dress-transfer-raw-result",
+          "모든 지갑 데이터 필드를 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      try {
+        // Dress Token 전송 (순수 기능)
+        showResult(
+          "dress-transfer-raw-result",
+          "🔄 Dress Token 전송 중...",
+          "info"
+        );
+
+        const response = await fetch("/api/utils/dress-token/transfer", {
+          method: "POST",
+          headers: {
+            Authorization: authHeader,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            to,
+            amount,
+            devicePassword,
+            storedWalletData,
+          }),
+        });
+        const result = await response.json();
+
+        // 결과 표시
+        showResult(
+          "dress-transfer-raw-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "dress-transfer-raw-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  const loadDressWalletDataBtn = document.getElementById(
+    "loadDressWalletDataBtn"
+  );
+  if (loadDressWalletDataBtn) {
+    loadDressWalletDataBtn.addEventListener("click", () => {
+      const walletData = getMpcWalletData();
+      if (walletData) {
+        document.getElementById("dressTransferUid").value =
+          walletData.uid || "";
+        document.getElementById("dressTransferWid").value =
+          walletData.wid || "";
+        document.getElementById("dressTransferSid").value =
+          walletData.sid || "";
+        document.getElementById("dressTransferPvencstr").value =
+          walletData.pvencstr || "";
+        document.getElementById("dressTransferEncryptDevicePassword").value =
+          walletData.encryptDevicePassword || "";
+        showResult(
+          "dress-transfer-raw-result",
+          "지갑 데이터를 불러왔습니다.",
+          "success"
+        );
+      } else {
+        showResult(
+          "dress-transfer-raw-result",
+          "저장된 지갑 데이터가 없습니다.",
+          "error"
+        );
+      }
+    });
+  }
+
+  const clearDressWalletDataBtn = document.getElementById(
+    "clearDressWalletDataBtn"
+  );
+  if (clearDressWalletDataBtn) {
+    clearDressWalletDataBtn.addEventListener("click", () => {
+      document.getElementById("dressTransferUid").value = "";
+      document.getElementById("dressTransferWid").value = "";
+      document.getElementById("dressTransferSid").value = "";
+      document.getElementById("dressTransferPvencstr").value = "";
+      document.getElementById("dressTransferEncryptDevicePassword").value = "";
+      showResult(
+        "dress-transfer-raw-result",
+        "지갑 데이터 필드를 초기화했습니다.",
+        "info"
+      );
+    });
+  }
+
   // IPFS 파일 업로드 (FormData 사용)
   const ipfsUploadFileForm = document.getElementById("ipfs-upload-file-form");
   if (ipfsUploadFileForm) {
@@ -956,4 +1312,160 @@ const setupBlockchainTab = () => {
     "/api/utils/ipfs/upload-json",
     false
   );
+
+  // =================================================================
+  // Dress Token 전송 + 자동 스왑 통합 API (플랫폼 전용)
+  // =================================================================
+  const swapIntegratedForm = document.getElementById(
+    "dress-token-transfer-and-swap-form"
+  );
+  if (swapIntegratedForm) {
+    swapIntegratedForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+
+      const accessToken = formData.get("accessToken");
+      const amount = formData.get("amount");
+      const devicePassword = formData.get("devicePassword");
+
+      const uid = formData.get("uid");
+      const wid = formData.get("wid");
+      const sid = formData.get("sid");
+      const pvencstr = formData.get("pvencstr");
+      const encryptDevicePassword = formData.get("encryptDevicePassword");
+
+      const authHeader = accessToken.startsWith("Bearer ")
+        ? accessToken
+        : `Bearer ${accessToken}`;
+
+      const storedWalletData = {
+        uid: uid,
+        wid: parseInt(wid),
+        sid: sid,
+        pvencstr: pvencstr,
+        encryptDevicePassword: encryptDevicePassword,
+      };
+
+      if (!uid || !wid || !sid || !pvencstr || !encryptDevicePassword) {
+        showResult(
+          "swap-integrated-raw-result",
+          "모든 지갑 데이터 필드를 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      try {
+        // 진행 상태 표시
+        showResult(
+          "swap-integrated-raw-result",
+          "🔄 Dress Token 전송 + 자동 스왑 진행 중...",
+          "info"
+        );
+        document.getElementById("swap-integrated-summary").style.display =
+          "none";
+
+        const response = await fetch(
+          "/api/utils/dress-token/transfer-and-swap",
+          {
+            method: "POST",
+            headers: {
+              Authorization: authHeader,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              amount,
+              devicePassword,
+              storedWalletData,
+            }),
+          }
+        );
+        const result = await response.json();
+
+        if (response.ok) {
+          // Raw result 표시
+          showResult("swap-integrated-raw-result", result, "success");
+
+          // Summary 표시
+          if (result.data && result.data.summary) {
+            const summary = document.getElementById("swap-integrated-summary");
+            summary.style.display = "block";
+
+            document.getElementById("summary-swap-dress-amount").textContent =
+              result.data.summary.dressAmount + " DRESS";
+            document.getElementById("summary-swap-dp-amount").textContent =
+              result.data.summary.dpAmount + " DP";
+            document.getElementById("summary-swap-polygon-tx").textContent =
+              result.data.polygon.txHash;
+            document.getElementById("summary-swap-besu-tx").textContent =
+              result.data.besu.txHash;
+          }
+        } else {
+          showResult("swap-integrated-raw-result", result, "error");
+          document.getElementById("swap-integrated-summary").style.display =
+            "none";
+        }
+      } catch (error) {
+        showResult(
+          "swap-integrated-raw-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+        document.getElementById("swap-integrated-summary").style.display =
+          "none";
+      }
+    });
+  }
+
+  // localStorage에서 통합 스왑 지갑 데이터 불러오기 버튼
+  const loadSwapIntegratedWalletDataBtn = document.getElementById(
+    "loadSwapIntegratedWalletDataBtn"
+  );
+  if (loadSwapIntegratedWalletDataBtn) {
+    loadSwapIntegratedWalletDataBtn.addEventListener("click", () => {
+      const walletData = getMpcWalletData();
+      if (walletData) {
+        document.getElementById("swapIntegratedUid").value =
+          walletData.uid || "";
+        document.getElementById("swapIntegratedWid").value =
+          walletData.wid || "";
+        document.getElementById("swapIntegratedSid").value =
+          walletData.sid || "";
+        document.getElementById("swapIntegratedPvencstr").value =
+          walletData.pvencstr || "";
+        document.getElementById("swapIntegratedEncryptDevicePassword").value =
+          walletData.encryptDevicePassword || "";
+        showResult(
+          "swap-integrated-raw-result",
+          "지갑 데이터를 불러왔습니다.",
+          "success"
+        );
+      } else {
+        showResult(
+          "swap-integrated-raw-result",
+          "저장된 지갑 데이터가 없습니다.",
+          "error"
+        );
+      }
+    });
+  }
+
+  // 통합 스왑 지갑 데이터 필드 초기화 버튼
+  const clearSwapIntegratedWalletDataBtn = document.getElementById(
+    "clearSwapIntegratedWalletDataBtn"
+  );
+  if (clearSwapIntegratedWalletDataBtn) {
+    clearSwapIntegratedWalletDataBtn.addEventListener("click", () => {
+      document.getElementById("swapIntegratedUid").value = "";
+      document.getElementById("swapIntegratedWid").value = "";
+      document.getElementById("swapIntegratedSid").value = "";
+      document.getElementById("swapIntegratedPvencstr").value = "";
+      document.getElementById("swapIntegratedEncryptDevicePassword").value = "";
+      showResult(
+        "swap-integrated-raw-result",
+        "지갑 데이터 필드를 초기화했습니다.",
+        "info"
+      );
+    });
+  }
 };
