@@ -4,37 +4,95 @@ const sbtController = require("../../controllers/nft/sbtController");
 const auth = require("../../middleware/auth");
 
 /**
- * @route GET /api/nft/sbt/list
- * @desc Get all SBTs from database
- * @access Public
+ * @swagger
+ * /api/nft/sbt/list:
+ *   get:
+ *     summary: 전체 SBT 목록 조회
+ *     tags: [SBT]
+ *     responses:
+ *       200:
+ *         description: 목록 조회 성공
  */
 router.get("/list", sbtController.getAllSBTs);
 
 /**
- * @route GET /api/nft/sbt/admin/balance
- * @desc Get admin wallet balance
- * @access Public
+ * @swagger
+ * /api/nft/sbt/admin/balance:
+ *   get:
+ *     summary: 관리자 지갑 잔액 조회
+ *     tags: [SBT]
+ *     responses:
+ *       200:
+ *         description: 잔액 조회 성공
  */
 router.get("/admin/balance", sbtController.getAdminBalance);
 
 /**
- * @route POST /api/nft/sbt/mint
- * @desc Mint a new SBT
- * @access Public
+ * @swagger
+ * /api/nft/sbt/mint:
+ *   post:
+ *     summary: SBT 발행
+ *     tags: [SBT]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - devicePassword
+ *               - storedWalletData
+ *               - creatorWalletAddress
+ *               - creatorType
+ *               - creatorName
+ *               - description
+ *     responses:
+ *       200:
+ *         description: SBT 발행 성공
  */
 router.post("/mint", auth, sbtController.mintSbt);
 
 /**
- * @route POST /api/nft/sbt/transfer-ownership
- * @desc Transfer SBT contract ownership
- * @access Protected
+ * @swagger
+ * /api/nft/sbt/transfer-ownership:
+ *   post:
+ *     summary: SBT 소유권 이전
+ *     tags: [SBT]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newOwner
+ *               - devicePassword
+ *               - storedWalletData
+ *     responses:
+ *       200:
+ *         description: 소유권 이전 성공
  */
 router.post("/transfer-ownership", auth, sbtController.transferSbtOwnership);
 
 /**
- * @route GET /api/nft/sbt/info/:sbtId
- * @desc Get SBT information by token ID
- * @access Public
+ * @swagger
+ * /api/nft/sbt/info/{sbtId}:
+ *   get:
+ *     summary: SBT 정보 조회
+ *     tags: [SBT]
+ *     parameters:
+ *       - in: path
+ *         name: sbtId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 정보 조회 성공
  */
 router.get("/info/:sbtId", sbtController.getSbtInfo);
 

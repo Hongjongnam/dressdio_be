@@ -6,6 +6,7 @@ const authRouter = require("./routes/auth/auth.js");
 const nftRouter = require("./routes/nft");
 const utilsRouter = require("./routes/utils");
 const { initializeWeb3 } = require("./config/web3");
+const { swaggerSetup } = require("./config/swagger");
 const path = require("path");
 
 // Load environment variables
@@ -13,6 +14,9 @@ require("dotenv").config();
 
 // Create Express app
 const app = express();
+
+// Swagger 설정 (라우터 등록 전에 설정)
+swaggerSetup(app);
 
 // Middleware
 app.use(cors());

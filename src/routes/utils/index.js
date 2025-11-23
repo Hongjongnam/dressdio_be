@@ -4,51 +4,239 @@ const utilController = require("../../controllers/utils/utilController");
 const authMiddleware = require("../../middleware/auth");
 const { upload } = require("../../services/upload"); // upload 객체를 직접 import
 
-// DP Faucet route (테스트용이므로 인증 없음)
+/**
+ * @swagger
+ * /api/utils/faucet:
+ *   post:
+ *     summary: Faucet (DP 토큰 받기)
+ *     tags: [Utils]
+ *     description: 테스트용 DP Token 에어드랍 기능입니다. 인증이 필요 없습니다.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - walletAddress
+ *               - amount
+ *             properties:
+ *               walletAddress:
+ *                 type: string
+ *               amount:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 에어드랍 성공
+ */
 router.post("/faucet", utilController.faucet);
 
-// Dress → DP Token Swap (1:5 비율)
+/**
+ * @swagger
+ * /api/utils/swap-dress-to-dp:
+ *   post:
+ *     summary: Dress → DP 수동 스왑
+ *     tags: [Utils]
+ *     description: 플랫폼 어드민이 수동으로 Dress Token TxHash를 검증해 DP Token을 지급
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - txHash
+ *               - fromAddress
+ *             properties:
+ *               txHash:
+ *                 type: string
+ *               fromAddress:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 스왑 성공
+ */
 router.post("/swap-dress-to-dp", utilController.swapDressToDp);
 
-// Dress Token 잔액 조회 (Polygon)
+/**
+ * @swagger
+ * /api/utils/dress-token/balance:
+ *   get:
+ *     summary: Dress Token 잔액 조회 (Polygon)
+ *     tags: [Utils]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: walletAddress
+ *         schema:
+ *           type: string
+ *         description: 조회할 지갑 주소 (없으면 인증된 사용자 기준)
+ *     responses:
+ *       200:
+ *         description: 잔액 조회 성공
+ */
 router.get(
   "/dress-token/balance",
   authMiddleware,
   utilController.getDressTokenBalance
 );
 
-// DP Token 전송 (Besu, MPC 패턴)
+/**
+ * @swagger
+ * /api/utils/dp-token/transfer:
+ *   post:
+ *     summary: DP Token 전송 (Besu, MPC)
+ *     tags: [Utils]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *               - amount
+ *               - devicePassword
+ *               - storedWalletData
+ *     responses:
+ *       200:
+ *         description: 전송 성공
+ */
 router.post(
   "/dp-token/transfer",
   authMiddleware,
   utilController.transferDPToken
 );
 
-// Dress Token 전송 (Polygon, MPC 패턴)
+/**
+ * @swagger
+ * /api/utils/dress-token/transfer:
+ *   post:
+ *     summary: Dress Token 전송 (Polygon, MPC)
+ *     tags: [Utils]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *               - amount
+ *               - devicePassword
+ *               - storedWalletData
+ *     responses:
+ *       200:
+ *         description: 전송 성공
+ */
 router.post(
   "/dress-token/transfer",
   authMiddleware,
   utilController.transferDressToken
 );
 
-// Dress Token 전송 + DP Token 자동 스왑 통합 API (플랫폼 전용)
+/**
+ * @swagger
+ * /api/utils/dress-token/transfer-and-swap:
+ *   post:
+ *     summary: Dress Token 전송 + 자동 DP 스왑 (플랫폼)
+ *     tags: [Utils]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *               - devicePassword
+ *               - storedWalletData
+ *     responses:
+ *       200:
+ *         description: 전송 및 스왑 성공
+ */
 router.post(
   "/dress-token/transfer-and-swap",
   authMiddleware,
   utilController.transferDressTokenAndSwap
 );
 
-// File upload to IPFS (테스트용이므로 인증 없음)
+/**
+ * @swagger
+ * /api/utils/ipfs/upload-file:
+ *   post:
+ *     summary: IPFS 파일 업로드
+ *     tags: [Utils]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: 업로드 성공
+ */
 router.post(
   "/ipfs/upload-file",
   upload.single("file"), // upload.single() 사용
   utilController.uploadFileToIPFS
 );
 
-// JSON upload to IPFS (테스트용이므로 인증 없음)
+/**
+ * @swagger
+ * /api/utils/ipfs/upload-json:
+ *   post:
+ *     summary: IPFS JSON 업로드
+ *     tags: [Utils]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - jsonData
+ *             properties:
+ *               jsonData:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: 업로드 성공
+ */
 router.post("/ipfs/upload-json", utilController.uploadJSONToIPFS);
 
-// Debugging route for IPNFT state
+/**
+ * @swagger
+ * /api/utils/debug/ipnft/{tokenId}:
+ *   get:
+ *     summary: IPNFT 상태 디버그
+ *     tags: [Utils]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tokenId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 디버그 정보
+ */
 router.get(
   "/debug/ipnft/:tokenId",
   authMiddleware,
