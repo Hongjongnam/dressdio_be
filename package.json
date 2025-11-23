@@ -30,6 +30,8 @@
     "pino": "^9.7.0",
     "qs": "^6.14.0",
     "streamifier": "^0.1.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "web3": "^4.16.0",
     "winston": "^3.17.0"
   },
