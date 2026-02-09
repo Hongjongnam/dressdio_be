@@ -6,6 +6,7 @@ const sbtRoutes = require("./sbtRoutes");
 const ipRoutes = require("./ipRoutes");
 const platformRoutes = require("./platformRoutes");
 const merchandiseRoutes = require("./merchandiseRoutes");
+const personalRoutes = require("./personalRoutes");
 
 /**
  * @route /api/nft/sbt
@@ -30,5 +31,11 @@ router.use("/platform", platformRoutes);
  * @desc Merchandise project related routes
  */
 router.use("/merchandise", merchandiseRoutes);
+
+/**
+ * @route /api/nft/personal
+ * @desc Personal NFT related routes
+ */
+router.use("/personal", personalRoutes);
 
 module.exports = router;

@@ -11,6 +11,7 @@ const DPTokenABI = require("../abi/DPToken.json");
 const IPNFTABI = require("../abi/IPNFT.json");
 const PlatformRegistryABI = require("../abi/PlatformRegistry.json");
 const MerchandiseFactoryABI = require("../abi/MerchandiseFactory.json");
+const PersonalNFTABI = require("../abi/PersonalNFT.json");
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -26,6 +27,7 @@ const contractAddresses = {
   creatorSBT: process.env.SBT_CONTRACT_ADDRESS, // Use the same SBT contract address
   platformRegistry: process.env.PLATFORM_REGISTRY_ADDRESS,
   merchandiseFactory: process.env.MERCH_FACTORY_ADDRESS,
+  personalNFT: process.env.PERSONAL_NFT_ADDRESS,
 };
 
 // Log contract addresses for debugging
@@ -36,6 +38,7 @@ logger.info("Contract Addresses:", {
   creatorSBT: contractAddresses.creatorSBT,
   platformRegistry: contractAddresses.platformRegistry,
   merchandiseFactory: contractAddresses.merchandiseFactory,
+  personalNFT: contractAddresses.personalNFT,
 });
 
 // Validate contract addresses after web3 is initialized
@@ -108,6 +111,11 @@ const platformRegistryContract = new web3.eth.Contract(
 const merchandiseFactoryContract = new web3.eth.Contract(
   MerchandiseFactoryABI,
   contractAddresses.merchandiseFactory
+);
+
+const personalNFTContract = new web3.eth.Contract(
+  PersonalNFTABI,
+  contractAddresses.personalNFT
 );
 
 // Use the full SbtContract ABI for creatorSBTContract
@@ -207,6 +215,7 @@ module.exports = {
   creatorSBTAddress: contractAddresses.creatorSBT,
   platformRegistryAddress: contractAddresses.platformRegistry,
   merchandiseFactoryAddress: contractAddresses.merchandiseFactory,
+  personalNFTAddress: contractAddresses.personalNFT,
   // ABC Wallet config
   abcWalletBaseUrl: web3Config.abcWalletBaseUrl,
   // devicePassword is now provided by user input, not config
@@ -218,4 +227,6 @@ module.exports = {
   checkConnection,
   initializeWeb3,
   getIpNftContract, // Getter 함수를 내보냄
+  // Personal NFT
+  personalNFTContract,
 };

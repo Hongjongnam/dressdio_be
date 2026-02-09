@@ -75,6 +75,8 @@ const initializeTabScripts = (tabName) => {
     setupIpNftTab();
   } else if (tabName === "merchandise") {
     setupMerchandiseTab();
+  } else if (tabName === "personal") {
+    setupPersonalTab();
   } else if (tabName === "platform") {
     setupPlatformTab();
   } else if (tabName === "blockchain") {
@@ -454,6 +456,281 @@ const setupMerchandiseTab = () => {
     "generatePdfForm",
     "generatePdfResult",
     `${API_BASE_URL}/receipt/:receiptId/generate-pdf`
+  );
+};
+
+const setupPersonalTab = () => {
+  const API_BASE_URL = "/api/nft/personal";
+
+  // 1. 가격 계산 (미리보기)
+  const calcBtn = document.getElementById("calculate-price-btn");
+  if (calcBtn) {
+    calcBtn.addEventListener("click", async () => {
+      const form = document.getElementById("calculate-price-form");
+      const brandTokenIdInput = form.querySelector(
+        "input[name='brandTokenId']"
+      );
+      const artistTokenIdsInput = form.querySelector(
+        "input[name='artistTokenIds']"
+      );
+
+      if (
+        !brandTokenIdInput.value ||
+        !artistTokenIdsInput.value ||
+        artistTokenIdsInput.value.trim() === ""
+      ) {
+        showResult(
+          "calculate-price-result",
+          "Brand Token ID와 Artist Token IDs를 모두 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      const artistTokenIds = artistTokenIdsInput.value
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id !== "");
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/calculate-price`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            brandTokenId: Number(brandTokenIdInput.value),
+            artistTokenIds,
+          }),
+        });
+        const result = await response.json();
+        showResult(
+          "calculate-price-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "calculate-price-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  // 2. 구매 요청 (DP 에스크로)
+  const requestPurchaseForm = document.getElementById("request-purchase-form");
+  if (requestPurchaseForm) {
+    requestPurchaseForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const accessToken = formData.get("accessToken");
+
+      // artistTokenIds 문자열을 배열로 변환
+      const artistTokenIdsRaw = formData.get("artistTokenIds") || "";
+      const artistTokenIds = artistTokenIdsRaw
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id !== "");
+
+      const body = Object.fromEntries(formData.entries());
+
+      // storedWalletData 조합
+      const storedWalletData = {
+        uid: body.storedWalletData_uid,
+        wid: Number(body.storedWalletData_wid),
+        sid: body.storedWalletData_sid,
+        pvencstr: body.storedWalletData_pvencstr,
+        encryptDevicePassword: body.storedWalletData_encryptDevicePassword,
+      };
+
+      // 개별 필드 제거
+      delete body.storedWalletData_uid;
+      delete body.storedWalletData_wid;
+      delete body.storedWalletData_sid;
+      delete body.storedWalletData_pvencstr;
+      delete body.storedWalletData_encryptDevicePassword;
+      delete body.artistTokenIds;
+
+      body.brandTokenId = Number(body.brandTokenId);
+      body.artistTokenIds = artistTokenIds;
+      body.storedWalletData = storedWalletData;
+
+      const options = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: accessToken.startsWith("Bearer ")
+            ? accessToken
+            : `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+      };
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/request-purchase`,
+          options
+        );
+        const result = await response.json();
+        showResult(
+          "request-purchase-result",
+          result,
+          response.ok ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "request-purchase-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  // 3. 구매 확정
+  handleFormSubmit(
+    "confirm-purchase-form",
+    "confirm-purchase-result",
+    `${API_BASE_URL}/confirm-purchase`,
+    true
+  );
+
+  // 4. 구매 취소
+  handleFormSubmit(
+    "cancel-purchase-form",
+    "cancel-purchase-result",
+    `${API_BASE_URL}/cancel-purchase`,
+    true
+  );
+
+  // 5. 내 구매 요청 목록
+  handleGetRequest(
+    "my-requests-btn",
+    "my-requests-result",
+    `${API_BASE_URL}/my-requests`,
+    true
+  );
+
+  // 6. 구매 요청 상세 정보
+  const getRequestInfoBtn = document.getElementById("get-request-info-btn");
+  if (getRequestInfoBtn) {
+    getRequestInfoBtn.addEventListener("click", async () => {
+      const form = document.getElementById("get-request-info-form");
+      const requestIdInput = form.querySelector("input[name='requestId']");
+      if (!requestIdInput.value) {
+        showResult(
+          "get-request-info-result",
+          "Request ID를 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      const endpoint = `${API_BASE_URL}/request/${requestIdInput.value}`;
+      try {
+        const result = await makeRequest(endpoint);
+        showResult(
+          "get-request-info-result",
+          result,
+          result.success ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "get-request-info-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  // 7. 내 Personal NFT 목록
+  handleGetRequest(
+    "my-nfts-btn",
+    "my-nfts-result",
+    `${API_BASE_URL}/my`,
+    true
+  );
+
+  // 8. Personal NFT 상세 정보
+  const getNftInfoBtn = document.getElementById("get-nft-info-btn");
+  if (getNftInfoBtn) {
+    getNftInfoBtn.addEventListener("click", async () => {
+      const form = document.getElementById("get-nft-info-form");
+      const tokenIdInput = form.querySelector("input[name='tokenId']");
+      if (!tokenIdInput.value) {
+        showResult(
+          "get-nft-info-result",
+          "Token ID를 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      const endpoint = `${API_BASE_URL}/${tokenIdInput.value}`;
+      try {
+        const result = await makeRequest(endpoint);
+        showResult(
+          "get-nft-info-result",
+          result,
+          result.success ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "get-nft-info-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  // 9. TxHash로 정산 내역 조회
+  const getDistributionBtn = document.getElementById("get-distribution-btn");
+  if (getDistributionBtn) {
+    getDistributionBtn.addEventListener("click", async () => {
+      const form = document.getElementById("get-distribution-form");
+      const txHashInput = form.querySelector("input[name='txHash']");
+      if (!txHashInput.value) {
+        showResult(
+          "get-distribution-result",
+          "Transaction Hash를 입력해주세요.",
+          "error"
+        );
+        return;
+      }
+
+      const endpoint = `${API_BASE_URL}/distribution/${txHashInput.value}`;
+      try {
+        const result = await makeRequest(endpoint);
+        showResult(
+          "get-distribution-result",
+          result,
+          result.success ? "success" : "error"
+        );
+      } catch (error) {
+        showResult(
+          "get-distribution-result",
+          `Error: ${error.message}`,
+          "error"
+        );
+      }
+    });
+  }
+
+  // 10. 플랫폼 수수료 조회
+  handleGetRequest(
+    "get-fee-btn",
+    "get-fee-result",
+    `${API_BASE_URL}/platform-fee`
+  );
+
+  // 11. 플랫폼 수수료 설정 (관리자 전용)
+  handleFormSubmit(
+    "set-fee-form",
+    "set-fee-result",
+    `${API_BASE_URL}/platform-fee`,
+    true
   );
 };
 

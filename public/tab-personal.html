@@ -1,0 +1,552 @@
+<div class="api-grid">
+  <!-- Card 1: Calculate Price -->
+  <fieldset>
+    <legend>1. 가격 계산 (미리보기)</legend>
+    <p class="description">
+      선택한 Brand IP NFT와 Artist IP NFT들의 총 가격을 계산합니다.
+    </p>
+    <form id="calculate-price-form">
+      <label for="calcBrandTokenId">Brand Token ID</label>
+      <input type="number" name="brandTokenId" placeholder="0" required />
+
+      <label for="calcArtistTokenIds">Artist Token IDs (콤마로 구분)</label>
+      <input type="text" name="artistTokenIds" placeholder="1,2,3" required />
+
+      <button type="button" id="calculate-price-btn">가격 계산</button>
+    </form>
+    <pre id="calculate-price-result"></pre>
+  </fieldset>
+
+  <!-- Card 2: Request Purchase -->
+  <fieldset>
+    <legend>2. 구매 요청 (DP 토큰 에스크로)</legend>
+    <p class="description">
+      Personal NFT 구매를 요청합니다. DP 토큰이 컨트랙트에 에스크로됩니다. 구매
+      확정 전까지는 취소할 수 있습니다.
+    </p>
+    <form id="request-purchase-form">
+      <label for="reqAccessToken">액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="액세스 토큰을 입력하세요"
+      ></textarea>
+
+      <label for="reqDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        name="devicePassword"
+        required
+        placeholder="지갑의 장치 비밀번호를 입력하세요"
+      />
+
+      <label for="reqBrandTokenId">Brand Token ID</label>
+      <input type="number" name="brandTokenId" placeholder="0" required />
+
+      <label for="reqArtistTokenIds">Artist Token IDs (콤마로 구분)</label>
+      <input type="text" name="artistTokenIds" placeholder="1,2,3" required />
+
+      <fieldset
+        style="
+          border: 1px solid #ddd;
+          padding: 15px;
+          margin: 10px 0;
+          border-radius: 5px;
+        "
+      >
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (필수)
+        </legend>
+
+        <label for="reqUid">UID</label>
+        <input
+          type="text"
+          id="reqUid"
+          name="storedWalletData_uid"
+          placeholder="user_id"
+          required
+        />
+
+        <label for="reqWid">WID</label>
+        <input
+          type="number"
+          id="reqWid"
+          name="storedWalletData_wid"
+          placeholder="wallet_id"
+          required
+        />
+
+        <label for="reqSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="reqSid"
+          name="storedWalletData_sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="reqPvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="reqPvencstr"
+          name="storedWalletData_pvencstr"
+          rows="4"
+          placeholder="encrypted_data"
+          required
+        ></textarea>
+
+        <label for="reqEncryptDevicePassword">암호화된 장치 비밀번호</label>
+        <textarea
+          id="reqEncryptDevicePassword"
+          name="storedWalletData_encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+      </fieldset>
+
+      <button type="submit">구매 요청</button>
+    </form>
+    <pre id="request-purchase-result"></pre>
+  </fieldset>
+
+  <!-- Card 3: Confirm Purchase -->
+  <fieldset>
+    <legend>3. 구매 확정 (NFT 발행)</legend>
+    <p class="description">
+      구매 요청을 확정하면 Personal NFT가 발행되고 수익이 분배됩니다.
+    </p>
+    <form id="confirm-purchase-form">
+      <label for="confAccessToken">액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="액세스 토큰을 입력하세요"
+      ></textarea>
+
+      <label for="confDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        name="devicePassword"
+        required
+        placeholder="지갑의 장치 비밀번호를 입력하세요"
+      />
+
+      <label for="confRequestId">Request ID (구매 요청 ID)</label>
+      <input type="number" name="requestId" placeholder="0" required />
+
+      <label for="confImageUrl">NFT 이미지 URL</label>
+      <input
+        type="text"
+        name="imageUrl"
+        placeholder="https://example.com/image.jpg 또는 ipfs://..."
+        required
+      />
+
+      <fieldset
+        style="
+          border: 1px solid #ddd;
+          padding: 15px;
+          margin: 10px 0;
+          border-radius: 5px;
+        "
+      >
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (필수)
+        </legend>
+
+        <label for="confUid">UID</label>
+        <input
+          type="text"
+          id="confUid"
+          name="storedWalletData_uid"
+          placeholder="user_id"
+          required
+        />
+
+        <label for="confWid">WID</label>
+        <input
+          type="number"
+          id="confWid"
+          name="storedWalletData_wid"
+          placeholder="wallet_id"
+          required
+        />
+
+        <label for="confSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="confSid"
+          name="storedWalletData_sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="confPvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="confPvencstr"
+          name="storedWalletData_pvencstr"
+          rows="4"
+          placeholder="encrypted_data"
+          required
+        ></textarea>
+
+        <label for="confEncryptDevicePassword">암호화된 장치 비밀번호</label>
+        <textarea
+          id="confEncryptDevicePassword"
+          name="storedWalletData_encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+      </fieldset>
+
+      <button type="submit">구매 확정</button>
+    </form>
+    <pre id="confirm-purchase-result"></pre>
+  </fieldset>
+
+  <!-- Card 4: Cancel Purchase -->
+  <fieldset>
+    <legend>4. 구매 취소 (환불)</legend>
+    <p class="description">
+      구매 요청을 취소하고 DP를 환불받습니다. (플랫폼 수수료 1% 차감)
+    </p>
+    <form id="cancel-purchase-form">
+      <label for="cancelAccessToken">액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="액세스 토큰을 입력하세요"
+      ></textarea>
+
+      <label for="cancelDevicePassword">장치 비밀번호</label>
+      <input
+        type="password"
+        name="devicePassword"
+        required
+        placeholder="지갑의 장치 비밀번호를 입력하세요"
+      />
+
+      <label for="cancelRequestId">Request ID (구매 요청 ID)</label>
+      <input type="number" name="requestId" placeholder="0" required />
+
+      <fieldset
+        style="
+          border: 1px solid #ddd;
+          padding: 15px;
+          margin: 10px 0;
+          border-radius: 5px;
+        "
+      >
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (필수)
+        </legend>
+
+        <label for="cancelUid">UID</label>
+        <input
+          type="text"
+          id="cancelUid"
+          name="storedWalletData_uid"
+          placeholder="user_id"
+          required
+        />
+
+        <label for="cancelWid">WID</label>
+        <input
+          type="number"
+          id="cancelWid"
+          name="storedWalletData_wid"
+          placeholder="wallet_id"
+          required
+        />
+
+        <label for="cancelSid">SID (지갑 주소)</label>
+        <input
+          type="text"
+          id="cancelSid"
+          name="storedWalletData_sid"
+          placeholder="0x..."
+          required
+        />
+
+        <label for="cancelPvencstr">PVENCSTR (암호화된 데이터)</label>
+        <textarea
+          id="cancelPvencstr"
+          name="storedWalletData_pvencstr"
+          rows="4"
+          placeholder="encrypted_data"
+          required
+        ></textarea>
+
+        <label for="cancelEncryptDevicePassword">암호화된 장치 비밀번호</label>
+        <textarea
+          id="cancelEncryptDevicePassword"
+          name="storedWalletData_encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+        ></textarea>
+      </fieldset>
+
+      <button type="submit">구매 취소</button>
+    </form>
+    <pre id="cancel-purchase-result"></pre>
+  </fieldset>
+
+  <!-- Card 5: My Purchase Requests -->
+  <fieldset>
+    <legend>5. 내 구매 요청 목록</legend>
+    <p class="description">
+      내가 요청한 모든 Personal NFT 구매 요청을 조회합니다.
+    </p>
+    <form id="my-requests-form">
+      <label for="myReqAccessToken">액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="액세스 토큰을 입력하세요"
+      ></textarea>
+      <button type="button" id="my-requests-btn">내 구매 요청 조회</button>
+    </form>
+    <pre id="my-requests-result"></pre>
+  </fieldset>
+
+  <!-- Card 6: Get Purchase Request Info -->
+  <fieldset>
+    <legend>6. 구매 요청 상세 정보</legend>
+    <form id="get-request-info-form">
+      <label for="getReqRequestId">Request ID</label>
+      <input type="number" name="requestId" required />
+      <button type="button" id="get-request-info-btn">
+        구매 요청 정보 조회
+      </button>
+    </form>
+    <pre id="get-request-info-result"></pre>
+  </fieldset>
+
+  <!-- Card 7: My Personal NFTs -->
+  <fieldset>
+    <legend>7. 내 Personal NFT 목록</legend>
+    <p class="description">내가 소유한 모든 Personal NFT를 조회합니다.</p>
+    <form id="my-nfts-form">
+      <label for="myNftAccessToken">액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="액세스 토큰을 입력하세요"
+      ></textarea>
+      <button type="button" id="my-nfts-btn">내 Personal NFT 조회</button>
+    </form>
+    <pre id="my-nfts-result"></pre>
+  </fieldset>
+
+  <!-- Card 8: Get Personal NFT Info -->
+  <fieldset>
+    <legend>8. Personal NFT 상세 정보</legend>
+    <form id="get-nft-info-form">
+      <label for="getNftTokenId">Token ID</label>
+      <input type="number" name="tokenId" required />
+      <button type="button" id="get-nft-info-btn">NFT 정보 조회</button>
+    </form>
+    <pre id="get-nft-info-result"></pre>
+  </fieldset>
+
+  <!-- Card 9: Get Distribution by TxHash -->
+  <fieldset style="background: white; color: white">
+    <legend style="color: black; font-weight: bold">
+      9. TxHash로 정산 내역 조회
+    </legend>
+    <p
+      style="
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        color: black;
+      "
+    >
+      구매 확정 시 받은 TxHash를 입력하면 브랜드, 아티스트, 플랫폼에게 분배된
+      금액을 상세히 확인할 수 있습니다.
+    </p>
+    <form id="get-distribution-form">
+      <label for="getTxHash" style="color: black">Transaction Hash</label>
+      <input
+        type="text"
+        name="txHash"
+        placeholder="0x..."
+        required
+        style="background: white; color: black"
+      />
+      <button
+        type="button"
+        id="get-distribution-btn"
+        style="background: #ffd700; color: #333; font-weight: bold"
+      >
+        🔍 정산 내역 조회
+      </button>
+    </form>
+    <pre
+      id="get-distribution-result"
+      style="
+        background: rgba(0, 0, 0, 0.3);
+        color: #fff;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      "
+    ></pre>
+  </fieldset>
+
+  <!-- 10. 플랫폼 수수료 관리 -->
+  <fieldset style="background: white; color: white">
+    <legend style="color: black; font-weight: bold">
+      10. 플랫폼 수수료 관리 (관리자 전용)
+    </legend>
+    <p
+      style="
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        color: black;
+      "
+    >
+      Personal NFT 플랫폼 수수료를 조회하고 변경할 수 있습니다. <br />
+      0 = 0%, 100 = 1%, 1000 = 10% (0~1000 사이 값만 입력 가능)
+    </p>
+
+    <!-- 수수료 조회 -->
+    <div style="margin-bottom: 20px">
+      <button
+        type="button"
+        id="get-fee-btn"
+        style="background: #4caf50; color: white; font-weight: bold"
+      >
+        📊 현재 수수료 조회
+      </button>
+      <pre
+        id="get-fee-result"
+        style="
+          background: rgba(0, 0, 0, 0.3);
+          color: #fff;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          margin-top: 10px;
+        "
+      ></pre>
+    </div>
+
+    <!-- 수수료 설정 -->
+    <form id="set-fee-form">
+      <label for="feeAccessToken" style="color: black">액세스 토큰</label>
+      <textarea
+        name="accessToken"
+        rows="3"
+        required
+        placeholder="액세스 토큰을 입력하세요"
+        style="background: white; color: black"
+      ></textarea>
+
+      <label for="feeDevicePassword" style="color: black">장치 비밀번호</label>
+      <input
+        type="password"
+        name="devicePassword"
+        required
+        placeholder="장치 비밀번호"
+        style="background: white; color: black"
+      />
+
+      <fieldset
+        style="
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 15px;
+          margin: 10px 0;
+          border-radius: 5px;
+        "
+      >
+        <legend style="font-size: 0.9rem; color: #666">
+          저장된 지갑 데이터 (필수)
+        </legend>
+
+        <label for="feeUid" style="color: black">UID</label>
+        <input
+          type="text"
+          name="storedWalletData_uid"
+          placeholder="user_id"
+          required
+          style="background: white; color: black"
+        />
+
+        <label for="feeWid" style="color: black">WID</label>
+        <input
+          type="number"
+          name="storedWalletData_wid"
+          placeholder="wallet_id"
+          required
+          style="background: white; color: black"
+        />
+
+        <label for="feeSid" style="color: black">SID (지갑 주소)</label>
+        <input
+          type="text"
+          name="storedWalletData_sid"
+          placeholder="0x..."
+          required
+          style="background: white; color: black"
+        />
+
+        <label for="feePvencstr" style="color: black"
+          >PVENCSTR (암호화된 데이터)</label
+        >
+        <textarea
+          name="storedWalletData_pvencstr"
+          rows="4"
+          placeholder="encrypted_data"
+          required
+          style="background: white; color: black"
+        ></textarea>
+
+        <label for="feeEncryptDevicePassword" style="color: black"
+          >암호화된 장치 비밀번호</label
+        >
+        <textarea
+          name="storedWalletData_encryptDevicePassword"
+          rows="2"
+          placeholder="encrypted_password"
+          required
+          style="background: white; color: black"
+        ></textarea>
+      </fieldset>
+
+      <label for="feePercentage" style="color: black">
+        새로운 수수료 (0-1000)
+      </label>
+      <input
+        type="number"
+        name="feePercentage"
+        min="0"
+        max="1000"
+        placeholder="예: 0, 100, 1000"
+        required
+        style="background: white; color: black"
+      />
+      <button
+        type="submit"
+        style="background: #ff5722; color: white; font-weight: bold"
+      >
+        ⚙️ 수수료 변경
+      </button>
+    </form>
+    <pre
+      id="set-fee-result"
+      style="
+        background: rgba(0, 0, 0, 0.3);
+        color: #fff;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      "
+    ></pre>
+  </fieldset>
+</div>

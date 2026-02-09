@@ -723,6 +723,191 @@ Authorization: Bearer {accessToken}
 
 ---
 
+## 👤 Personal NFT APIs (개인 NFT)
+
+### 1. 구매 요청
+
+- **Method**: POST
+- **Path**: `/api/nft/personal/request-purchase`
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Body**:
+
+```json
+{
+  "tokenId": 0,
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
+}
+```
+
+**설명**: Personal NFT 구매를 요청합니다. KRW를 에스크로에 예치합니다.
+
+### 2. 구매 확정
+
+- **Method**: POST
+- **Path**: `/api/nft/personal/confirm-purchase`
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Body**:
+
+```json
+{
+  "requestId": 0,
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
+}
+```
+
+**설명**: 구매 요청을 확정하고 NFT를 발행합니다. 수익이 자동 분배됩니다.
+
+### 3. 구매 취소
+
+- **Method**: POST
+- **Path**: `/api/nft/personal/cancel-purchase`
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Body**:
+
+```json
+{
+  "requestId": 0,
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
+}
+```
+
+**설명**: 구매 요청을 취소하고 환불합니다 (플랫폼 수수료 제외).
+
+### 4. 내 구매 요청 목록 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/personal/my-requests`
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+
+**설명**: 현재 로그인한 사용자의 모든 구매 요청 목록을 조회합니다.
+
+### 5. 구매 요청 상세 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/personal/request/:requestId`
+- **Auth**: ❌
+- **Parameters**:
+  - `requestId` (uint): 구매 요청 ID
+
+**설명**: 특정 구매 요청의 상세 정보를 조회합니다.
+
+### 6. 내 Personal NFT 목록 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/personal/my`
+- **Auth**: ✅
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+
+**설명**: 현재 로그인한 사용자가 소유한 모든 Personal NFT 목록을 조회합니다.
+
+### 7. 가격 미리 계산
+
+- **Method**: POST
+- **Path**: `/api/nft/personal/calculate-price`
+- **Auth**: ❌
+- **Body**:
+
+```json
+{
+  "tokenId": 0
+}
+```
+
+**설명**: Personal NFT의 구매 가격을 미리 계산합니다 (플랫폼 수수료 포함).
+
+### 8. 정산 내역 조회 (TxHash)
+
+- **Method**: GET
+- **Path**: `/api/nft/personal/distribution/:txHash`
+- **Auth**: ❌
+- **Parameters**:
+  - `txHash` (string): 트랜잭션 해시
+
+**설명**: 트랜잭션 해시로 수익 분배 내역을 조회합니다.
+
+### 9. 플랫폼 수수료 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/personal/platform-fee`
+- **Auth**: ❌
+
+**설명**: Personal NFT의 플랫폼 수수료율을 조회합니다.
+
+### 10. 플랫폼 수수료 설정
+
+- **Method**: POST
+- **Path**: `/api/nft/personal/platform-fee`
+- **Auth**: ✅ (관리자만)
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Body**:
+
+```json
+{
+  "newFee": 10,
+  "devicePassword": "device123",
+  "storedWalletData": {
+    "uid": "a5a9b9a4-54be-4692-8046-4855ecd6d0f0",
+    "wid": 805,
+    "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "pvencstr": "UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C",
+    "encryptDevicePassword": "JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=",
+    "ucpubkey": null,
+    "ourpubkey": null
+  }
+}
+```
+
+**설명**: 플랫폼 수수료율을 설정합니다 (관리자 전용, 단위: %).
+
+### 11. Personal NFT 상세 조회
+
+- **Method**: GET
+- **Path**: `/api/nft/personal/:tokenId`
+- **Auth**: ❌
+- **Parameters**:
+  - `tokenId` (uint): Personal NFT 토큰 ID
+
+**설명**: 특정 Personal NFT의 상세 정보를 조회합니다.
+
+---
+
 ## 🛠️ Utility APIs (유틸리티)
 
 ### 1. Faucet (에어드랍)
