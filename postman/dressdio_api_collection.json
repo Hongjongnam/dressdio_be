@@ -443,7 +443,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  },\n  \"ipfsImage\": \"ipfs://QmYourImageCIDHere\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  },\n  \"ipfsImage\": \"ipfs://QmYourImageCIDHere\",\n  \"name\": \"My IP NFT\",\n  \"description\": \"Description of the IP NFT\",\n  \"price\": \"100\",\n  \"supplyPrice\": \"50\",\n  \"creatorType\": \"brand\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/ip/mint",
@@ -533,7 +533,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  },\n  \"newFee\": \"10\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  },\n  \"newFee\": \"10\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/ip/set-minting-fee",
@@ -649,7 +649,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
+              "raw": "{\n  \"projectId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/request-purchase",
@@ -675,7 +675,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectId\": 0,\n  \"requestId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
+              "raw": "{\n  \"projectId\": 0,\n  \"requestId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/confirm-purchase",
@@ -701,7 +701,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectId\": 0,\n  \"requestId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
+              "raw": "{\n  \"projectId\": 0,\n  \"requestId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/cancel-purchase",
@@ -789,7 +789,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"projectId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
+              "raw": "{\n  \"projectId\": 0,\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/merchandise/activate",
@@ -917,7 +917,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"newOwner\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
+              "raw": "{\n  \"newOwner\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/platform/transfer-all-ownership",
@@ -1078,7 +1078,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x58D7E7BdE42764199FCd99FDa6866bBccd773feF\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  },\n  \"creatorWalletAddress\": \"0x1234567890123456789012345678901234567890\",\n  \"creatorType\": \"brand\",\n  \"creatorName\": \"Test Brand\",\n  \"description\": \"Test SBT for Brand\"\n}"
+              "raw": "{\n  \"devicePassword\": \"device123\",\n  \"storedWalletData\": {\n    \"uid\": \"a5a9b9a4-54be-4692-8046-4855ecd6d0f0\",\n    \"wid\": 805,\n    \"sid\": \"0x78bBD87Ad705C67837CD5616995E1d67B36693c3\",\n    \"pvencstr\": \"UBxpgNm4ZDFNLxXv7fU2Tu4gTTaWZZWOEtX8G8sERvYAlFN5C\",\n    \"encryptDevicePassword\": \"JjTdTKiAa0rWVkEGzAehxFa0cEr3EeyewFyJ1hsmu8E=\"\n  },\n  \"creatorWalletAddress\": \"0x1234567890123456789012345678901234567890\",\n  \"creatorType\": \"brand\",\n  \"creatorName\": \"Test Brand\",\n  \"description\": \"Test SBT for Brand\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/nft/sbt/mint",

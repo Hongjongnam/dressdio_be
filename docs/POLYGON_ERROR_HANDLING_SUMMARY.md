@@ -112,7 +112,7 @@ throw error;
   "details": {
     "network": "Polygon",
     "requiredToken": "MATIC",
-    "fromAddress": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "fromAddress": "0x78bBD87Ad705C67837CD5616995E1d67B36693c3",
     "suggestion": "지갑에 최소 0.1 MATIC을 추가해주세요."
   }
 }
@@ -130,7 +130,7 @@ throw error;
       "DRESS 토큰 잔액 부족",
       "컨트랙트 일시 중지 상태"
     ],
-    "fromAddress": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+    "fromAddress": "0x78bBD87Ad705C67837CD5616995E1d67B36693c3",
     "network": "Polygon"
   }
 }

@@ -63,7 +63,7 @@ const options = {
             wid: { type: "number", example: 805 },
             sid: {
               type: "string",
-              example: "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+              example: "0x78bBD87Ad705C67837CD5616995E1d67B36693c3",
             },
             pvencstr: {
               type: "string",
