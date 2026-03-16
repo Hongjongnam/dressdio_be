@@ -32,7 +32,7 @@ const POLYGON_RPC_URL =
 // Platform Admin Wallet (Polygon) - Swap 수신 지갑
 const PLATFORM_ADMIN_WALLET =
   process.env.DRESSDIO_ADMIN_WALLET_ADDRESS ||
-  "0x2C686C46D3622d60CCAbEfb757158c8904312871";
+  "0x4c7e5b905266dBA906645a7659038660Bd4674db";
 
 // Swap Rate: DRESS → DP (1:5)
 const SWAP_RATE = 5;

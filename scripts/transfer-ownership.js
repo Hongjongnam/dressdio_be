@@ -2,7 +2,7 @@ require("dotenv").config();
 
 async function main() {
   const registryAddress = "0x5E7800Aa04b4DA4E3D4233223C91F65De6A64340"; // 현재 배포된 주소
-  const ABC_ADMIN_ADDRESS = "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF";
+  const ABC_ADMIN_ADDRESS = "0x78bBD87Ad705C67837CD5616995E1d67B36693c3";
 
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);

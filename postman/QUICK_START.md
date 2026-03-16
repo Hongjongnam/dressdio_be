@@ -23,7 +23,7 @@
 | `accessToken`           | `eyJraWQiOiIyNCIsInR5...` | ABC Wallet JWT                         |
 | `uid`                   | `b24c837a6e9e43c8...`     | MPC 지갑 사용자 ID                     |
 | `wid`                   | `1`                       | MPC 지갑 ID (**숫자만, 따옴표 없음!**) |
-| `senderAddress`         | `0x58D7E7BdE...`          | 전송자 지갑 주소 (sid)                 |
+| `senderAddress`         | `0x78bBD8BdE...`          | 전송자 지갑 주소 (sid)                 |
 | `recipientAddress`      | `0x25D96413E6...`         | 받는 지갑 주소                         |
 | `pvencstr`              | `encrypted_key...`        | 암호화된 개인키                        |
 | `encryptDevicePassword` | `encrypted_pw...`         | 암호화된 장치 비밀번호                 |
@@ -136,7 +136,7 @@ Body: {
 **스마트 로직:**
 
 - **일반 주소** → 전송만
-- **플랫폼 지갑** (`0x2C686C...312871`) → 전송 + 자동 스왑!
+- **플랫폼 지갑** (`0x2C686C46D3622d60CCAbEfb757158c8904312871`) → 전송 + 자동 스왑!
 
 **검증:**
 

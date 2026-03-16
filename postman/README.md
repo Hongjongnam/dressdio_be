@@ -251,14 +251,14 @@ Collection Variables가 이미 포함되어 있지만, Environment를 만들면 
 **워크플로우:**
 
 1. **API #4**로 Dress Token을 플랫폼 어드민 지갑으로 전송
-   - 받는 주소: `0x2C686C46D3622d60CCAbEfb757158c8904312871`
+   - 받는 주소: `0x4c7e5b905266dBA906645a7659038660Bd4674db`
 2. 전송 완료 후 **트랜잭션 해시** 복사 (Polygonscan에서 확인 가능)
 3. `5. Dress → DP Token Swap` 요청 선택
 4. **Body** 탭:
    ```json
    {
      "txHash": "0xdef123...",
-     "fromAddress": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF"
+     "fromAddress": "0x78bBD87Ad705C67837CD5616995E1d67B36693c3"
    }
    ```
 5. **Send** 클릭
@@ -294,7 +294,7 @@ Collection Variables가 이미 포함되어 있지만, Environment를 만들면 
   "success": false,
   "error": "INVALID_RECIPIENT",
   "details": {
-    "expected": "0x2C686C46D3622d60CCAbEfb757158c8904312871",
+    "expected": "0x4c7e5b905266dBA906645a7659038660Bd4674db",
     "actual": "0xWrongAddress..."
   }
 }
@@ -330,7 +330,7 @@ console.log(JSON.parse(walletData));
    {
      "uid": "user123",
      "wid": 1,
-     "sid": "0x58D7E7BdE42764199FCd99FDa6866bBccd773feF",
+     "sid": "0x78bBD87Ad705C67837CD5616995E1d67B36693c3",
      "pvencstr": "encrypted_string...",
      "encryptDevicePassword": "encrypted_password..."
    }
