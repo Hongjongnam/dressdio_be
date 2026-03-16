@@ -375,12 +375,58 @@ const setupMerchandiseTab = () => {
     `${API_BASE_URL}/purchase-requests/:projectId`
   );
 
-  // 14. 플랫폼 수수료 정보
+  // 14. 역할별 플랫폼 수수료 조회
   handleGetRequest(
     "getPlatformFeeInfoBtn",
     "getPlatformFeeInfoResult",
     `${API_BASE_URL}/platform-fee-info`
   );
+
+  // 14-1. 역할별 플랫폼 수수료 설정
+  handleFormSubmit(
+    "setPlatformFeeForm",
+    "setPlatformFeeResult",
+    `${API_BASE_URL}/platform-fee-info`,
+    true
+  );
+
+  // 14-2. 크리에이터별 개별 수수료 조회
+  const getCreatorFeeBtn = document.getElementById("getCreatorFeeBtn");
+  if (getCreatorFeeBtn) {
+    getCreatorFeeBtn.addEventListener("click", async () => {
+      const form = getCreatorFeeBtn.closest("form");
+      const creatorAddress = form.querySelector('input[name="creatorAddress"]').value;
+      const role = form.querySelector('select[name="role"]').value;
+      if (!creatorAddress) { showResult("getCreatorFeeResult", "크리에이터 주소를 입력하세요.", "error"); return; }
+      try {
+        const result = await makeRequest(`${API_BASE_URL}/creator-fee?creatorAddress=${creatorAddress}&role=${role}`);
+        showResult("getCreatorFeeResult", result, result.success ? "success" : "error");
+      } catch (e) { showResult("getCreatorFeeResult", `Error: ${e.message}`, "error"); }
+    });
+  }
+
+  // 14-2. 크리에이터별 개별 수수료 설정
+  handleFormSubmit("setCreatorFeeForm", "setCreatorFeeResult", `${API_BASE_URL}/creator-fee`, true);
+
+  // 14-2. 크리에이터별 개별 수수료 제거
+  const removeCreatorFeeForm = document.getElementById("removeCreatorFeeForm");
+  if (removeCreatorFeeForm) {
+    removeCreatorFeeForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const body = Object.fromEntries(formData.entries());
+      if (body.storedWalletData_uid && body.storedWalletData_wid && body.storedWalletData_sid) {
+        body.storedWalletData = { uid: body.storedWalletData_uid, wid: parseInt(body.storedWalletData_wid), sid: body.storedWalletData_sid, pvencstr: body.storedWalletData_pvencstr || "", encryptDevicePassword: body.storedWalletData_encryptDevicePassword || "" };
+        ["uid","wid","sid","pvencstr","encryptDevicePassword"].forEach(k => delete body[`storedWalletData_${k}`]);
+      }
+      const options = { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Bearer ${body.accessToken}` }, body: JSON.stringify(body) };
+      try {
+        const res = await fetch(`${API_BASE_URL}/creator-fee`, options);
+        const result = await res.json();
+        showResult("removeCreatorFeeResult", result, result.success ? "success" : "error");
+      } catch (e) { showResult("removeCreatorFeeResult", `Error: ${e.message}`, "error"); }
+    });
+  }
 
   // 15. 모든 영수증 목록
   handleGetRequest(
@@ -732,6 +778,44 @@ const setupPersonalTab = () => {
     `${API_BASE_URL}/platform-fee`,
     true
   );
+
+  // 11. 크리에이터별 개별 수수료 조회
+  const personalGetCreatorFeeBtn = document.getElementById("personal-get-creator-fee-btn");
+  if (personalGetCreatorFeeBtn) {
+    personalGetCreatorFeeBtn.addEventListener("click", async () => {
+      const form = personalGetCreatorFeeBtn.closest("form");
+      const creatorAddress = form.querySelector('input[name="creatorAddress"]').value;
+      const role = form.querySelector('select[name="role"]').value;
+      if (!creatorAddress) { showResult("personal-get-creator-fee-result", "크리에이터 주소를 입력하세요.", "error"); return; }
+      try {
+        const result = await makeRequest(`${API_BASE_URL}/creator-fee?creatorAddress=${creatorAddress}&role=${role}`);
+        showResult("personal-get-creator-fee-result", result, result.success ? "success" : "error");
+      } catch (e) { showResult("personal-get-creator-fee-result", `Error: ${e.message}`, "error"); }
+    });
+  }
+
+  // 11. 크리에이터별 개별 수수료 설정
+  handleFormSubmit("personal-set-creator-fee-form", "personal-set-creator-fee-result", `${API_BASE_URL}/creator-fee`, true);
+
+  // 11. 크리에이터별 개별 수수료 제거
+  const personalRemoveCreatorFeeForm = document.getElementById("personal-remove-creator-fee-form");
+  if (personalRemoveCreatorFeeForm) {
+    personalRemoveCreatorFeeForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const body = Object.fromEntries(formData.entries());
+      if (body.storedWalletData_uid && body.storedWalletData_wid && body.storedWalletData_sid) {
+        body.storedWalletData = { uid: body.storedWalletData_uid, wid: parseInt(body.storedWalletData_wid), sid: body.storedWalletData_sid, pvencstr: body.storedWalletData_pvencstr || "", encryptDevicePassword: body.storedWalletData_encryptDevicePassword || "" };
+        ["uid","wid","sid","pvencstr","encryptDevicePassword"].forEach(k => delete body[`storedWalletData_${k}`]);
+      }
+      const options = { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Bearer ${body.accessToken}` }, body: JSON.stringify(body) };
+      try {
+        const res = await fetch(`${API_BASE_URL}/creator-fee`, options);
+        const result = await res.json();
+        showResult("personal-remove-creator-fee-result", result, result.success ? "success" : "error");
+      } catch (e) { showResult("personal-remove-creator-fee-result", `Error: ${e.message}`, "error"); }
+    });
+  }
 };
 
 function setupSbtTab() {

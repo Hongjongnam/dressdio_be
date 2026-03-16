@@ -58,6 +58,12 @@ async function main() {
   await merchFactory.waitForDeployment();
   console.log("MerchandiseFactory deployed to:", merchFactory.target);
 
+  // 5-1. PersonalNFT 배포 (IPNFT, DP 토큰 주소 전달)
+  const PersonalNFT = await ethers.getContractFactory("PersonalNFT");
+  const personalNFT = await PersonalNFT.deploy(ipnftAddress, dpTokenAddress);
+  await personalNFT.waitForDeployment();
+  console.log("PersonalNFT deployed to:", personalNFT.target);
+
   // 6. Registry에 모든 컨트랙트 주소 등록
   console.log("Registering all contracts in PlatformRegistry...");
   await registry.setSBTContract(sbt.target);
@@ -157,6 +163,29 @@ async function main() {
     throw error;
   }
 
+  // PersonalNFT 소유권 이전
+  try {
+    const tx = await personalNFT.transferOwnership(ABC_ADMIN_ADDRESS);
+    console.log("PersonalNFT ownership transfer tx hash:", tx.hash);
+    const receipt = await tx.wait();
+    console.log(
+      "PersonalNFT ownership confirmed in block:",
+      receipt.blockNumber
+    );
+    const newOwner = await personalNFT.owner();
+    console.log("Current PersonalNFT owner:", newOwner);
+    if (newOwner !== ABC_ADMIN_ADDRESS) {
+      throw new Error(
+        `PersonalNFT ownership transfer failed! Expected: ${ABC_ADMIN_ADDRESS}, Got: ${newOwner}`
+      );
+    }
+    console.log("✅ PersonalNFT ownership transfer confirmed!");
+  } catch (error) {
+    console.error("❌ PersonalNFT ownership transfer failed:");
+    console.error(error.message);
+    throw error;
+  }
+
   // 배포된 주소 정보 출력
   console.log("\nDeployed Contract Addresses:");
   console.log("-----------------------------");
@@ -165,7 +194,15 @@ async function main() {
   console.log("MerchandiseFactory:", merchFactory.target);
   console.log("IPNFTFactory:", ipnftFactory.target);
   console.log("IPNFT:", ipnftAddress);
+  console.log("PersonalNFT:", personalNFT.target);
   console.log("DP Token:", dpTokenAddress);
+  console.log("\n⚠️  .env 파일을 아래 주소들로 업데이트하세요:");
+  console.log(`PERSONAL_NFT_ADDRESS=${personalNFT.target}`);
+  console.log(`MERCH_FACTORY_ADDRESS=${merchFactory.target}`);
+  console.log(`IPNFT_FACTORY_ADDRESS=${ipnftFactory.target}`);
+  console.log(`IPNFT_CONTRACT_ADDRESS=${ipnftAddress}`);
+  console.log(`SBT_CONTRACT_ADDRESS=${sbt.target}`);
+  console.log(`PLATFORM_REGISTRY_ADDRESS=${registry.target}`);
 }
 
 main().catch((error) => {

@@ -45,13 +45,16 @@ const calculateDistributionData = async (projectId, totalAmount) => {
 
     const ipnftContract = new web3.eth.Contract(ipnftAbi, ipnftContractAddress);
 
-    // 플랫폼 수수료 비율 조회
-    const platformFeePercentage = await merchandiseFactoryContract.methods
-      .platformFeePercentage()
+    // 역할별 플랫폼 수수료 비율 조회
+    const allFees = await merchandiseFactoryContract.methods
+      .getAllFeePercentages()
       .call();
+    const brandFeePercentage = allFees._brandFee;
+    const artistFeePercentage = allFees._artistFee;
+    const influencerFeePercentage = allFees._influencerFee;
 
     logger.info(
-      `[calculateDistributionData] 플랫폼 수수료 비율: ${platformFeePercentage} basis points`
+      `[calculateDistributionData] 수수료 - 브랜드: ${brandFeePercentage}, 아티스트: ${artistFeePercentage}, 인플루언서: ${influencerFeePercentage} basis points`
     );
 
     // 브랜드 IPNFT 정보 조회
@@ -74,7 +77,7 @@ const calculateDistributionData = async (projectId, totalAmount) => {
       brandOwner !== "0x0000000000000000000000000000000000000000"
     ) {
       const brandFee =
-        (brandPrice * BigInt(platformFeePercentage)) / BigInt(10000);
+        (brandPrice * BigInt(brandFeePercentage)) / BigInt(10000);
       const brandNet = brandPrice - brandFee;
 
       const brandPriceDP = web3.utils.fromWei(brandPrice.toString(), "ether");
@@ -142,7 +145,7 @@ const calculateDistributionData = async (projectId, totalAmount) => {
         artistOwner !== "0x0000000000000000000000000000000000000000"
       ) {
         const artistFee =
-          (artistPrice * BigInt(platformFeePercentage)) / BigInt(10000);
+          (artistPrice * BigInt(artistFeePercentage)) / BigInt(10000);
         const artistNet = artistPrice - artistFee;
 
         const artistPriceDP = web3.utils.fromWei(
@@ -198,7 +201,7 @@ const calculateDistributionData = async (projectId, totalAmount) => {
 
     if (influencerMargin > 0) {
       const influencerFee =
-        (influencerMargin * BigInt(platformFeePercentage)) / BigInt(10000);
+        (influencerMargin * BigInt(influencerFeePercentage)) / BigInt(10000);
       const influencerNet = influencerMargin - influencerFee;
 
       logger.info(
@@ -409,12 +412,7 @@ const createProject = async (req, res) => {
       }
     }
 
-    if (!projectImageUri) {
-      return res.status(400).json({
-        success: false,
-        message: "프로젝트 이미지가 필요합니다 (URL 또는 파일 업로드).",
-      });
-    }
+    // projectImageUri는 선택 사항 - 없으면 빈 문자열로 스마트 컨트랙트에 전달
 
     // 3. IPNFT 토큰 ID 파싱
     const tokenIdsArray = String(ipnftTokenIds)
@@ -518,12 +516,7 @@ const createProject = async (req, res) => {
         message: "One brand IPNFT must be specified.",
       });
     }
-    if (artistIPNFTTokenIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one artist IPNFT must be specified.",
-      });
-    }
+    // artistIPNFTTokenIds는 선택 사항 - 브랜드 IPNFT만으로도 프로젝트 생성 가능
 
     const salePriceInWei = BigInt(web3.utils.toWei(String(salePrice), "ether"));
 
@@ -2448,21 +2441,37 @@ const getPlatformFeeInfo = async (req, res) => {
       .platformFeeCollector()
       .call();
 
-    // 2. 수수료 비율 조회
-    const platformFeePercentage = await merchandiseFactoryContract.methods
-      .platformFeePercentage()
+    // 2. 역할별 수수료 비율 조회
+    const allFees = await merchandiseFactoryContract.methods
+      .getAllFeePercentages()
       .call();
 
-    // 3. 수수료 비율을 퍼센트로 변환 (basis points -> percentage)
-    const feePercentage = Number(platformFeePercentage) / 100;
+    const toPercent = (bp) => Number(bp) / 100;
 
     res.json({
       success: true,
       message: "플랫폼 수수료 정보를 성공적으로 조회했습니다.",
       data: {
-        platformFeeCollector: platformFeeCollector,
-        platformFeePercentage: feePercentage,
-        platformFeeBasisPoints: platformFeePercentage.toString(),
+        platformFeeCollector,
+        fees: {
+          brand: {
+            basisPoints: allFees._brandFee.toString(),
+            percentage: toPercent(allFees._brandFee),
+          },
+          artist: {
+            basisPoints: allFees._artistFee.toString(),
+            percentage: toPercent(allFees._artistFee),
+          },
+          influencer: {
+            basisPoints: allFees._influencerFee.toString(),
+            percentage: toPercent(allFees._influencerFee),
+          },
+          cancel: {
+            basisPoints: allFees._cancelFee.toString(),
+            percentage: toPercent(allFees._cancelFee),
+          },
+        },
+        description: "basis points: 100 = 1%, 최대 1000 = 10%",
       },
     });
   } catch (error) {
@@ -2472,6 +2481,184 @@ const getPlatformFeeInfo = async (req, res) => {
       message: "플랫폼 수수료 정보 조회 중 오류가 발생했습니다.",
       error: error.message,
     });
+  }
+};
+
+/**
+ * 역할별 플랫폼 수수료 설정 (관리자 전용)
+ * @param {Object} req
+ * @param {string} req.body.role - "brand" | "artist" | "influencer" | "cancel"
+ * @param {number} req.body.feePercentage - basis points (100 = 1%, 최대 1000)
+ * @param {Object} req.body.storedWalletData
+ * @param {string} req.body.devicePassword
+ */
+const setPlatformFeeInfo = async (req, res) => {
+  const { role, feePercentage, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!role || feePercentage === undefined || !storedWalletData || !devicePassword) {
+      return res.status(400).json({
+        success: false,
+        message: "role, feePercentage, storedWalletData, devicePassword 는 필수입니다.",
+      });
+    }
+
+    const validRoles = ["brand", "artist", "influencer", "cancel"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `유효하지 않은 role 입니다. 허용값: ${validRoles.join(", ")}`,
+      });
+    }
+
+    const feeValue = parseInt(feePercentage);
+    if (isNaN(feeValue) || feeValue < 0 || feeValue > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "feePercentage 는 0 ~ 1000 (basis points) 범위여야 합니다.",
+      });
+    }
+
+    const txData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods
+        .setPlatformFeePercentage(role, feeValue)
+        .encodeABI(),
+      value: "0",
+    };
+
+    const receipt = await mpcService.executeTransactionWithStoredData(
+      storedWalletData,
+      devicePassword,
+      txData,
+      accessToken
+    );
+
+    res.json({
+      success: true,
+      message: `플랫폼 수수료(${role})가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
+      data: {
+        role,
+        basisPoints: feeValue,
+        percentage: feeValue / 100,
+        txHash: receipt.transactionHash,
+      },
+    });
+  } catch (error) {
+    console.error("[setPlatformFeeInfo] 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: "플랫폼 수수료 설정 중 오류가 발생했습니다.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 크리에이터 개별 수수료 조회
+ * @param {string} req.query.creatorAddress - 크리에이터 지갑 주소
+ * @param {string} req.query.role - "brand" | "artist" | "influencer"
+ */
+const getCreatorFee = async (req, res) => {
+  try {
+    const { creatorAddress, role } = req.query;
+    if (!creatorAddress) {
+      return res.status(400).json({ success: false, message: "creatorAddress 는 필수입니다." });
+    }
+
+    const effectiveRole = role || "brand";
+    const result = await merchandiseFactoryContract.methods
+      .getEffectiveCreatorFee(creatorAddress, effectiveRole)
+      .call();
+
+    const basisPoints = Number(result.effectiveFee);
+    res.json({
+      success: true,
+      data: {
+        creatorAddress,
+        role: effectiveRole,
+        isCustom: result.isCustom,
+        basisPoints,
+        percentage: basisPoints / 100,
+        description: result.isCustom
+          ? "개별 설정된 수수료입니다."
+          : `role 기본값(${effectiveRole})이 적용됩니다.`,
+      },
+    });
+  } catch (error) {
+    console.error("[getCreatorFee] 오류:", error);
+    res.status(500).json({ success: false, message: "크리에이터 수수료 조회 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
+ * 크리에이터 개별 수수료 설정 (관리자 전용)
+ * @param {string} req.body.creatorAddress - 크리에이터 지갑 주소
+ * @param {number} req.body.feePercentage  - basis points (0~1000)
+ */
+const setCreatorFee = async (req, res) => {
+  const { creatorAddress, feePercentage, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!creatorAddress || feePercentage === undefined || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, feePercentage, storedWalletData, devicePassword 는 필수입니다." });
+    }
+
+    const feeValue = parseInt(feePercentage);
+    if (isNaN(feeValue) || feeValue < 0 || feeValue > 1000) {
+      return res.status(400).json({ success: false, message: "feePercentage 는 0~1000 (basis points) 범위여야 합니다." });
+    }
+
+    const txData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods.setCreatorFee(creatorAddress, feeValue).encodeABI(),
+      value: "0",
+    };
+
+    const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
+
+    res.json({
+      success: true,
+      message: `크리에이터 ${creatorAddress} 의 수수료가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
+      data: { creatorAddress, basisPoints: feeValue, percentage: feeValue / 100, txHash: receipt.transactionHash },
+    });
+  } catch (error) {
+    console.error("[setCreatorFee] 오류:", error);
+    res.status(500).json({ success: false, message: "크리에이터 수수료 설정 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
+ * 크리에이터 개별 수수료 제거 → role 기본값으로 복귀 (관리자 전용)
+ * @param {string} req.body.creatorAddress - 크리에이터 지갑 주소
+ */
+const removeCreatorFee = async (req, res) => {
+  const { creatorAddress, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!creatorAddress || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, storedWalletData, devicePassword 는 필수입니다." });
+    }
+
+    const txData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods.removeCreatorFee(creatorAddress).encodeABI(),
+      value: "0",
+    };
+
+    const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
+
+    res.json({
+      success: true,
+      message: `크리에이터 ${creatorAddress} 의 개별 수수료가 제거되어 role 기본값으로 복귀됩니다.`,
+      data: { creatorAddress, txHash: receipt.transactionHash },
+    });
+  } catch (error) {
+    console.error("[removeCreatorFee] 오류:", error);
+    res.status(500).json({ success: false, message: "크리에이터 수수료 제거 중 오류가 발생했습니다.", error: error.message });
   }
 };
 
@@ -2696,6 +2883,10 @@ module.exports = {
 
   // 4. 유틸리티
   getPlatformFeeInfo,
+  setPlatformFeeInfo,
+  getCreatorFee,
+  setCreatorFee,
+  removeCreatorFee,
   getAllReceipts,
   getReceiptById,
   getReceiptsByProject,

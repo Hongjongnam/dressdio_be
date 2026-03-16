@@ -238,6 +238,37 @@ router.get("/platform-fee-info", merchandiseController.getPlatformFeeInfo);
 
 /**
  * @swagger
+ * /api/nft/merchandise/platform-fee-info:
+ *   post:
+ *     summary: 역할별 플랫폼 수수료 설정 (관리자 전용)
+ *     tags: [Merchandise]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role, feePercentage, storedWalletData, devicePassword]
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [brand, artist, influencer, cancel]
+ *               feePercentage:
+ *                 type: integer
+ *                 description: basis points (100 = 1%, 최대 1000 = 10%)
+ *     responses:
+ *       200:
+ *         description: 수수료 설정 성공
+ */
+router.post("/platform-fee-info", auth, merchandiseController.setPlatformFeeInfo);
+
+// 크리에이터별 개별 수수료 관리
+router.get("/creator-fee", merchandiseController.getCreatorFee);
+router.post("/creator-fee", auth, merchandiseController.setCreatorFee);
+router.delete("/creator-fee", auth, merchandiseController.removeCreatorFee);
+
+/**
+ * @swagger
  * /api/nft/merchandise/activate:
  *   post:
  *     summary: Merchandise 프로젝트 활성화

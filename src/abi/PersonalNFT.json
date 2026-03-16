@@ -8,7 +8,7 @@
       },
       {
         "internalType": "address",
-        "name": "_krwToken",
+        "name": "_dpToken",
         "type": "address"
       }
     ],
@@ -195,6 +195,38 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      }
+    ],
+    "name": "CreatorFeeRemoved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "feePercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "CreatorFeeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "uint256",
         "name": "requestId",
         "type": "uint256"
@@ -292,6 +324,12 @@
   {
     "anonymous": false,
     "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
+      },
       {
         "indexed": false,
         "internalType": "uint256",
@@ -445,6 +483,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "artistFeePercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -453,6 +504,19 @@
       }
     ],
     "name": "balanceOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "brandFeePercentage",
     "outputs": [
       {
         "internalType": "uint256",
@@ -477,6 +541,19 @@
       }
     ],
     "name": "calculatePrice",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "cancelFeePercentage",
     "outputs": [
       {
         "internalType": "uint256",
@@ -521,6 +598,38 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "creatorFeePercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "dpToken",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
@@ -532,6 +641,29 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllFeePercentages",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "_brandFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_artistFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_cancelFee",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -551,6 +683,35 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
+      }
+    ],
+    "name": "getEffectiveCreatorFee",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "effectiveFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isCustom",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -637,6 +798,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "hasCustomFee",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "ipnftContract",
     "outputs": [
@@ -668,19 +848,6 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "krwToken",
-    "outputs": [
-      {
-        "internalType": "contract IERC20",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -758,19 +925,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "platformFeePercentage",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -817,6 +971,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      }
+    ],
+    "name": "removeCreatorFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -923,6 +1090,24 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "feePercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "setCreatorFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "newCollector",
         "type": "address"
       }
@@ -934,6 +1119,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
+      },
       {
         "internalType": "uint256",
         "name": "newFeePercentage",

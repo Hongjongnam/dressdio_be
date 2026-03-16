@@ -23,8 +23,15 @@ contract PersonalNFT is ERC721, Ownable {
     uint256 private _nextTokenId = 1;
     uint256 public nextRequestId = 0;
     
-    uint256 public platformFeePercentage = 100; // 1% (100 basis points)
+    // 플랫폼 수수료 관련 (basis points: 100 = 1%, 최대 1000 = 10%)
+    uint256 public brandFeePercentage = 100;  // 브랜드 role 기본값
+    uint256 public artistFeePercentage = 100; // 아티스트 role 기본값
+    uint256 public cancelFeePercentage = 100; // 구매 취소 기본값
     address public platformFeeCollector;
+
+    // 크리에이터 주소별 개별 수수료 (설정된 경우 role 기본값보다 우선 적용)
+    mapping(address => uint256) public creatorFeePercentage;
+    mapping(address => bool) public hasCustomFee;
     
     // ==========================================
     // 구조체
@@ -89,8 +96,10 @@ contract PersonalNFT is ERC721, Ownable {
         uint256 timestamp
     );
     
-    event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
+    event PlatformFeeUpdated(string role, uint256 oldFee, uint256 newFee);
     event PlatformFeeCollectorUpdated(address oldCollector, address newCollector);
+    event CreatorFeeSet(address indexed creator, uint256 feePercentage);
+    event CreatorFeeRemoved(address indexed creator);
     
     // ==========================================
     // 생성자
@@ -217,7 +226,7 @@ contract PersonalNFT is ERC721, Ownable {
         request.isCancelled = true;
         
         // 플랫폼 수수료 차감 후 환불
-        uint256 platformFee = (request.totalAmount * platformFeePercentage) / 10000;
+        uint256 platformFee = (request.totalAmount * cancelFeePercentage) / 10000;
         uint256 refundAmount = request.totalAmount - platformFee;
         
         // 환불 금액이 0보다 클 때만 전송
@@ -294,14 +303,14 @@ contract PersonalNFT is ERC721, Ownable {
         uint256 brandNetAmount = 0;
         
         if (brandPrice > 0 && brandOwner != address(0)) {
-            uint256 brandFee = (brandPrice * platformFeePercentage) / 10000;
+            uint256 fee = _resolveCreatorFee(brandOwner, brandFeePercentage);
+            uint256 brandFee = (brandPrice * fee) / 10000;
             uint256 brandNet = brandPrice - brandFee;
             brandNetAmount = brandNet;
             totalPlatformFee += brandFee;
             
             require(dpToken.transfer(brandOwner, brandNet), "Brand payment failed");
             
-            // 플랫폼 수수료가 0보다 클 때만 전송
             if (brandFee > 0) {
                 require(dpToken.transfer(platformFeeCollector, brandFee), "Platform fee (brand) failed");
             }
@@ -316,14 +325,14 @@ contract PersonalNFT is ERC721, Ownable {
             artistOwners[i] = artistOwner;
             
             if (artistPrice > 0 && artistOwner != address(0)) {
-                uint256 artistFee = (artistPrice * platformFeePercentage) / 10000;
+                uint256 fee = _resolveCreatorFee(artistOwner, artistFeePercentage);
+                uint256 artistFee = (artistPrice * fee) / 10000;
                 uint256 artistNet = artistPrice - artistFee;
                 artistAmounts[i] = artistNet;
                 totalPlatformFee += artistFee;
                 
                 require(dpToken.transfer(artistOwner, artistNet), "Artist payment failed");
                 
-                // 플랫폼 수수료가 0보다 클 때만 전송
                 if (artistFee > 0) {
                     require(dpToken.transfer(platformFeeCollector, artistFee), "Platform fee (artist) failed");
                 }
@@ -424,18 +433,70 @@ contract PersonalNFT is ERC721, Ownable {
     // 관리자 함수
     // ==========================================
     
-    /**
-     * @notice 플랫폼 수수료 비율 설정
-     * @dev 소유자만 호출 가능
-     * @param newFeePercentage 새로운 수수료 비율 (basis points, 100 = 1%)
-     */
-    function setPlatformFeePercentage(uint256 newFeePercentage) external onlyOwner {
-        require(newFeePercentage <= 1000, "Fee cannot exceed 10%");
-        uint256 oldFee = platformFeePercentage;
-        platformFeePercentage = newFeePercentage;
-        emit PlatformFeeUpdated(oldFee, newFeePercentage);
+    // 크리에이터 주소 → 개별 수수료 조회 (없으면 role 기본값 반환)
+    function _resolveCreatorFee(address creator, uint256 roleDefault) internal view returns (uint256) {
+        return hasCustomFee[creator] ? creatorFeePercentage[creator] : roleDefault;
     }
-    
+
+    // 크리에이터 개별 수수료 설정 (소유자만)
+    function setCreatorFee(address creator, uint256 feePercentage) external onlyOwner {
+        require(creator != address(0), "Invalid creator address");
+        require(feePercentage <= 1000, "Fee cannot exceed 10%");
+        creatorFeePercentage[creator] = feePercentage;
+        hasCustomFee[creator] = true;
+        emit CreatorFeeSet(creator, feePercentage);
+    }
+
+    // 크리에이터 개별 수수료 제거 → role 기본값으로 복귀
+    function removeCreatorFee(address creator) external onlyOwner {
+        hasCustomFee[creator] = false;
+        creatorFeePercentage[creator] = 0;
+        emit CreatorFeeRemoved(creator);
+    }
+
+    // 크리에이터의 실제 적용 수수료 조회 (role 명시 필요: "brand"|"artist")
+    function getEffectiveCreatorFee(address creator, string memory role) external view returns (
+        uint256 effectiveFee,
+        bool isCustom
+    ) {
+        if (hasCustomFee[creator]) {
+            return (creatorFeePercentage[creator], true);
+        }
+        bytes32 roleHash = keccak256(bytes(role));
+        uint256 roleDefault = (roleHash == keccak256(bytes("artist"))) ? artistFeePercentage : brandFeePercentage;
+        return (roleDefault, false);
+    }
+
+    // 역할별 플랫폼 수수료 설정 (소유자만, role: "brand"|"artist"|"cancel")
+    function setPlatformFeePercentage(string memory role, uint256 newFeePercentage) external onlyOwner {
+        require(newFeePercentage <= 1000, "Fee cannot exceed 10%");
+        bytes32 roleHash = keccak256(bytes(role));
+        if (roleHash == keccak256(bytes("brand"))) {
+            uint256 old = brandFeePercentage;
+            brandFeePercentage = newFeePercentage;
+            emit PlatformFeeUpdated("brand", old, newFeePercentage);
+        } else if (roleHash == keccak256(bytes("artist"))) {
+            uint256 old = artistFeePercentage;
+            artistFeePercentage = newFeePercentage;
+            emit PlatformFeeUpdated("artist", old, newFeePercentage);
+        } else if (roleHash == keccak256(bytes("cancel"))) {
+            uint256 old = cancelFeePercentage;
+            cancelFeePercentage = newFeePercentage;
+            emit PlatformFeeUpdated("cancel", old, newFeePercentage);
+        } else {
+            revert("Invalid role. Use: brand, artist, cancel");
+        }
+    }
+
+    // 모든 수수료 한번에 조회
+    function getAllFeePercentages() external view returns (
+        uint256 _brandFee,
+        uint256 _artistFee,
+        uint256 _cancelFee
+    ) {
+        return (brandFeePercentage, artistFeePercentage, cancelFeePercentage);
+    }
+
     /**
      * @notice 플랫폼 수수료 수취 주소 설정
      * @dev 소유자만 호출 가능
