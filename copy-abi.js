@@ -28,6 +28,14 @@ const abiFiles = [
     source: "artifacts/contracts/MerchandiseNFT.sol/MerchandiseNFT.json",
     target: "src/abi/MerchandiseNFT.json",
   },
+  {
+    source: "artifacts/contracts/PersonalNFT.sol/PersonalNFT.json",
+    target: "src/abi/PersonalNFT.json",
+  },
+  {
+    source: "artifacts/contracts/DPToken.sol/DPToken.json",
+    target: "src/abi/DPToken.json",
+  },
 ];
 
 // ABI 복사 함수

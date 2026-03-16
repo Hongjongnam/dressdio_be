@@ -157,39 +157,39 @@ const mintIpNft = async (req, res) => {
     const priceInWei = web3.utils.toWei(price.toString(), "ether");
     const supplyPriceInWei = web3.utils.toWei(supplyPrice.toString(), "ether");
 
-    // 5. 민팅 수수료 확인 및 승인
+    // 5. 민팅 수수료 확인 및 승인 (수수료가 0이면 생략)
     const mintFee = await ipnftFactoryContract.methods.getMintingFee().call();
-    const dpBalance = await dpTokenContract.methods
-      .balanceOf(userWalletAddress)
-      .call();
 
-    if (BigInt(dpBalance) < BigInt(mintFee)) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient DP balance for minting fee. Required: ${web3.utils.fromWei(
-          mintFee,
-          "ether"
-        )} DP`,
-      });
+    if (BigInt(mintFee) > 0) {
+      const dpBalance = await dpTokenContract.methods
+        .balanceOf(userWalletAddress)
+        .call();
+
+      if (BigInt(dpBalance) < BigInt(mintFee)) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient DP balance for minting fee. Required: ${web3.utils.fromWei(mintFee, "ether")} DP`,
+        });
+      }
+
+      const approveTxData = {
+        to: dpTokenContract.options.address,
+        data: dpTokenContract.methods
+          .approve(ipnftFactoryContract.options.address, mintFee)
+          .encodeABI(),
+        value: "0",
+      };
+
+      const approveReceipt = await mpcService.executeTransactionWithStoredData(
+        storedWalletData,
+        devicePassword,
+        approveTxData,
+        accessToken
+      );
+      logger.info(`[IPNFT Mint] Fee approval transaction hash: ${approveReceipt.transactionHash}`);
+    } else {
+      logger.info("[IPNFT Mint] Minting fee is 0, skipping approval.");
     }
-
-    const approveTxData = {
-      to: dpTokenContract.options.address,
-      data: dpTokenContract.methods
-        .approve(ipnftFactoryContract.options.address, mintFee)
-        .encodeABI(),
-      value: "0",
-    };
-
-    const approveReceipt = await mpcService.executeTransactionWithStoredData(
-      storedWalletData,
-      devicePassword,
-      approveTxData,
-      accessToken
-    );
-    logger.info(
-      `[IPNFT Mint] Fee approval transaction hash: ${approveReceipt.transactionHash}`
-    );
 
     // 6. IPNFT 민팅
     const mintTxData = {

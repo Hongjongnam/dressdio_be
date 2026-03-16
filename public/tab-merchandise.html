@@ -560,13 +560,121 @@
       </fieldset>
 
       <fieldset>
-        <legend>14. 플랫폼 수수료 정보</legend>
+        <legend>14. 역할별 플랫폼 수수료 조회</legend>
         <form id="getPlatformFeeInfoForm">
           <button type="button" id="getPlatformFeeInfoBtn">
-            Get Platform Fee Info
+            수수료 조회
           </button>
         </form>
         <pre id="getPlatformFeeInfoResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>14-1. 역할별 플랫폼 수수료 설정 (관리자 전용)</legend>
+        <p style="font-size:0.85rem; color:#666; margin-bottom:10px;">
+          brand / artist / influencer / cancel 각각 개별 설정 가능.<br>
+          0 = 0%, 100 = 1%, 1000 = 10%
+        </p>
+        <form id="setPlatformFeeForm">
+          <label for="spf_accessToken">Access Token:</label>
+          <textarea id="spf_accessToken" name="accessToken" rows="3" required></textarea>
+
+          <label for="spf_role">역할 (Role):</label>
+          <select id="spf_role" name="role" required>
+            <option value="">-- 선택 --</option>
+            <option value="brand">brand (브랜드 로열티)</option>
+            <option value="artist">artist (아티스트 로열티)</option>
+            <option value="influencer">influencer (인플루언서 마진)</option>
+            <option value="cancel">cancel (구매 취소 수수료)</option>
+          </select>
+
+          <label for="spf_feePercentage">수수료 (0 ~ 1000, basis points):</label>
+          <input type="number" id="spf_feePercentage" name="feePercentage" min="0" max="1000" placeholder="예: 100 = 1%" required />
+
+          <label for="spf_devicePassword">Device Password:</label>
+          <input type="password" id="spf_devicePassword" name="devicePassword" required />
+
+          <fieldset style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:5px;">
+            <legend style="font-size:0.9rem; color:#666;">저장된 지갑 데이터 (필수)</legend>
+            <label>UID</label>
+            <input type="text" name="storedWalletData_uid" placeholder="user_id" required />
+            <label>WID</label>
+            <input type="number" name="storedWalletData_wid" placeholder="wallet_id" required />
+            <label>SID (지갑 주소)</label>
+            <input type="text" name="storedWalletData_sid" placeholder="0x..." required />
+            <label>PVENCSTR (암호화된 데이터)</label>
+            <textarea name="storedWalletData_pvencstr" rows="4" placeholder="encrypted_data" required></textarea>
+            <label>암호화된 장치 비밀번호</label>
+            <textarea name="storedWalletData_encryptDevicePassword" rows="2" placeholder="encrypted_password" required></textarea>
+          </fieldset>
+
+          <button type="submit">수수료 설정</button>
+        </form>
+        <pre id="setPlatformFeeResult"></pre>
+      </fieldset>
+
+      <fieldset>
+        <legend>14-2. 크리에이터별 개별 수수료 관리 (관리자 전용)</legend>
+        <p style="font-size:0.85rem; color:#666; margin-bottom:12px;">
+          특정 크리에이터에게만 별도 수수료율 적용. 미설정 시 role 기본값 사용.<br>
+          0 = 0%, 100 = 1%, 500 = 5%, 1000 = 10%
+        </p>
+
+        <!-- 조회 -->
+        <form id="getCreatorFeeForm" style="margin-bottom:16px;">
+          <label for="gcf_address">크리에이터 주소:</label>
+          <input type="text" id="gcf_address" name="creatorAddress" placeholder="0x..." required />
+          <label for="gcf_role">Role:</label>
+          <select id="gcf_role" name="role">
+            <option value="brand">brand</option>
+            <option value="artist">artist</option>
+            <option value="influencer">influencer</option>
+          </select>
+          <button type="button" id="getCreatorFeeBtn">수수료 조회</button>
+        </form>
+        <pre id="getCreatorFeeResult"></pre>
+
+        <!-- 설정 -->
+        <form id="setCreatorFeeForm" style="margin-top:12px;">
+          <label for="scf_accessToken">Access Token:</label>
+          <textarea id="scf_accessToken" name="accessToken" rows="3" required></textarea>
+          <label for="scf_address">크리에이터 주소:</label>
+          <input type="text" id="scf_address" name="creatorAddress" placeholder="0x..." required />
+          <label for="scf_fee">수수료 (0~1000, basis points):</label>
+          <input type="number" id="scf_fee" name="feePercentage" min="0" max="1000" placeholder="예: 50 = 0.5%" required />
+          <label for="scf_devicePassword">Device Password:</label>
+          <input type="password" id="scf_devicePassword" name="devicePassword" required />
+          <fieldset style="border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:5px;">
+            <legend style="font-size:0.9rem; color:#666;">저장된 지갑 데이터</legend>
+            <label>UID</label><input type="text" name="storedWalletData_uid" placeholder="user_id" required />
+            <label>WID</label><input type="number" name="storedWalletData_wid" placeholder="wallet_id" required />
+            <label>SID</label><input type="text" name="storedWalletData_sid" placeholder="0x..." required />
+            <label>PVENCSTR</label><textarea name="storedWalletData_pvencstr" rows="3" placeholder="encrypted_data" required></textarea>
+            <label>암호화된 장치 비밀번호</label><textarea name="storedWalletData_encryptDevicePassword" rows="2" placeholder="encrypted_password" required></textarea>
+          </fieldset>
+          <button type="submit">개별 수수료 설정</button>
+        </form>
+        <pre id="setCreatorFeeResult"></pre>
+
+        <!-- 제거 -->
+        <form id="removeCreatorFeeForm" style="margin-top:12px;">
+          <label for="rcf_accessToken">Access Token:</label>
+          <textarea id="rcf_accessToken" name="accessToken" rows="3" required></textarea>
+          <label for="rcf_address">크리에이터 주소 (개별 설정 제거):</label>
+          <input type="text" id="rcf_address" name="creatorAddress" placeholder="0x..." required />
+          <label for="rcf_devicePassword">Device Password:</label>
+          <input type="password" id="rcf_devicePassword" name="devicePassword" required />
+          <fieldset style="border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:5px;">
+            <legend style="font-size:0.9rem; color:#666;">저장된 지갑 데이터</legend>
+            <label>UID</label><input type="text" name="storedWalletData_uid" placeholder="user_id" required />
+            <label>WID</label><input type="number" name="storedWalletData_wid" placeholder="wallet_id" required />
+            <label>SID</label><input type="text" name="storedWalletData_sid" placeholder="0x..." required />
+            <label>PVENCSTR</label><textarea name="storedWalletData_pvencstr" rows="3" placeholder="encrypted_data" required></textarea>
+            <label>암호화된 장치 비밀번호</label><textarea name="storedWalletData_encryptDevicePassword" rows="2" placeholder="encrypted_password" required></textarea>
+          </fieldset>
+          <button type="submit" style="background:#e74c3c; color:white;">개별 수수료 제거 (role 기본값 복귀)</button>
+        </form>
+        <pre id="removeCreatorFeeResult"></pre>
       </fieldset>
 
       <!-- 4. 영수증 -->

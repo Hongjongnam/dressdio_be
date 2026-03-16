@@ -97,6 +97,11 @@ router.get("/platform-fee", personalController.getPlatformFee);
  */
 router.post("/platform-fee", authMiddleware, personalController.setPlatformFee);
 
+// 크리에이터별 개별 수수료 관리
+router.get("/creator-fee", personalController.getCreatorFee);
+router.post("/creator-fee", authMiddleware, personalController.setCreatorFee);
+router.delete("/creator-fee", authMiddleware, personalController.removeCreatorFee);
+
 /**
  * @route GET /api/nft/personal/:tokenId
  * @desc Personal NFT 상세 조회

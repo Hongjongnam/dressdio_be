@@ -929,23 +929,35 @@ const getDistributionByTxHash = async (req, res) => {
  */
 const getPlatformFee = async (req, res) => {
   try {
-    const feePercentage = await personalNFTContract.methods
-      .platformFeePercentage()
+    const allFees = await personalNFTContract.methods
+      .getAllFeePercentages()
       .call();
 
     const feeCollector = await personalNFTContract.methods
       .platformFeeCollector()
       .call();
 
-    const feeDisplay = (parseInt(feePercentage) / 100).toFixed(2) + "%";
+    const toPercent = (bp) => (Number(bp) / 100).toFixed(2) + "%";
 
     return res.status(200).json({
       success: true,
       data: {
-        feePercentage: feePercentage.toString(),
-        feeDisplay,
-        feeCollector,
-        description: "100 basis points = 1%, 1000 basis points = 10%",
+        platformFeeCollector: feeCollector,
+        fees: {
+          brand: {
+            basisPoints: allFees._brandFee.toString(),
+            percentage: toPercent(allFees._brandFee),
+          },
+          artist: {
+            basisPoints: allFees._artistFee.toString(),
+            percentage: toPercent(allFees._artistFee),
+          },
+          cancel: {
+            basisPoints: allFees._cancelFee.toString(),
+            percentage: toPercent(allFees._cancelFee),
+          },
+        },
+        description: "basis points: 100 = 1%, 최대 1000 = 10%",
       },
     });
   } catch (error) {
@@ -963,21 +975,29 @@ const getPlatformFee = async (req, res) => {
  * @route POST /api/nft/personal/platform-fee
  */
 const setPlatformFee = async (req, res) => {
-  const { feePercentage, devicePassword, storedWalletData } = req.body;
+  const { role, feePercentage, devicePassword, storedWalletData } = req.body;
   const accessToken = req.token;
 
   try {
     // 1. 필수 파라미터 검증
     if (
       !accessToken ||
+      !role ||
       feePercentage === undefined ||
       !devicePassword ||
       !storedWalletData
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "All fields are required. feePercentage, devicePassword, storedWalletData",
+        message: "role, feePercentage, devicePassword, storedWalletData 는 필수입니다.",
+      });
+    }
+
+    const validRoles = ["brand", "artist", "cancel"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `유효하지 않은 role 입니다. 허용값: ${validRoles.join(", ")}`,
       });
     }
 
@@ -986,31 +1006,26 @@ const setPlatformFee = async (req, res) => {
     if (isNaN(feeValue) || feeValue < 0 || feeValue > 1000) {
       return res.status(400).json({
         success: false,
-        message: "Fee percentage must be between 0 and 1000 (0% ~ 10%)",
+        message: "feePercentage 는 0 ~ 1000 (basis points) 범위여야 합니다.",
       });
     }
 
-    // 3. 현재 수수료 조회
-    const currentFee = await personalNFTContract.methods
-      .platformFeePercentage()
-      .call();
-
     logger.info("[Personal NFT] Setting platform fee:", {
-      currentFee: currentFee.toString(),
+      role,
       newFee: feeValue,
       admin: storedWalletData.sid,
     });
 
-    // 4. 트랜잭션 데이터 생성
+    // 3. 트랜잭션 데이터 생성
     const txData = {
       to: personalNFTContract.options.address,
       data: personalNFTContract.methods
-        .setPlatformFeePercentage(feeValue)
+        .setPlatformFeePercentage(role, feeValue)
         .encodeABI(),
       value: "0",
     };
 
-    // 5. MPC 서비스로 트랜잭션 실행
+    // 4. MPC 서비스로 트랜잭션 실행
     const receipt = await mpcService.executeTransactionWithStoredData(
       storedWalletData,
       devicePassword,
@@ -1019,19 +1034,16 @@ const setPlatformFee = async (req, res) => {
     );
 
     logger.info(
-      `[Personal NFT] Platform fee updated. Tx Hash: ${receipt.transactionHash}`
+      `[Personal NFT] Platform fee(${role}) updated. Tx Hash: ${receipt.transactionHash}`
     );
 
     return res.json({
       success: true,
-      message: `Platform fee updated from ${(
-        parseInt(currentFee) / 100
-      ).toFixed(2)}% to ${(feeValue / 100).toFixed(2)}%`,
+      message: `플랫폼 수수료(${role})가 ${(feeValue / 100).toFixed(2)}% (${feeValue} basis points)로 설정되었습니다.`,
       data: {
         txHash: receipt.transactionHash,
-        oldFee: currentFee.toString(),
+        role,
         newFee: feeValue.toString(),
-        oldFeeDisplay: (parseInt(currentFee) / 100).toFixed(2) + "%",
         newFeeDisplay: (feeValue / 100).toFixed(2) + "%",
       },
     });
@@ -1054,6 +1066,106 @@ const setPlatformFee = async (req, res) => {
   }
 };
 
+/**
+ * 크리에이터 개별 수수료 조회
+ * @route GET /api/nft/personal/creator-fee?creatorAddress=0x...&role=brand
+ */
+const getCreatorFee = async (req, res) => {
+  try {
+    const { creatorAddress, role } = req.query;
+    if (!creatorAddress) {
+      return res.status(400).json({ success: false, message: "creatorAddress 는 필수입니다." });
+    }
+    const effectiveRole = role || "brand";
+    const result = await personalNFTContract.methods
+      .getEffectiveCreatorFee(creatorAddress, effectiveRole)
+      .call();
+
+    const basisPoints = Number(result.effectiveFee);
+    return res.json({
+      success: true,
+      data: {
+        creatorAddress,
+        role: effectiveRole,
+        isCustom: result.isCustom,
+        basisPoints,
+        percentage: basisPoints / 100,
+        description: result.isCustom
+          ? "개별 설정된 수수료입니다."
+          : `role 기본값(${effectiveRole})이 적용됩니다.`,
+      },
+    });
+  } catch (error) {
+    logger.error("[Personal NFT] getCreatorFee error:", error);
+    return res.status(500).json({ success: false, message: "크리에이터 수수료 조회 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
+ * 크리에이터 개별 수수료 설정 (관리자 전용)
+ * @route POST /api/nft/personal/creator-fee
+ */
+const setCreatorFee = async (req, res) => {
+  const { creatorAddress, feePercentage, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!creatorAddress || feePercentage === undefined || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, feePercentage, storedWalletData, devicePassword 는 필수입니다." });
+    }
+    const feeValue = parseInt(feePercentage);
+    if (isNaN(feeValue) || feeValue < 0 || feeValue > 1000) {
+      return res.status(400).json({ success: false, message: "feePercentage 는 0~1000 (basis points) 범위여야 합니다." });
+    }
+
+    const txData = {
+      to: personalNFTContract.options.address,
+      data: personalNFTContract.methods.setCreatorFee(creatorAddress, feeValue).encodeABI(),
+      value: "0",
+    };
+    const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
+
+    return res.json({
+      success: true,
+      message: `크리에이터 ${creatorAddress} 의 수수료가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
+      data: { creatorAddress, basisPoints: feeValue, percentage: feeValue / 100, txHash: receipt.transactionHash },
+    });
+  } catch (error) {
+    logger.error("[Personal NFT] setCreatorFee error:", error);
+    return res.status(500).json({ success: false, message: "크리에이터 수수료 설정 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
+ * 크리에이터 개별 수수료 제거 → role 기본값으로 복귀 (관리자 전용)
+ * @route DELETE /api/nft/personal/creator-fee
+ */
+const removeCreatorFee = async (req, res) => {
+  const { creatorAddress, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!creatorAddress || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, storedWalletData, devicePassword 는 필수입니다." });
+    }
+    const txData = {
+      to: personalNFTContract.options.address,
+      data: personalNFTContract.methods.removeCreatorFee(creatorAddress).encodeABI(),
+      value: "0",
+    };
+    const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
+
+    return res.json({
+      success: true,
+      message: `크리에이터 ${creatorAddress} 의 개별 수수료가 제거되어 role 기본값으로 복귀됩니다.`,
+      data: { creatorAddress, txHash: receipt.transactionHash },
+    });
+  } catch (error) {
+    logger.error("[Personal NFT] removeCreatorFee error:", error);
+    return res.status(500).json({ success: false, message: "크리에이터 수수료 제거 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
 module.exports = {
   // 구매 플로우
   requestPurchase,
@@ -1070,4 +1182,7 @@ module.exports = {
   // 수수료 관리
   getPlatformFee,
   setPlatformFee,
+  getCreatorFee,
+  setCreatorFee,
+  removeCreatorFee,
 };

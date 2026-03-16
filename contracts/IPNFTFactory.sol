@@ -11,7 +11,7 @@ contract IPNFTFactory is Ownable {
     IPNFT public ipnft;
     PlatformRegistry public platformRegistry;
     IERC20 public dpToken;
-    uint256 public mintingFee = 1e18; // 기본값: 1 DP (18 decimals)
+    uint256 public mintingFee = 0; // 기본값: 무료
 
     event IPNFTDeployed(address nft);
     event TokenMinted(
@@ -54,11 +54,13 @@ contract IPNFTFactory is Ownable {
             "Invalid or insufficient SBT"
         );
 
-        // 동적 수수료 수취
-        require(
-            dpToken.transferFrom(msg.sender, address(this), mintingFee),
-            "DP payment failed"
-        );
+        // 수수료가 설정된 경우에만 징수
+        if (mintingFee > 0) {
+            require(
+                dpToken.transferFrom(msg.sender, address(this), mintingFee),
+                "DP payment failed"
+            );
+        }
 
         // SBT 사용 횟수 증가
         platformRegistry.incrementSBTUseCount(creatorSBTId);
@@ -93,7 +95,6 @@ contract IPNFTFactory is Ownable {
     }
 
     function setMintingFee(uint256 newFee) external onlyOwner {
-        require(newFee > 0, "Minting fee must be greater than 0");
         uint256 oldFee = mintingFee;
         mintingFee = newFee;
         emit MintingFeeUpdated(oldFee, newFee);
