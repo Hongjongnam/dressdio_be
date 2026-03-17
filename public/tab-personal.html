@@ -400,6 +400,32 @@
     ></pre>
   </fieldset>
 
+  <!-- 9-1. 플랫폼 수수료 수취 주소 변경 -->
+  <fieldset>
+    <legend style="font-weight:bold;">9-1. 플랫폼 수수료 수취 주소 변경 (관리자 전용)</legend>
+    <p style="font-size:0.85rem; color:#555; margin-bottom:12px;">
+      수수료가 입금될 플랫폼 지갑 주소를 변경합니다. (컨트랙트 owner만 가능)
+    </p>
+    <form id="personal-set-fee-collector-form">
+      <label>액세스 토큰</label>
+      <textarea name="accessToken" rows="3" required placeholder="액세스 토큰"></textarea>
+      <label>새 수취 지갑 주소</label>
+      <input type="text" name="newCollector" placeholder="0x..." required />
+      <label>장치 비밀번호</label>
+      <input type="password" name="devicePassword" required placeholder="장치 비밀번호" />
+      <fieldset style="border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:5px;">
+        <legend style="font-size:0.9rem; color:#666;">저장된 지갑 데이터</legend>
+        <label>UID</label><input type="text" name="storedWalletData_uid" placeholder="user_id" required />
+        <label>WID</label><input type="number" name="storedWalletData_wid" placeholder="wallet_id" required />
+        <label>SID</label><input type="text" name="storedWalletData_sid" placeholder="0x..." required />
+        <label>PVENCSTR</label><textarea name="storedWalletData_pvencstr" rows="3" placeholder="encrypted_data" required></textarea>
+        <label>암호화된 장치 비밀번호</label><textarea name="storedWalletData_encryptDevicePassword" rows="2" placeholder="encrypted_password" required></textarea>
+      </fieldset>
+      <button type="submit">수취 주소 변경</button>
+    </form>
+    <pre id="personal-set-fee-collector-result"></pre>
+  </fieldset>
+
   <!-- 10. 플랫폼 수수료 관리 -->
   <fieldset style="background: white; color: white">
     <legend style="color: black; font-weight: bold">
@@ -579,6 +605,11 @@
       <textarea name="accessToken" rows="3" required placeholder="액세스 토큰"></textarea>
       <label>크리에이터 주소</label>
       <input type="text" name="creatorAddress" placeholder="0x..." required />
+      <label>Role</label>
+      <select name="role" required style="padding:6px; border-radius:4px; border:1px solid #ccc; width:100%;">
+        <option value="brand">brand</option>
+        <option value="artist">artist</option>
+      </select>
       <label>수수료 (0~1000, basis points)</label>
       <input type="number" name="feePercentage" min="0" max="1000" placeholder="예: 50 = 0.5%" required />
       <label>장치 비밀번호</label>
@@ -601,6 +632,11 @@
       <textarea name="accessToken" rows="3" required placeholder="액세스 토큰"></textarea>
       <label>크리에이터 주소 (개별 설정 제거)</label>
       <input type="text" name="creatorAddress" placeholder="0x..." required />
+      <label>Role</label>
+      <select name="role" required style="padding:6px; border-radius:4px; border:1px solid #ccc; width:100%;">
+        <option value="brand">brand</option>
+        <option value="artist">artist</option>
+      </select>
       <label>장치 비밀번호</label>
       <input type="password" name="devicePassword" required placeholder="장치 비밀번호" />
       <fieldset style="border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:5px;">

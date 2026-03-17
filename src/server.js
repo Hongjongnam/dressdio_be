@@ -65,7 +65,7 @@ const startServer = async () => {
   try {
     // Web3 초기화가 완료될 때까지 기다립니다.
     await initializeWeb3();
-    logger.info("✅ Web3 & Contracts initialized successfully.");
+    // logger.info("✅ Web3 & Contracts initialized successfully.");
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

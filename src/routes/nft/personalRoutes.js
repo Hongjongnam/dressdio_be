@@ -97,6 +97,13 @@ router.get("/platform-fee", personalController.getPlatformFee);
  */
 router.post("/platform-fee", authMiddleware, personalController.setPlatformFee);
 
+/**
+ * @route POST /api/nft/personal/platform-fee-collector
+ * @desc 플랫폼 수수료 수취 주소 변경 (관리자 전용)
+ * @access Private
+ */
+router.post("/platform-fee-collector", authMiddleware, personalController.setPlatformFeeCollector);
+
 // 크리에이터별 개별 수수료 관리
 router.get("/creator-fee", personalController.getCreatorFee);
 router.post("/creator-fee", authMiddleware, personalController.setCreatorFee);

@@ -262,6 +262,14 @@ router.get("/platform-fee-info", merchandiseController.getPlatformFeeInfo);
  */
 router.post("/platform-fee-info", auth, merchandiseController.setPlatformFeeInfo);
 
+/**
+ * @swagger
+ * /api/nft/merchandise/platform-fee-collector:
+ *   post:
+ *     summary: 플랫폼 수수료 수취 주소 변경 (관리자 전용)
+ */
+router.post("/platform-fee-collector", auth, merchandiseController.setPlatformFeeCollector);
+
 // 크리에이터별 개별 수수료 관리
 router.get("/creator-fee", merchandiseController.getCreatorFee);
 router.post("/creator-fee", auth, merchandiseController.setCreatorFee);
@@ -352,74 +360,5 @@ router.get("/all-nfts", merchandiseController.getAllMerchandiseNFTs);
  *         description: 조회 성공
  */
 router.get("/nft/:tokenId", merchandiseController.getMerchandiseNFTInfo);
-
-/**
- * @swagger
- * /api/nft/merchandise/receipts:
- *   get:
- *     summary: Merchandise 영수증 전체 목록
- *     tags: [Merchandise]
- *     responses:
- *       200:
- *         description: 조회 성공
- */
-router.get("/receipts", merchandiseController.getAllReceipts);
-
-/**
- * @swagger
- * /api/nft/merchandise/receipt/{receiptId}:
- *   get:
- *     summary: 특정 Merchandise 영수증 조회
- *     tags: [Merchandise]
- *     parameters:
- *       - in: path
- *         name: receiptId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: 조회 성공
- */
-router.get("/receipt/:receiptId", merchandiseController.getReceiptById);
-
-/**
- * @swagger
- * /api/nft/merchandise/receipts/project/{projectId}:
- *   get:
- *     summary: 프로젝트별 Merchandise 영수증 목록
- *     tags: [Merchandise]
- *     parameters:
- *       - in: path
- *         name: projectId
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: 조회 성공
- */
-router.get(
-  "/receipts/project/:projectId",
-  merchandiseController.getReceiptsByProject
-);
-
-/**
- * @swagger
- * /api/nft/merchandise/receipt/{receiptId}/pdf:
- *   get:
- *     summary: Merchandise 영수증 PDF 다운로드
- *     tags: [Merchandise]
- *     parameters:
- *       - in: path
- *         name: receiptId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: PDF 생성 성공
- */
-router.get("/receipt/:receiptId/pdf", merchandiseController.generatePDFReceipt);
 
 module.exports = router;

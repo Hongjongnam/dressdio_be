@@ -164,7 +164,7 @@ const initializeWeb3 = async () => {
       .call();
     if (ipnftAddress && web3.utils.isAddress(ipnftAddress)) {
       ipnftContract = new web3.eth.Contract(IPNFTABI, ipnftAddress);
-      logger.info(`IPNFT contract instance created at: ${ipnftAddress}`);
+      // logger.info(`IPNFT contract instance created at: ${ipnftAddress}`);
     } else {
       throw new Error(
         "Failed to retrieve a valid IPNFT contract address from the factory."

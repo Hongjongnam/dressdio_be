@@ -382,6 +382,14 @@ const setupMerchandiseTab = () => {
     `${API_BASE_URL}/platform-fee-info`
   );
 
+  // 14-0. 플랫폼 수수료 수취 주소 변경
+  handleFormSubmit(
+    "setFeeCollectorForm",
+    "setFeeCollectorResult",
+    `${API_BASE_URL}/platform-fee-collector`,
+    true
+  );
+
   // 14-1. 역할별 플랫폼 수수료 설정
   handleFormSubmit(
     "setPlatformFeeForm",
@@ -428,81 +436,6 @@ const setupMerchandiseTab = () => {
     });
   }
 
-  // 15. 모든 영수증 목록
-  handleGetRequest(
-    "getAllReceiptsBtn",
-    "getAllReceiptsResult",
-    `${API_BASE_URL}/receipts`
-  );
-
-  // 16. 특정 영수증 조회
-  handleGetRequest(
-    "getReceiptByIdBtn",
-    "getReceiptByIdResult",
-    `${API_BASE_URL}/receipt/:receiptId`
-  );
-
-  // 17. 프로젝트별 영수증 목록
-  handleGetRequest(
-    "getReceiptsByProjectBtn",
-    "getReceiptsByProjectResult",
-    `${API_BASE_URL}/receipts/project/:projectId`
-  );
-
-  // 18. PDF 영수증 다운로드
-  const downloadPdfBtn = document.getElementById("downloadPdfBtn");
-  if (downloadPdfBtn) {
-    downloadPdfBtn.addEventListener("click", async () => {
-      const form = downloadPdfBtn.closest("form");
-      const receiptId = form.querySelector('input[name="receiptId"]').value;
-      const resultElementId = "downloadPdfResult";
-
-      if (!receiptId) {
-        showResult(resultElementId, "Receipt ID is required.", "error");
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/receipt/${receiptId}/pdf`
-        );
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Download failed");
-        }
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = downloadUrl;
-        const contentDisposition = response.headers.get("content-disposition");
-        let fileName = `receipt-${receiptId}.pdf`;
-        if (contentDisposition) {
-          const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
-          if (fileNameMatch && fileNameMatch.length === 2)
-            fileName = fileNameMatch[1];
-        }
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-        showResult(
-          resultElementId,
-          { success: true, message: `File ${fileName} downloaded.` },
-          "success"
-        );
-      } catch (error) {
-        showResult(resultElementId, `Error: ${error.message}`, "error");
-      }
-    });
-  }
-
-  // 19. PDF 영수증 생성
-  handleFormSubmit(
-    "generatePdfForm",
-    "generatePdfResult",
-    `${API_BASE_URL}/receipt/:receiptId/generate-pdf`
-  );
 };
 
 const setupPersonalTab = () => {
@@ -776,6 +709,14 @@ const setupPersonalTab = () => {
     "set-fee-form",
     "set-fee-result",
     `${API_BASE_URL}/platform-fee`,
+    true
+  );
+
+  // 9-1. 플랫폼 수수료 수취 주소 변경
+  handleFormSubmit(
+    "personal-set-fee-collector-form",
+    "personal-set-fee-collector-result",
+    `${API_BASE_URL}/platform-fee-collector`,
     true
   );
 

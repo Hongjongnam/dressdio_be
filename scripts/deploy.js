@@ -200,7 +200,7 @@ async function main() {
   console.log(`PERSONAL_NFT_ADDRESS=${personalNFT.target}`);
   console.log(`MERCH_FACTORY_ADDRESS=${merchFactory.target}`);
   console.log(`IPNFT_FACTORY_ADDRESS=${ipnftFactory.target}`);
-  console.log(`IPNFT_CONTRACT_ADDRESS=${ipnftAddress}`);
+  console.log(`IP_CONTRACT_ADDRESS=${ipnftAddress}`);
   console.log(`SBT_CONTRACT_ADDRESS=${sbt.target}`);
   console.log(`PLATFORM_REGISTRY_ADDRESS=${registry.target}`);
 }

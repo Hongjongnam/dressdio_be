@@ -69,9 +69,10 @@ contract MerchandiseFactory is ERC721, Ownable {
     uint256 public cancelFeePercentage = 100;     // 구매 취소 기본값
     address public platformFeeCollector;          // 플랫폼 수수료 수취 주소
 
-    // 크리에이터 주소별 개별 수수료 (설정된 경우 role 기본값보다 우선 적용)
-    mapping(address => uint256) public creatorFeePercentage;
-    mapping(address => bool) public hasCustomFee;
+    // 크리에이터 주소 + role 조합별 개별 수수료 (설정된 경우 role 기본값보다 우선 적용)
+    // key: keccak256(role) → brand / artist / influencer
+    mapping(address => mapping(bytes32 => uint256)) public creatorRoleFeePercentage;
+    mapping(address => mapping(bytes32 => bool)) public hasCustomRoleFee;
     
     // 이벤트
     event MerchandiseProjectCreated(
@@ -105,8 +106,8 @@ contract MerchandiseFactory is ERC721, Ownable {
     );
     event PlatformFeeUpdated(string role, uint256 oldFee, uint256 newFee);
     event PlatformFeeCollectorUpdated(address oldCollector, address newCollector);
-    event CreatorFeeSet(address indexed creator, uint256 feePercentage);
-    event CreatorFeeRemoved(address indexed creator);
+    event CreatorFeeSet(address indexed creator, string role, uint256 feePercentage);
+    event CreatorFeeRemoved(address indexed creator, string role);
     
     // 디버깅용 이벤트
     event DebugAddress(address brandOwner, address msgSender, uint256 brandTokenId, bool isMatch);
@@ -398,7 +399,7 @@ contract MerchandiseFactory is ERC721, Ownable {
         
         // 브랜드 분배
         if (brandPrice > 0 && brandOwner != address(0)) {
-            uint256 fee = _resolveCreatorFee(brandOwner, brandFeePercentage);
+            uint256 fee = _resolveCreatorFee(brandOwner, "brand", brandFeePercentage);
             uint256 brandFee = (brandPrice * fee) / 10000;
             uint256 brandNet = brandPrice - brandFee;
             require(dpToken.transfer(brandOwner, brandNet), "DP to brand owner failed");
@@ -414,7 +415,7 @@ contract MerchandiseFactory is ERC721, Ownable {
             uint256 artistPrice = artistInfo.price;
 
             if (artistPrice > 0 && artistOwner != address(0)) {
-                uint256 fee = _resolveCreatorFee(artistOwner, artistFeePercentage);
+                uint256 fee = _resolveCreatorFee(artistOwner, "artist", artistFeePercentage);
                 uint256 artistFee = (artistPrice * fee) / 10000;
                 uint256 artistNet = artistPrice - artistFee;
                 require(dpToken.transfer(artistOwner, artistNet), "DP to artist failed");
@@ -426,7 +427,7 @@ contract MerchandiseFactory is ERC721, Ownable {
         
         // 인플루언서 분배
         if (influencerMargin > 0) {
-            uint256 fee = _resolveCreatorFee(project.influencer, influencerFeePercentage);
+            uint256 fee = _resolveCreatorFee(project.influencer, "influencer", influencerFeePercentage);
             uint256 influencerFee = (influencerMargin * fee) / 10000;
             uint256 influencerNet = influencerMargin - influencerFee;
             require(dpToken.transfer(project.influencer, influencerNet), "DP to influencer failed");
@@ -502,24 +503,27 @@ contract MerchandiseFactory is ERC721, Ownable {
     }
     
     // 크리에이터 주소 → 개별 수수료 조회 (없으면 role 기본값 반환)
-    function _resolveCreatorFee(address creator, uint256 roleDefault) internal view returns (uint256) {
-        return hasCustomFee[creator] ? creatorFeePercentage[creator] : roleDefault;
+    function _resolveCreatorFee(address creator, string memory role, uint256 roleDefault) internal view returns (uint256) {
+        bytes32 roleHash = keccak256(bytes(role));
+        return hasCustomRoleFee[creator][roleHash] ? creatorRoleFeePercentage[creator][roleHash] : roleDefault;
     }
 
-    // 크리에이터 개별 수수료 설정 (소유자만)
-    function setCreatorFee(address creator, uint256 feePercentage) external onlyOwner {
+    // 크리에이터 개별 수수료 설정 (소유자만, role: "brand"|"artist"|"influencer")
+    function setCreatorFee(address creator, string memory role, uint256 feePercentage) external onlyOwner {
         require(creator != address(0), "Invalid creator address");
         require(feePercentage <= 1000, "Fee cannot exceed 10%");
-        creatorFeePercentage[creator] = feePercentage;
-        hasCustomFee[creator] = true;
-        emit CreatorFeeSet(creator, feePercentage);
+        bytes32 roleHash = keccak256(bytes(role));
+        creatorRoleFeePercentage[creator][roleHash] = feePercentage;
+        hasCustomRoleFee[creator][roleHash] = true;
+        emit CreatorFeeSet(creator, role, feePercentage);
     }
 
-    // 크리에이터 개별 수수료 제거 → role 기본값으로 복귀
-    function removeCreatorFee(address creator) external onlyOwner {
-        hasCustomFee[creator] = false;
-        creatorFeePercentage[creator] = 0;
-        emit CreatorFeeRemoved(creator);
+    // 크리에이터 개별 수수료 제거 → role 기본값으로 복귀 (role: "brand"|"artist"|"influencer")
+    function removeCreatorFee(address creator, string memory role) external onlyOwner {
+        bytes32 roleHash = keccak256(bytes(role));
+        hasCustomRoleFee[creator][roleHash] = false;
+        creatorRoleFeePercentage[creator][roleHash] = 0;
+        emit CreatorFeeRemoved(creator, role);
     }
 
     // 크리에이터의 실제 적용 수수료 조회 (role 명시 필요: "brand"|"artist"|"influencer")
@@ -527,10 +531,10 @@ contract MerchandiseFactory is ERC721, Ownable {
         uint256 effectiveFee,
         bool isCustom
     ) {
-        if (hasCustomFee[creator]) {
-            return (creatorFeePercentage[creator], true);
-        }
         bytes32 roleHash = keccak256(bytes(role));
+        if (hasCustomRoleFee[creator][roleHash]) {
+            return (creatorRoleFeePercentage[creator][roleHash], true);
+        }
         uint256 roleDefault;
         if (roleHash == keccak256(bytes("brand"))) roleDefault = brandFeePercentage;
         else if (roleHash == keccak256(bytes("artist"))) roleDefault = artistFeePercentage;
