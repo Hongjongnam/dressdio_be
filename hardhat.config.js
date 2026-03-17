@@ -18,7 +18,7 @@ module.exports = {
       url: "https://besu.dressdio.me",
       chainId: 2741,
       accounts: [
-        "0x08ea430735cdb2b440e20b5bad77354ebdcbba85eeb509774de29c6ee1fc25b0",
+        "0xf2ce12c09406b119eba7047de71e8c798bfa804bf471569d5c28beca8aa4b634",
       ],
     },
   },

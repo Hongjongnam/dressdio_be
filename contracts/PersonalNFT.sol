@@ -30,8 +30,9 @@ contract PersonalNFT is ERC721, Ownable {
     address public platformFeeCollector;
 
     // 크리에이터 주소별 개별 수수료 (설정된 경우 role 기본값보다 우선 적용)
-    mapping(address => uint256) public creatorFeePercentage;
-    mapping(address => bool) public hasCustomFee;
+    // 크리에이터 주소 + role 조합별 개별 수수료
+    mapping(address => mapping(bytes32 => uint256)) public creatorRoleFeePercentage;
+    mapping(address => mapping(bytes32 => bool)) public hasCustomRoleFee;
     
     // ==========================================
     // 구조체
@@ -98,8 +99,8 @@ contract PersonalNFT is ERC721, Ownable {
     
     event PlatformFeeUpdated(string role, uint256 oldFee, uint256 newFee);
     event PlatformFeeCollectorUpdated(address oldCollector, address newCollector);
-    event CreatorFeeSet(address indexed creator, uint256 feePercentage);
-    event CreatorFeeRemoved(address indexed creator);
+    event CreatorFeeSet(address indexed creator, string role, uint256 feePercentage);
+    event CreatorFeeRemoved(address indexed creator, string role);
     
     // ==========================================
     // 생성자
@@ -303,7 +304,7 @@ contract PersonalNFT is ERC721, Ownable {
         uint256 brandNetAmount = 0;
         
         if (brandPrice > 0 && brandOwner != address(0)) {
-            uint256 fee = _resolveCreatorFee(brandOwner, brandFeePercentage);
+            uint256 fee = _resolveCreatorFee(brandOwner, "brand", brandFeePercentage);
             uint256 brandFee = (brandPrice * fee) / 10000;
             uint256 brandNet = brandPrice - brandFee;
             brandNetAmount = brandNet;
@@ -325,7 +326,7 @@ contract PersonalNFT is ERC721, Ownable {
             artistOwners[i] = artistOwner;
             
             if (artistPrice > 0 && artistOwner != address(0)) {
-                uint256 fee = _resolveCreatorFee(artistOwner, artistFeePercentage);
+                uint256 fee = _resolveCreatorFee(artistOwner, "artist", artistFeePercentage);
                 uint256 artistFee = (artistPrice * fee) / 10000;
                 uint256 artistNet = artistPrice - artistFee;
                 artistAmounts[i] = artistNet;
@@ -434,24 +435,28 @@ contract PersonalNFT is ERC721, Ownable {
     // ==========================================
     
     // 크리에이터 주소 → 개별 수수료 조회 (없으면 role 기본값 반환)
-    function _resolveCreatorFee(address creator, uint256 roleDefault) internal view returns (uint256) {
-        return hasCustomFee[creator] ? creatorFeePercentage[creator] : roleDefault;
+    function _resolveCreatorFee(address creator, string memory role, uint256 roleDefault) internal view returns (uint256) {
+        bytes32 roleHash = keccak256(bytes(role));
+        return hasCustomRoleFee[creator][roleHash] ? creatorRoleFeePercentage[creator][roleHash] : roleDefault;
     }
 
     // 크리에이터 개별 수수료 설정 (소유자만)
-    function setCreatorFee(address creator, uint256 feePercentage) external onlyOwner {
+    // 크리에이터 개별 수수료 설정 (소유자만, role: "brand"|"artist")
+    function setCreatorFee(address creator, string memory role, uint256 feePercentage) external onlyOwner {
         require(creator != address(0), "Invalid creator address");
         require(feePercentage <= 1000, "Fee cannot exceed 10%");
-        creatorFeePercentage[creator] = feePercentage;
-        hasCustomFee[creator] = true;
-        emit CreatorFeeSet(creator, feePercentage);
+        bytes32 roleHash = keccak256(bytes(role));
+        creatorRoleFeePercentage[creator][roleHash] = feePercentage;
+        hasCustomRoleFee[creator][roleHash] = true;
+        emit CreatorFeeSet(creator, role, feePercentage);
     }
 
-    // 크리에이터 개별 수수료 제거 → role 기본값으로 복귀
-    function removeCreatorFee(address creator) external onlyOwner {
-        hasCustomFee[creator] = false;
-        creatorFeePercentage[creator] = 0;
-        emit CreatorFeeRemoved(creator);
+    // 크리에이터 개별 수수료 제거 → role 기본값으로 복귀 (role: "brand"|"artist")
+    function removeCreatorFee(address creator, string memory role) external onlyOwner {
+        bytes32 roleHash = keccak256(bytes(role));
+        hasCustomRoleFee[creator][roleHash] = false;
+        creatorRoleFeePercentage[creator][roleHash] = 0;
+        emit CreatorFeeRemoved(creator, role);
     }
 
     // 크리에이터의 실제 적용 수수료 조회 (role 명시 필요: "brand"|"artist")
@@ -459,10 +464,10 @@ contract PersonalNFT is ERC721, Ownable {
         uint256 effectiveFee,
         bool isCustom
     ) {
-        if (hasCustomFee[creator]) {
-            return (creatorFeePercentage[creator], true);
-        }
         bytes32 roleHash = keccak256(bytes(role));
+        if (hasCustomRoleFee[creator][roleHash]) {
+            return (creatorRoleFeePercentage[creator][roleHash], true);
+        }
         uint256 roleDefault = (roleHash == keccak256(bytes("artist"))) ? artistFeePercentage : brandFeePercentage;
         return (roleDefault, false);
     }

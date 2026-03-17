@@ -570,6 +570,31 @@
       </fieldset>
 
       <fieldset>
+        <legend>14-0. 플랫폼 수수료 수취 주소 변경 (관리자 전용)</legend>
+        <p style="font-size:0.85rem; color:#666; margin-bottom:10px;">
+          수수료가 입금될 플랫폼 지갑 주소를 변경합니다. (컨트랙트 owner만 가능)
+        </p>
+        <form id="setFeeCollectorForm">
+          <label for="sfc_accessToken">Access Token:</label>
+          <textarea id="sfc_accessToken" name="accessToken" rows="3" required></textarea>
+          <label for="sfc_newCollector">새 수취 지갑 주소:</label>
+          <input type="text" id="sfc_newCollector" name="newCollector" placeholder="0x..." required />
+          <label for="sfc_devicePassword">Device Password:</label>
+          <input type="password" id="sfc_devicePassword" name="devicePassword" required />
+          <fieldset style="border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:5px;">
+            <legend style="font-size:0.9rem; color:#666;">저장된 지갑 데이터</legend>
+            <label>UID</label><input type="text" name="storedWalletData_uid" placeholder="user_id" required />
+            <label>WID</label><input type="number" name="storedWalletData_wid" placeholder="wallet_id" required />
+            <label>SID</label><input type="text" name="storedWalletData_sid" placeholder="0x..." required />
+            <label>PVENCSTR</label><textarea name="storedWalletData_pvencstr" rows="3" placeholder="encrypted_data" required></textarea>
+            <label>암호화된 장치 비밀번호</label><textarea name="storedWalletData_encryptDevicePassword" rows="2" placeholder="encrypted_password" required></textarea>
+          </fieldset>
+          <button type="submit">수취 주소 변경</button>
+        </form>
+        <pre id="setFeeCollectorResult"></pre>
+      </fieldset>
+
+      <fieldset>
         <legend>14-1. 역할별 플랫폼 수수료 설정 (관리자 전용)</legend>
         <p style="font-size:0.85rem; color:#666; margin-bottom:10px;">
           brand / artist / influencer / cancel 각각 개별 설정 가능.<br>
@@ -640,6 +665,12 @@
           <textarea id="scf_accessToken" name="accessToken" rows="3" required></textarea>
           <label for="scf_address">크리에이터 주소:</label>
           <input type="text" id="scf_address" name="creatorAddress" placeholder="0x..." required />
+          <label for="scf_role">Role:</label>
+          <select id="scf_role" name="role" required>
+            <option value="brand">brand</option>
+            <option value="artist">artist</option>
+            <option value="influencer">influencer</option>
+          </select>
           <label for="scf_fee">수수료 (0~1000, basis points):</label>
           <input type="number" id="scf_fee" name="feePercentage" min="0" max="1000" placeholder="예: 50 = 0.5%" required />
           <label for="scf_devicePassword">Device Password:</label>
@@ -662,6 +693,12 @@
           <textarea id="rcf_accessToken" name="accessToken" rows="3" required></textarea>
           <label for="rcf_address">크리에이터 주소 (개별 설정 제거):</label>
           <input type="text" id="rcf_address" name="creatorAddress" placeholder="0x..." required />
+          <label for="rcf_role">Role:</label>
+          <select id="rcf_role" name="role" required>
+            <option value="brand">brand</option>
+            <option value="artist">artist</option>
+            <option value="influencer">influencer</option>
+          </select>
           <label for="rcf_devicePassword">Device Password:</label>
           <input type="password" id="rcf_devicePassword" name="devicePassword" required />
           <fieldset style="border:1px solid #ddd; padding:12px; margin:8px 0; border-radius:5px;">
@@ -677,61 +714,6 @@
         <pre id="removeCreatorFeeResult"></pre>
       </fieldset>
 
-      <!-- 4. 영수증 -->
-      <fieldset>
-        <legend>15. 모든 영수증 목록</legend>
-        <form id="getAllReceiptsForm">
-          <button type="button" id="getAllReceiptsBtn">Get All Receipts</button>
-        </form>
-        <pre id="getAllReceiptsResult"></pre>
-      </fieldset>
-
-      <fieldset>
-        <legend>16. 특정 영수증 조회</legend>
-        <form id="getReceiptByIdForm">
-          <label for="grbi_receiptId">Receipt ID:</label>
-          <input type="text" id="grbi_receiptId" name="receiptId" required />
-          <button type="button" id="getReceiptByIdBtn">
-            Get Receipt Details
-          </button>
-        </form>
-        <pre id="getReceiptByIdResult"></pre>
-      </fieldset>
-
-      <fieldset>
-        <legend>17. 프로젝트별 영수증 목록</legend>
-        <form id="getReceiptsByProjectForm">
-          <label for="grbp_projectId">Project ID:</label>
-          <input type="text" id="grbp_projectId" name="projectId" required />
-          <button type="button" id="getReceiptsByProjectBtn">
-            Get Project Receipts
-          </button>
-        </form>
-        <pre id="getReceiptsByProjectResult"></pre>
-      </fieldset>
-      <fieldset>
-        <legend>18. PDF 영수증 다운로드(디자인작업중)</legend>
-        <form id="downloadPdfForm">
-          <label for="dp_receiptId">Receipt ID:</label>
-          <input type="text" id="dp_receiptId" name="receiptId" required />
-          <button type="button" id="downloadPdfBtn">
-            Download PDF Receipt
-          </button>
-        </form>
-        <pre id="downloadPdfResult"></pre>
-      </fieldset>
-      <fieldset>
-        <legend>19. PDF 영수증 생성 (서버에 파일 저장)</legend>
-        <p class="description">
-          구매 확정 시 자동으로 생성되지만, 수동 생성을 위해 제공됩니다.
-        </p>
-        <form id="generatePdfForm">
-          <label for="gp_receiptId">Receipt ID:</label>
-          <input type="text" id="gp_receiptId" name="receiptId" required />
-          <button type="submit">Generate PDF</button>
-        </form>
-        <pre id="generatePdfResult"></pre>
-      </fieldset>
     </div>
   </body>
 </html>

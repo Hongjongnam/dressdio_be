@@ -1067,6 +1067,42 @@ const setPlatformFee = async (req, res) => {
 };
 
 /**
+ * 플랫폼 수수료 수취 주소 변경 (관리자 전용)
+ * @route POST /api/nft/personal/platform-fee-collector
+ */
+const setPlatformFeeCollector = async (req, res) => {
+  const { newCollector, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!newCollector || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "newCollector, storedWalletData, devicePassword 는 필수입니다." });
+    }
+
+    if (!/^0x[0-9a-fA-F]{40}$/.test(newCollector)) {
+      return res.status(400).json({ success: false, message: "올바른 이더리움 주소 형식이 아닙니다." });
+    }
+
+    const txData = {
+      to: personalNFTContract.options.address,
+      data: personalNFTContract.methods.setPlatformFeeCollector(newCollector).encodeABI(),
+      value: "0",
+    };
+
+    const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
+
+    return res.json({
+      success: true,
+      message: `수수료 수취 주소가 ${newCollector} 로 변경되었습니다.`,
+      data: { newCollector, txHash: receipt.transactionHash },
+    });
+  } catch (error) {
+    logger.error("[Personal NFT] setPlatformFeeCollector error:", error);
+    return res.status(500).json({ success: false, message: "수수료 수취 주소 변경 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
  * 크리에이터 개별 수수료 조회
  * @route GET /api/nft/personal/creator-fee?creatorAddress=0x...&role=brand
  */
@@ -1106,13 +1142,19 @@ const getCreatorFee = async (req, res) => {
  * @route POST /api/nft/personal/creator-fee
  */
 const setCreatorFee = async (req, res) => {
-  const { creatorAddress, feePercentage, storedWalletData, devicePassword } = req.body;
+  const { creatorAddress, role, feePercentage, storedWalletData, devicePassword } = req.body;
   const accessToken = req.token;
 
   try {
-    if (!creatorAddress || feePercentage === undefined || !storedWalletData || !devicePassword) {
-      return res.status(400).json({ success: false, message: "creatorAddress, feePercentage, storedWalletData, devicePassword 는 필수입니다." });
+    if (!creatorAddress || !role || feePercentage === undefined || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, role, feePercentage, storedWalletData, devicePassword 는 필수입니다." });
     }
+
+    const validRoles = ["brand", "artist"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: "role 은 brand, artist 중 하나여야 합니다." });
+    }
+
     const feeValue = parseInt(feePercentage);
     if (isNaN(feeValue) || feeValue < 0 || feeValue > 1000) {
       return res.status(400).json({ success: false, message: "feePercentage 는 0~1000 (basis points) 범위여야 합니다." });
@@ -1120,15 +1162,15 @@ const setCreatorFee = async (req, res) => {
 
     const txData = {
       to: personalNFTContract.options.address,
-      data: personalNFTContract.methods.setCreatorFee(creatorAddress, feeValue).encodeABI(),
+      data: personalNFTContract.methods.setCreatorFee(creatorAddress, role, feeValue).encodeABI(),
       value: "0",
     };
     const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
 
     return res.json({
       success: true,
-      message: `크리에이터 ${creatorAddress} 의 수수료가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
-      data: { creatorAddress, basisPoints: feeValue, percentage: feeValue / 100, txHash: receipt.transactionHash },
+      message: `크리에이터 ${creatorAddress} 의 ${role} 역할 수수료가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
+      data: { creatorAddress, role, basisPoints: feeValue, percentage: feeValue / 100, txHash: receipt.transactionHash },
     });
   } catch (error) {
     logger.error("[Personal NFT] setCreatorFee error:", error);
@@ -1141,24 +1183,30 @@ const setCreatorFee = async (req, res) => {
  * @route DELETE /api/nft/personal/creator-fee
  */
 const removeCreatorFee = async (req, res) => {
-  const { creatorAddress, storedWalletData, devicePassword } = req.body;
+  const { creatorAddress, role, storedWalletData, devicePassword } = req.body;
   const accessToken = req.token;
 
   try {
-    if (!creatorAddress || !storedWalletData || !devicePassword) {
-      return res.status(400).json({ success: false, message: "creatorAddress, storedWalletData, devicePassword 는 필수입니다." });
+    if (!creatorAddress || !role || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, role, storedWalletData, devicePassword 는 필수입니다." });
     }
+
+    const validRoles = ["brand", "artist"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: "role 은 brand, artist 중 하나여야 합니다." });
+    }
+
     const txData = {
       to: personalNFTContract.options.address,
-      data: personalNFTContract.methods.removeCreatorFee(creatorAddress).encodeABI(),
+      data: personalNFTContract.methods.removeCreatorFee(creatorAddress, role).encodeABI(),
       value: "0",
     };
     const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
 
     return res.json({
       success: true,
-      message: `크리에이터 ${creatorAddress} 의 개별 수수료가 제거되어 role 기본값으로 복귀됩니다.`,
-      data: { creatorAddress, txHash: receipt.transactionHash },
+      message: `크리에이터 ${creatorAddress} 의 ${role} 역할 개별 수수료가 제거되어 기본값으로 복귀됩니다.`,
+      data: { creatorAddress, role, txHash: receipt.transactionHash },
     });
   } catch (error) {
     logger.error("[Personal NFT] removeCreatorFee error:", error);
@@ -1182,6 +1230,7 @@ module.exports = {
   // 수수료 관리
   getPlatformFee,
   setPlatformFee,
+  setPlatformFeeCollector,
   getCreatorFee,
   setCreatorFee,
   removeCreatorFee,

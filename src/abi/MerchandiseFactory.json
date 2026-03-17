@@ -203,6 +203,12 @@
         "internalType": "address",
         "name": "creator",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
       }
     ],
     "name": "CreatorFeeRemoved",
@@ -216,6 +222,12 @@
         "internalType": "address",
         "name": "creator",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
       },
       {
         "indexed": false,
@@ -880,9 +892,14 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
-    "name": "creatorFeePercentage",
+    "name": "creatorRoleFeePercentage",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1272,9 +1289,14 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
-    "name": "hasCustomFee",
+    "name": "hasCustomRoleFee",
     "outputs": [
       {
         "internalType": "bool",
@@ -1611,6 +1633,11 @@
         "internalType": "address",
         "name": "creator",
         "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
       }
     ],
     "name": "removeCreatorFee",
@@ -1745,6 +1772,11 @@
         "internalType": "address",
         "name": "creator",
         "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "role",
+        "type": "string"
       },
       {
         "internalType": "uint256",

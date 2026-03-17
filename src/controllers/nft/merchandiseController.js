@@ -7,8 +7,6 @@ const {
 } = require("../../config/web3");
 const { uploadFileToIPFS, uploadJSONToIPFS } = require("../../services/upload");
 const walletService = require("../../services/wallet");
-const receiptGenerator = require("../../utils/receiptGenerator");
-const pdfReceiptGenerator = require("../../utils/pdfReceiptGenerator");
 const logger = require("../../utils/logger");
 const { stringifyBigInts } = require("../../utils/utils");
 const mpcService = require("../../services/blockchainMPC");
@@ -2556,6 +2554,44 @@ const setPlatformFeeInfo = async (req, res) => {
 };
 
 /**
+ * 플랫폼 수수료 수취 주소 변경 (관리자 전용)
+ * @param {string} req.body.newCollector   - 새 수수료 수취 지갑 주소
+ * @param {string} req.body.devicePassword
+ * @param {Object} req.body.storedWalletData
+ */
+const setPlatformFeeCollector = async (req, res) => {
+  const { newCollector, storedWalletData, devicePassword } = req.body;
+  const accessToken = req.token;
+
+  try {
+    if (!newCollector || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "newCollector, storedWalletData, devicePassword 는 필수입니다." });
+    }
+
+    if (!/^0x[0-9a-fA-F]{40}$/.test(newCollector)) {
+      return res.status(400).json({ success: false, message: "올바른 이더리움 주소 형식이 아닙니다." });
+    }
+
+    const txData = {
+      to: merchandiseFactoryContract.options.address,
+      data: merchandiseFactoryContract.methods.setPlatformFeeCollector(newCollector).encodeABI(),
+      value: "0",
+    };
+
+    const receipt = await mpcService.executeTransactionWithStoredData(storedWalletData, devicePassword, txData, accessToken);
+
+    res.json({
+      success: true,
+      message: `수수료 수취 주소가 ${newCollector} 로 변경되었습니다.`,
+      data: { newCollector, txHash: receipt.transactionHash },
+    });
+  } catch (error) {
+    console.error("[setPlatformFeeCollector] 오류:", error);
+    res.status(500).json({ success: false, message: "수수료 수취 주소 변경 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
  * 크리에이터 개별 수수료 조회
  * @param {string} req.query.creatorAddress - 크리에이터 지갑 주소
  * @param {string} req.query.role - "brand" | "artist" | "influencer"
@@ -2595,15 +2631,21 @@ const getCreatorFee = async (req, res) => {
 /**
  * 크리에이터 개별 수수료 설정 (관리자 전용)
  * @param {string} req.body.creatorAddress - 크리에이터 지갑 주소
+ * @param {string} req.body.role           - "brand" | "artist" | "influencer"
  * @param {number} req.body.feePercentage  - basis points (0~1000)
  */
 const setCreatorFee = async (req, res) => {
-  const { creatorAddress, feePercentage, storedWalletData, devicePassword } = req.body;
+  const { creatorAddress, role, feePercentage, storedWalletData, devicePassword } = req.body;
   const accessToken = req.token;
 
   try {
-    if (!creatorAddress || feePercentage === undefined || !storedWalletData || !devicePassword) {
-      return res.status(400).json({ success: false, message: "creatorAddress, feePercentage, storedWalletData, devicePassword 는 필수입니다." });
+    if (!creatorAddress || !role || feePercentage === undefined || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, role, feePercentage, storedWalletData, devicePassword 는 필수입니다." });
+    }
+
+    const validRoles = ["brand", "artist", "influencer"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: "role 은 brand, artist, influencer 중 하나여야 합니다." });
     }
 
     const feeValue = parseInt(feePercentage);
@@ -2613,7 +2655,7 @@ const setCreatorFee = async (req, res) => {
 
     const txData = {
       to: merchandiseFactoryContract.options.address,
-      data: merchandiseFactoryContract.methods.setCreatorFee(creatorAddress, feeValue).encodeABI(),
+      data: merchandiseFactoryContract.methods.setCreatorFee(creatorAddress, role, feeValue).encodeABI(),
       value: "0",
     };
 
@@ -2621,8 +2663,8 @@ const setCreatorFee = async (req, res) => {
 
     res.json({
       success: true,
-      message: `크리에이터 ${creatorAddress} 의 수수료가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
-      data: { creatorAddress, basisPoints: feeValue, percentage: feeValue / 100, txHash: receipt.transactionHash },
+      message: `크리에이터 ${creatorAddress} 의 ${role} 역할 수수료가 ${feeValue / 100}% (${feeValue} basis points)로 설정되었습니다.`,
+      data: { creatorAddress, role, basisPoints: feeValue, percentage: feeValue / 100, txHash: receipt.transactionHash },
     });
   } catch (error) {
     console.error("[setCreatorFee] 오류:", error);
@@ -2633,19 +2675,25 @@ const setCreatorFee = async (req, res) => {
 /**
  * 크리에이터 개별 수수료 제거 → role 기본값으로 복귀 (관리자 전용)
  * @param {string} req.body.creatorAddress - 크리에이터 지갑 주소
+ * @param {string} req.body.role           - "brand" | "artist" | "influencer"
  */
 const removeCreatorFee = async (req, res) => {
-  const { creatorAddress, storedWalletData, devicePassword } = req.body;
+  const { creatorAddress, role, storedWalletData, devicePassword } = req.body;
   const accessToken = req.token;
 
   try {
-    if (!creatorAddress || !storedWalletData || !devicePassword) {
-      return res.status(400).json({ success: false, message: "creatorAddress, storedWalletData, devicePassword 는 필수입니다." });
+    if (!creatorAddress || !role || !storedWalletData || !devicePassword) {
+      return res.status(400).json({ success: false, message: "creatorAddress, role, storedWalletData, devicePassword 는 필수입니다." });
+    }
+
+    const validRoles = ["brand", "artist", "influencer"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: "role 은 brand, artist, influencer 중 하나여야 합니다." });
     }
 
     const txData = {
       to: merchandiseFactoryContract.options.address,
-      data: merchandiseFactoryContract.methods.removeCreatorFee(creatorAddress).encodeABI(),
+      data: merchandiseFactoryContract.methods.removeCreatorFee(creatorAddress, role).encodeABI(),
       value: "0",
     };
 
@@ -2653,8 +2701,8 @@ const removeCreatorFee = async (req, res) => {
 
     res.json({
       success: true,
-      message: `크리에이터 ${creatorAddress} 의 개별 수수료가 제거되어 role 기본값으로 복귀됩니다.`,
-      data: { creatorAddress, txHash: receipt.transactionHash },
+      message: `크리에이터 ${creatorAddress} 의 ${role} 역할 개별 수수료가 제거되어 기본값으로 복귀됩니다.`,
+      data: { creatorAddress, role, txHash: receipt.transactionHash },
     });
   } catch (error) {
     console.error("[removeCreatorFee] 오류:", error);
@@ -2665,200 +2713,6 @@ const removeCreatorFee = async (req, res) => {
 // 4.1. 영수증 API
 // ---------------------------------------------
 
-/**
- * 전체 영수증 목록 조회
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const getAllReceipts = async (req, res) => {
-  try {
-    const result = await receiptGenerator.getAllReceipts();
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: "영수증 목록을 성공적으로 조회했습니다.",
-        data: {
-          totalCount: result.receipts.length,
-          receipts: result.receipts,
-        },
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: "영수증 목록 조회 중 오류가 발생했습니다.",
-        error: result.error,
-      });
-    }
-  } catch (error) {
-    logger.error("영수증 목록 조회 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "영수증 목록 조회 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * ID로 특정 영수증 조회
- * @param {Object} req - Express request object
- * @param {string} req.params.receiptId - 영수증 ID
- * @param {Object} res - Express response object
- */
-const getReceiptById = async (req, res) => {
-  const { receiptId } = req.params;
-
-  if (!receiptId) {
-    return res.status(400).json({
-      success: false,
-      message: "영수증 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    const result = await receiptGenerator.getReceipt(receiptId);
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: "영수증을 성공적으로 조회했습니다.",
-        data: result.receipt,
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        message: "영수증을 찾을 수 없습니다.",
-        error: result.error,
-      });
-    }
-  } catch (error) {
-    logger.error("영수증 조회 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "영수증 조회 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * 프로젝트 ID로 영수증 목록 조회
- * @param {Object} req - Express request object
- * @param {string} req.params.projectId - 프로젝트 ID
- * @param {Object} res - Express response object
- */
-const getReceiptsByProject = async (req, res) => {
-  const { projectId } = req.params;
-
-  if (projectId === undefined || projectId === null) {
-    return res.status(400).json({
-      success: false,
-      message: "프로젝트 ID를 입력해주세요.",
-    });
-  }
-
-  try {
-    const result = await receiptGenerator.getReceiptsByProject(projectId);
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: "프로젝트 영수증 목록을 성공적으로 조회했습니다.",
-        data: {
-          projectId: projectId,
-          totalCount: result.receipts.length,
-          receipts: result.receipts,
-        },
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: "프로젝트 영수증 목록 조회 중 오류가 발생했습니다.",
-        error: result.error,
-      });
-    }
-  } catch (error) {
-    logger.error("프로젝트 영수증 목록 조회 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "프로젝트 영수증 목록 조회 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * PDF 영수증 생성 및 다운로드
- * @param {Object} req - Express request object
- * @param {string} req.params.receiptId - 영수증 ID
- * @param {Object} res - Express response object
- */
-const generatePDFReceipt = async (req, res) => {
-  const { receiptId } = req.params;
-
-  try {
-    if (!receiptId) {
-      return res.status(400).json({
-        success: false,
-        message: "영수증 ID를 입력해주세요.",
-      });
-    }
-
-    // 1. 영수증 JSON 데이터 조회
-    const receiptResult = await receiptGenerator.getReceipt(receiptId);
-
-    if (!receiptResult.success) {
-      return res.status(404).json({
-        success: false,
-        message: "영수증을 찾을 수 없습니다.",
-        error: receiptResult.error,
-      });
-    }
-
-    const receiptData = receiptResult.receipt;
-
-    // 2. PDF 생성 (없는 경우에만)
-    const pdfResult = await pdfReceiptGenerator.generatePDFIfNotExists(
-      receiptData
-    );
-
-    if (!pdfResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: "PDF 생성 중 오류가 발생했습니다.",
-        error: pdfResult.error,
-      });
-    }
-
-    // 3. PDF 파일 전송
-    const pdfPath = pdfResult.pdfPath;
-    const fileName = pdfResult.pdfFileName;
-
-    // 파일 존재 확인
-    const fs = require("fs");
-    if (!fs.existsSync(pdfPath)) {
-      return res.status(404).json({
-        success: false,
-        message: "PDF 파일을 찾을 수 없습니다.",
-      });
-    }
-
-    // PDF 파일 전송
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-
-    const fileStream = fs.createReadStream(pdfPath);
-    fileStream.pipe(res);
-  } catch (error) {
-    logger.error("PDF 영수증 다운로드 실패", error);
-    res.status(500).json({
-      success: false,
-      message: "PDF 영수증 다운로드 중 오류가 발생했습니다.",
-      error: error.message,
-    });
-  }
-};
 
 module.exports = {
   // 1. 프로젝트 관리
@@ -2884,11 +2738,8 @@ module.exports = {
   // 4. 유틸리티
   getPlatformFeeInfo,
   setPlatformFeeInfo,
+  setPlatformFeeCollector,
   getCreatorFee,
   setCreatorFee,
   removeCreatorFee,
-  getAllReceipts,
-  getReceiptById,
-  getReceiptsByProject,
-  generatePDFReceipt,
 };
