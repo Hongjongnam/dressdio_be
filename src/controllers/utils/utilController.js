@@ -1407,6 +1407,25 @@ exports.transferDressTokenAndSwap = async (req, res) => {
 };
 
 /**
+ * 단일 RPC Promise에 상한 시간을 둔다. 타임아웃 없이 hang 하면 Promise.all이 끝나지 않아 응답이 오지 않음.
+ */
+function promiseWithTimeout(promise, ms, timeoutMessage) {
+  return new Promise((resolve, reject) => {
+    const to = setTimeout(() => reject(new Error(timeoutMessage || `RPC timeout after ${ms}ms`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(to);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(to);
+        reject(e);
+      }
+    );
+  });
+}
+
+/**
  * 블록체인 조회 TPS 성능 테스트
  * eth_blockNumber를 호출한다. 매 초 경계마다 targetTps개를 추가로 발사(이전 요청 완료를 기다리지 않음).
  * 달성 TPS = 성공 건수 ÷ duration(초). 일부 노드는 eth_getBalance가 result:null을 반환해 사용하지 않음.
@@ -1415,6 +1434,31 @@ const runTpsTest = async (req, res) => {
   const { targetTps, durationSeconds, rpcUrls, rpcWeights } = req.body;
 
   try {
+
+    const rawTimeout = parseInt(process.env.TPS_RPC_TIMEOUT_MS, 10);
+    const rpcTimeoutMs =
+      Number.isFinite(rawTimeout) && rawTimeout >= 3000 && rawTimeout <= 600000
+        ? rawTimeout
+        : 120000;
+
+    /**
+     * 반복 N초 동안 요청을 쏜 뒤에도, 모든 RPC가 끝날 때까지 기다리므로 부하가 크면 수십 초 걸릴 수 있음.
+     * 테스트 시작 시각 + 반복(초)×배수 를 넘기 전에 각 요청이 끝나도록 RPC별 상한을 min(단일타임아웃, 마감까지 남은 시간)으로 잡는다.
+     * TPS_GLOBAL_DEADLINE_MULT=0 또는 off → 비활성화(기존처럼 단일 RPC 타임아웃만).
+     */
+    const rawMult = process.env.TPS_GLOBAL_DEADLINE_MULT;
+    let globalDeadlineMult = 2;
+    if (rawMult !== undefined && rawMult !== null && String(rawMult).trim() !== "") {
+      const s = String(rawMult).trim().toLowerCase();
+      if (s === "0" || s === "off" || s === "false" || s === "no") {
+        globalDeadlineMult = null;
+      } else {
+        const m = parseFloat(String(rawMult), 10);
+        if (Number.isFinite(m) && m >= 1 && m <= 20) {
+          globalDeadlineMult = m;
+        }
+      }
+    }
 
     const tps = Math.min(parseInt(targetTps) || 1100, 5000);
     const duration = Math.min(parseInt(durationSeconds) || 5, 30);
@@ -1448,6 +1492,16 @@ const runTpsTest = async (req, res) => {
     const requestLogs = [];
 
     const testStartTime = Date.now();
+    const absoluteDeadlineMs =
+      globalDeadlineMult != null ? testStartTime + duration * 1000 * globalDeadlineMult : null;
+
+    logger.info(
+      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, RPC ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개` +
+        (absoluteDeadlineMs != null
+          ? `, 전역 마감 시작+${duration * globalDeadlineMult}s (배수 ${globalDeadlineMult})`
+          : ", 전역 마감 없음")
+    );
+
     const allPromises = [];
 
     for (let sec = 0; sec < duration; sec++) {
@@ -1464,8 +1518,32 @@ const runTpsTest = async (req, res) => {
         allPromises.push(
           (async () => {
             const reqStart = Date.now();
+            let effectiveRpcMs = rpcTimeoutMs;
+            if (absoluteDeadlineMs != null) {
+              const remaining = absoluteDeadlineMs - reqStart;
+              if (remaining < 50) {
+                requestLogs.push({
+                  seq: idx + 1,
+                  second: sec + 1,
+                  timestamp: new Date(reqStart).toISOString(),
+                  rpcEndpoint: endpoints[endpointIdx],
+                  method: "eth_blockNumber",
+                  params: [],
+                  success: false,
+                  latencyMs: 0,
+                  responseBlockNumber: null,
+                  error: "전역 마감 시각 도달(요청 생략)",
+                });
+                return;
+              }
+              effectiveRpcMs = Math.min(rpcTimeoutMs, remaining);
+            }
             try {
-              const blockNo = await w3.eth.getBlockNumber();
+              const blockNo = await promiseWithTimeout(
+                w3.eth.getBlockNumber(),
+                effectiveRpcMs,
+                `eth_blockNumber timeout ${effectiveRpcMs}ms`
+              );
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
               requestLogs.push({
@@ -1581,6 +1659,10 @@ const runTpsTest = async (req, res) => {
         actualRps: parseFloat(actualRps),
         throughputPass,
         sampleBlockNumber,
+        /** 반복(초)×배수 안에 각 RPC가 끝나도록 제한. null이면 비활성 */
+        globalDeadlineMult: globalDeadlineMult != null ? globalDeadlineMult : null,
+        globalDeadlineMaxWallSeconds:
+          globalDeadlineMult != null ? duration * globalDeadlineMult : null,
       },
       latency: {
         avgMs: parseFloat(avgLatency),

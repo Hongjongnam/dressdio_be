@@ -1851,8 +1851,16 @@ const setupBlockchainTab = () => {
               ${r("총 요청", `${N(d.testInfo.totalPlannedRequests)}건`)}
               ${r("성공", `<span style="color:#2e7d32">${N(d.results.successCount)}건 (${d.results.successRate})</span>`)}
               ${r("실패", `<span style="color:#c62828">${N(d.results.failCount)}건</span>`)}
-              ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} TPS (건/초)</b><div style="font-size:11px;color:#666;font-weight:400;margin-top:2px">TPS = 초당 처리 건수 · 성공 요청 수 ÷ 반복(초)</div>`)}
+              ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} TPS (건/초)</b>`)}
               ${r("총 소요 시간", `${d.results.totalElapsedSeconds}초`)}
+              ${
+                d.results.globalDeadlineMaxWallSeconds != null
+                  ? r(
+                      "전역 마감(꼬리 제한)",
+                      `시작 후 최대 약 <b>${d.results.globalDeadlineMaxWallSeconds}</b>초 안에 각 RPC 종료(배수 ${d.results.globalDeadlineMult}×반복)`
+                    )
+                  : ""
+              }
               ${r("평균 응답", `${d.latency.avgMs} ms`)}
               ${r("최소 / 최대", `${d.latency.minMs} ms / ${d.latency.maxMs} ms`)}
               ${r("P50 / P95 / P99", `${d.latency.p50Ms} / ${d.latency.p95Ms} / ${d.latency.p99Ms} ms`)}
