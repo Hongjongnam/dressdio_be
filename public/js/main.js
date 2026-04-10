@@ -1869,8 +1869,8 @@ const setupBlockchainTab = () => {
               ${
                 d.results.globalDeadlineMaxWallSeconds != null
                   ? r(
-                      "전역 마감(꼬리 제한)",
-                      `시작 후 최대 약 <b>${d.results.globalDeadlineMaxWallSeconds}</b>초(반복×배수+1초 여유) 안에 각 RPC 종료`
+                      "완료 상한(참고)",
+                      `참고(대략 완료 상한 힌트): 반복×배수+1 ≈ <b>${d.results.globalDeadlineMaxWallSeconds}</b>초 — 실제는 건당 <code style="font-size:11px">TPS_RPC_TIMEOUT_MS</code>까지 대기`
                     )
                   : ""
               }

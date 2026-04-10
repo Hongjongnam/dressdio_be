@@ -1442,9 +1442,9 @@ const runTpsTest = async (req, res) => {
         : 120000;
 
     /**
-     * 반복 N초 동안 요청을 쏜 뒤에도, 모든 RPC가 끝날 때까지 기다리므로 부하가 크면 수십 초 걸릴 수 있음.
-     * 테스트 시작 시각 + 반복(초)×배수 를 넘기 전에 각 요청이 끝나도록 RPC별 상한을 min(단일타임아웃, 마감까지 남은 시간)으로 잡는다.
-     * TPS_GLOBAL_DEADLINE_MULT=0 또는 off → 비활성화(기존처럼 단일 RPC 타임아웃만).
+     * 각 RPC는 TPS_RPC_TIMEOUT_MS(기본 120s)만 적용. (과거 전역 마감으로 per-RPC 시간을 깎으면
+     * 고부하 시 remaining이 줄어 전 요청이 ~50ms만 시도되어 성공 0·0TPS가 발생했음.)
+     * TPS_GLOBAL_DEADLINE_MULT는 로그·리포트용 참고(대략적인 완료 상한 초)만.
      */
     const rawMult = process.env.TPS_GLOBAL_DEADLINE_MULT;
     let globalDeadlineMult = 2;
@@ -1492,17 +1492,14 @@ const runTpsTest = async (req, res) => {
     const requestLogs = [];
 
     const testStartTime = Date.now();
-    /** 스케줄링·시계 오차 여유(1초). 마감만 너무 타이트하면 뒤쪽 초의 요청이 전부 "생략"될 수 있음 */
-    const absoluteDeadlineMs =
-      globalDeadlineMult != null
-        ? testStartTime + duration * 1000 * globalDeadlineMult + 1000
-        : null;
+    const referenceWallHintSeconds =
+      globalDeadlineMult != null ? duration * globalDeadlineMult + 1 : null;
 
     logger.info(
-      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, RPC ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개` +
-        (absoluteDeadlineMs != null
-          ? `, 전역 마감 시작+${duration * globalDeadlineMult + 1}s (반복×배수+1s 여유)`
-          : ", 전역 마감 없음")
+      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, RPC 건당 타임아웃 ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개` +
+        (referenceWallHintSeconds != null
+          ? `, 참고 상한 약 ${referenceWallHintSeconds}s (반복×TPS_GLOBAL_DEADLINE_MULT+1)`
+          : "")
     );
 
     const allPromises = [];
@@ -1521,17 +1518,11 @@ const runTpsTest = async (req, res) => {
         allPromises.push(
           (async () => {
             const reqStart = Date.now();
-            let effectiveRpcMs = rpcTimeoutMs;
-            if (absoluteDeadlineMs != null) {
-              const remaining = absoluteDeadlineMs - reqStart;
-              /** 마감이 가까우면 RPC 허용 시간만 줄이고, 아예 생략하지 않음(생략 시 성공 0·지연 0처럼 보이는 사고 방지) */
-              effectiveRpcMs = Math.min(rpcTimeoutMs, Math.max(50, remaining));
-            }
             try {
               const blockNo = await promiseWithTimeout(
                 w3.eth.getBlockNumber(),
-                effectiveRpcMs,
-                `eth_blockNumber timeout ${effectiveRpcMs}ms`
+                rpcTimeoutMs,
+                `eth_blockNumber timeout ${rpcTimeoutMs}ms`
               );
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
@@ -1652,7 +1643,7 @@ const runTpsTest = async (req, res) => {
         actualRps: parseFloat(actualRps),
         throughputPass,
         sampleBlockNumber,
-        /** 반복(초)×배수 안에 각 RPC가 끝나도록 제한. null이면 비활성 */
+        /** 참고: 반복×배수+1초(대략 완료 상한 힌트). RPC 건당 제한과는 무관 */
         globalDeadlineMult: globalDeadlineMult != null ? globalDeadlineMult : null,
         globalDeadlineMaxWallSeconds:
           globalDeadlineMult != null ? duration * globalDeadlineMult + 1 : null,
