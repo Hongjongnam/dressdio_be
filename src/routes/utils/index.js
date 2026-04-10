@@ -256,9 +256,6 @@ router.get(
  *           schema:
  *             type: object
  *             properties:
- *               walletAddress:
- *                 type: string
- *                 description: 선택. 리포트에만 표시 (조회에는 사용하지 않음)
  *               targetTps:
  *                 type: integer
  *               durationSeconds:

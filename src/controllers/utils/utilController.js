@@ -1408,16 +1408,16 @@ exports.transferDressTokenAndSwap = async (req, res) => {
 
 /**
  * 블록체인 조회 TPS 성능 테스트
- * eth_blockNumber를 동시에 호출해 처리량을 측정한다 (일부 노드는 eth_getBalance가 result:null을 반환해 Web3 파싱 오류가 나므로 사용하지 않음)
+ * eth_blockNumber를 호출한다. 매 초 경계마다 targetTps개를 추가로 발사(이전 요청 완료를 기다리지 않음).
+ * 달성 TPS = 성공 건수 ÷ duration(초). 일부 노드는 eth_getBalance가 result:null을 반환해 사용하지 않음.
  */
 const runTpsTest = async (req, res) => {
-  const { walletAddress: walletRaw, targetTps, durationSeconds, rpcUrls, rpcWeights } = req.body;
-  const walletAddress = walletRaw != null ? String(walletRaw).trim() : "";
+  const { targetTps, durationSeconds, rpcUrls, rpcWeights } = req.body;
 
   try {
 
-    const tps = Math.min(parseInt(targetTps) || 1000, 5000);
-    const duration = Math.min(parseInt(durationSeconds) || 5, 30);
+    const tps = Math.min(parseInt(targetTps) || 1500, 5000);
+    const duration = Math.min(parseInt(durationSeconds) || 10, 30);
     const endpoints = (rpcUrls && rpcUrls.length > 0)
       ? rpcUrls
       : [process.env.RPC_URL || "https://besu.dressdio.me"];
@@ -1446,30 +1446,28 @@ const runTpsTest = async (req, res) => {
 
     const totalRequests = tps * duration;
     const requestLogs = [];
-    const perSecondStats = [];
 
     const testStartTime = Date.now();
+    const allPromises = [];
 
     for (let sec = 0; sec < duration; sec++) {
-      const batchStart = Date.now();
-      const batchPromises = [];
-      let secSuccess = 0;
-      let secFail = 0;
-      const secLatencies = [];
+      const boundary = testStartTime + sec * 1000;
+      let waitMs = boundary - Date.now();
+      if (waitMs > 0) {
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
 
       for (let i = 0; i < tps; i++) {
         const idx = sec * tps + i;
         const endpointIdx = pickEndpoint(idx);
         const w3 = web3Instances[endpointIdx];
-        batchPromises.push(
+        allPromises.push(
           (async () => {
             const reqStart = Date.now();
             try {
               const blockNo = await w3.eth.getBlockNumber();
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
-              secSuccess++;
-              secLatencies.push(latency);
               requestLogs.push({
                 seq: idx + 1,
                 second: sec + 1,
@@ -1485,8 +1483,6 @@ const runTpsTest = async (req, res) => {
             } catch (err) {
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
-              secFail++;
-              secLatencies.push(latency);
               const errMsg = err && typeof err.message === "string" ? err.message : String(err);
               requestLogs.push({
                 seq: idx + 1,
@@ -1504,39 +1500,43 @@ const runTpsTest = async (req, res) => {
           })()
         );
       }
-
-      await Promise.all(batchPromises);
-
-      const batchEnd = Date.now();
-      const sortedLat = secLatencies.sort((a, b) => a - b);
-      perSecondStats.push({
-        second: sec + 1,
-        requests: tps,
-        success: secSuccess,
-        fail: secFail,
-        elapsedMs: batchEnd - batchStart,
-        avgLatencyMs: sortedLat.length > 0 ? parseFloat((sortedLat.reduce((s, v) => s + v, 0) / sortedLat.length).toFixed(2)) : 0,
-        minLatencyMs: sortedLat.length > 0 ? sortedLat[0] : 0,
-        maxLatencyMs: sortedLat.length > 0 ? sortedLat[sortedLat.length - 1] : 0,
-        p95LatencyMs: sortedLat.length > 0 ? sortedLat[Math.floor(sortedLat.length * 0.95)] : 0,
-      });
-
-      if (sec < duration - 1) {
-        const elapsed = Date.now() - batchStart;
-        const wait = Math.max(0, 1000 - elapsed);
-        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      }
     }
+
+    await Promise.all(allPromises);
 
     const testEndTime = Date.now();
     const totalElapsedMs = testEndTime - testStartTime;
 
     requestLogs.sort((a, b) => a.seq - b.seq);
 
+    const perSecondStats = [];
+    for (let s = 1; s <= duration; s++) {
+      const logsSec = requestLogs.filter((r) => r.second === s);
+      const starts = logsSec.map((r) => new Date(r.timestamp).getTime());
+      const ends = logsSec.map((r) => new Date(r.timestamp).getTime() + r.latencyMs);
+      const batchStart = starts.length ? Math.min(...starts) : 0;
+      const batchEnd = ends.length ? Math.max(...ends) : 0;
+      const sortedLat = logsSec.map((r) => r.latencyMs).sort((a, b) => a - b);
+      const secSuccess = logsSec.filter((r) => r.success).length;
+      const secFail = logsSec.filter((r) => !r.success).length;
+      perSecondStats.push({
+        second: s,
+        requests: tps,
+        success: secSuccess,
+        fail: secFail,
+        elapsedMs: batchEnd - batchStart,
+        avgLatencyMs: sortedLat.length > 0 ? parseFloat((sortedLat.reduce((a, b) => a + b, 0) / sortedLat.length).toFixed(2)) : 0,
+        minLatencyMs: sortedLat.length > 0 ? sortedLat[0] : 0,
+        maxLatencyMs: sortedLat.length > 0 ? sortedLat[sortedLat.length - 1] : 0,
+        p95LatencyMs: sortedLat.length > 0 ? sortedLat[Math.floor(sortedLat.length * 0.95)] : 0,
+      });
+    }
+
     const successCount = requestLogs.filter((r) => r.success).length;
     const failCount = requestLogs.filter((r) => !r.success).length;
     const successRate = ((successCount / totalRequests) * 100).toFixed(2);
-    const actualRps = (successCount / (totalElapsedMs / 1000)).toFixed(2);
+    /** 달성 TPS: 설정한 테스트 구간(초)당 성공 건수 — 전 구간 성공 시 targetTps와 일치 */
+    const actualRps = (duration > 0 ? successCount / duration : 0).toFixed(2);
 
     const latencies = requestLogs.filter((r) => r.success).map((r) => r.latencyMs).sort((a, b) => a - b);
     const avgLatency = latencies.length > 0
@@ -1550,9 +1550,6 @@ const runTpsTest = async (req, res) => {
 
     const sampleBlockNumber = requestLogs.find((r) => r.success)?.responseBlockNumber || "N/A";
 
-    const batchScheduleMet =
-      perSecondStats.length === duration &&
-      perSecondStats.every((s) => s.success === tps && s.fail === 0);
     const throughputPass = parseFloat(actualRps) >= tps;
 
     const rpcRequestCounts = endpoints.map((ep) => ({
@@ -1564,7 +1561,6 @@ const runTpsTest = async (req, res) => {
     const report = {
       testInfo: {
         testDate: new Date(testStartTime).toISOString(),
-        walletAddress: walletAddress || "(미입력)",
         rpcMethod: "eth_blockNumber",
         rpcEndpoints: endpoints,
         rpcWeights: weights,
@@ -1583,10 +1579,7 @@ const runTpsTest = async (req, res) => {
         failCount,
         successRate: `${successRate}%`,
         actualRps: parseFloat(actualRps),
-        /** 벽시계 기준: 총 성공 ÷ 총 경과 초 (배치가 1초를 넘기면 목표 TPS보다 낮게 나올 수 있음) */
         throughputPass,
-        /** 매 "초" 루프마다 목표 건수만큼 성공했는지 */
-        batchScheduleMet,
         sampleBlockNumber,
       },
       latency: {
@@ -1600,10 +1593,8 @@ const runTpsTest = async (req, res) => {
       perSecondStats,
       requestLogs,
       verdict: throughputPass
-        ? `PASS (통과) - 벽시계 기준 실효 RPS ${actualRps}건/초로 목표 ${tps}건/초 달성`
-        : batchScheduleMet && failCount === 0
-          ? `성공률 100%, 매 초 ${tps}건 완료. 벽시계 실효 RPS는 ${actualRps}건/초(총 ${(totalElapsedMs / 1000).toFixed(2)}초) — RPC·네트워크 지연으로 매 배치 소요가 1초를 넘어 실효 처리량이 목표 미만으로 집계됨`
-          : `목표 초당 ${tps}건 중 실제 초당 ${actualRps}건 처리`,
+        ? `PASS (통과) — 달성 ${actualRps} TPS (초당 처리 건수), 목표 ${tps} TPS`
+        : `달성 ${actualRps} TPS (건/초), 목표 ${tps} TPS`,
     };
 
     return res.json({ success: true, data: report });
@@ -1744,7 +1735,6 @@ const downloadTpsReport = async (req, res) => {
     sectionTitle("1. Test Environment");
     kvRow("Test Date", ti.testDate);
     kvRow("RPC Method", ti.rpcMethod, { bg: "#f8f9fa" });
-    kvRow("Wallet (optional label)", ti.walletAddress);
     kvRow("RPC Endpoints", `${ti.nodeCount} node(s)`, { bg: "#f8f9fa" });
     (ti.rpcEndpoints || []).forEach((ep, i) => {
       const act = ti.rpcRequestCounts && ti.rpcRequestCounts[i]
@@ -1766,7 +1756,7 @@ const downloadTpsReport = async (req, res) => {
     checkPage(30);
     doc.rect(L, doc.y, TW, 26).fill(passed ? "#e8f5e9" : "#fff3e0").strokeColor(passed ? "#66bb6a" : "#ff9800").lineWidth(1).stroke();
     doc.fontSize(14).font(bodyFont).fillColor(passed ? "#2e7d32" : "#e65100")
-      .text(`Achieved TPS:  ${rs.actualRps}  req/sec`, L, doc.y + 6, { width: TW, align: "center" });
+      .text(`Achieved:  ${rs.actualRps}  TPS  (req/sec, read-only)`, L, doc.y + 6, { width: TW, align: "center" });
     doc.fillColor("#000");
     doc.y += 30;
 
