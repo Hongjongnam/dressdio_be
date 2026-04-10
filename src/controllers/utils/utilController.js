@@ -1492,13 +1492,16 @@ const runTpsTest = async (req, res) => {
     const requestLogs = [];
 
     const testStartTime = Date.now();
+    /** 스케줄링·시계 오차 여유(1초). 마감만 너무 타이트하면 뒤쪽 초의 요청이 전부 "생략"될 수 있음 */
     const absoluteDeadlineMs =
-      globalDeadlineMult != null ? testStartTime + duration * 1000 * globalDeadlineMult : null;
+      globalDeadlineMult != null
+        ? testStartTime + duration * 1000 * globalDeadlineMult + 1000
+        : null;
 
     logger.info(
       `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, RPC ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개` +
         (absoluteDeadlineMs != null
-          ? `, 전역 마감 시작+${duration * globalDeadlineMult}s (배수 ${globalDeadlineMult})`
+          ? `, 전역 마감 시작+${duration * globalDeadlineMult + 1}s (반복×배수+1s 여유)`
           : ", 전역 마감 없음")
     );
 
@@ -1521,22 +1524,8 @@ const runTpsTest = async (req, res) => {
             let effectiveRpcMs = rpcTimeoutMs;
             if (absoluteDeadlineMs != null) {
               const remaining = absoluteDeadlineMs - reqStart;
-              if (remaining < 50) {
-                requestLogs.push({
-                  seq: idx + 1,
-                  second: sec + 1,
-                  timestamp: new Date(reqStart).toISOString(),
-                  rpcEndpoint: endpoints[endpointIdx],
-                  method: "eth_blockNumber",
-                  params: [],
-                  success: false,
-                  latencyMs: 0,
-                  responseBlockNumber: null,
-                  error: "전역 마감 시각 도달(요청 생략)",
-                });
-                return;
-              }
-              effectiveRpcMs = Math.min(rpcTimeoutMs, remaining);
+              /** 마감이 가까우면 RPC 허용 시간만 줄이고, 아예 생략하지 않음(생략 시 성공 0·지연 0처럼 보이는 사고 방지) */
+              effectiveRpcMs = Math.min(rpcTimeoutMs, Math.max(50, remaining));
             }
             try {
               const blockNo = await promiseWithTimeout(
@@ -1627,6 +1616,10 @@ const runTpsTest = async (req, res) => {
     const p99 = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.99)] : 0;
 
     const sampleBlockNumber = requestLogs.find((r) => r.success)?.responseBlockNumber || "N/A";
+    const firstFailureLog = requestLogs.find((r) => !r.success);
+    const firstFailureMessage = firstFailureLog
+      ? String(firstFailureLog.error || "").slice(0, 300)
+      : null;
 
     const throughputPass = parseFloat(actualRps) >= tps;
 
@@ -1662,7 +1655,8 @@ const runTpsTest = async (req, res) => {
         /** 반복(초)×배수 안에 각 RPC가 끝나도록 제한. null이면 비활성 */
         globalDeadlineMult: globalDeadlineMult != null ? globalDeadlineMult : null,
         globalDeadlineMaxWallSeconds:
-          globalDeadlineMult != null ? duration * globalDeadlineMult : null,
+          globalDeadlineMult != null ? duration * globalDeadlineMult + 1 : null,
+        firstFailureMessage,
       },
       latency: {
         avgMs: parseFloat(avgLatency),
