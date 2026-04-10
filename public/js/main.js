@@ -1851,13 +1851,26 @@ const setupBlockchainTab = () => {
               ${r("총 요청", `${N(d.testInfo.totalPlannedRequests)}건`)}
               ${r("성공", `<span style="color:#2e7d32">${N(d.results.successCount)}건 (${d.results.successRate})</span>`)}
               ${r("실패", `<span style="color:#c62828">${N(d.results.failCount)}건</span>`)}
+              ${
+                d.results.failCount > 0 && d.results.firstFailureMessage
+                  ? r(
+                      "실패 예시(첫 건)",
+                      `<span style="font-size:11px;word-break:break-word">${String(
+                        d.results.firstFailureMessage
+                      )
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")}</span>`
+                    )
+                  : ""
+              }
               ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} TPS (건/초)</b>`)}
               ${r("총 소요 시간", `${d.results.totalElapsedSeconds}초`)}
               ${
                 d.results.globalDeadlineMaxWallSeconds != null
                   ? r(
                       "전역 마감(꼬리 제한)",
-                      `시작 후 최대 약 <b>${d.results.globalDeadlineMaxWallSeconds}</b>초 안에 각 RPC 종료(배수 ${d.results.globalDeadlineMult}×반복)`
+                      `시작 후 최대 약 <b>${d.results.globalDeadlineMaxWallSeconds}</b>초(반복×배수+1초 여유) 안에 각 RPC 종료`
                     )
                   : ""
               }
