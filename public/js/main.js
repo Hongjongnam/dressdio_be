@@ -1770,4 +1770,317 @@ const setupBlockchainTab = () => {
       );
     });
   }
+
+  // ===== TPS 성능 테스트 =====
+  let lastTpsReport = null;
+
+  const tpsTpsInput = document.getElementById("tpsTargetTps");
+  const tpsDurInput = document.getElementById("tpsDuration");
+  const tpsCalcEl = document.getElementById("tpsCalcTotal");
+  const updateTpsCalc = () => {
+    const t = parseInt(tpsTpsInput?.value) || 0;
+    const d = parseInt(tpsDurInput?.value) || 0;
+    const total = t * d;
+    if (tpsCalcEl) {
+      tpsCalcEl.innerHTML = `${t.toLocaleString()} x ${d} = <b>${total.toLocaleString()}건</b>`;
+    }
+  };
+  if (tpsTpsInput) tpsTpsInput.addEventListener("input", updateTpsCalc);
+  if (tpsDurInput) tpsDurInput.addEventListener("input", updateTpsCalc);
+
+  const tpsForm = document.getElementById("tps-test-form");
+  if (tpsForm) {
+    tpsForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      lastTpsReport = null;
+
+      const statusEl = document.getElementById("tps-test-status");
+      const panelEl = document.getElementById("tps-result-panel");
+      const summaryEl = document.getElementById("tps-result-summary");
+      const submitBtn = document.getElementById("tpsTestBtn");
+
+      statusEl.style.display = "block";
+      panelEl.style.display = "none";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "테스트 실행 중...";
+
+      const walletAddress = document.getElementById("tpsWalletAddress").value.trim();
+      const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1000;
+      const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 5;
+      /** 메인 RPC + 노드 2~5 (가중치: 메인 2, 나머지 각 1) — UI에 노출하지 않고 고정 전송 */
+      const rpcUrls = [
+        "https://besu.dressdio.me",
+        "http://3.34.48.231:8545",
+        "http://54.180.94.230:8545",
+        "http://54.180.86.47:8545",
+        "http://3.39.194.185:8545",
+      ];
+      const rpcWeights = [2, 1, 1, 1, 1];
+
+      try {
+        const response = await fetch("/api/utils/tps-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress, targetTps, durationSeconds, rpcUrls, rpcWeights }),
+        });
+        const result = await response.json();
+
+        statusEl.style.display = "none";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "TPS 테스트 실행";
+
+        if (result.success && result.data) {
+          lastTpsReport = result.data;
+          const d = result.data;
+          const passed = d.results.actualRps >= d.testInfo.targetTps;
+          const N = (v) => Number(v).toLocaleString();
+
+          const tStyle = "width:100%;border-collapse:collapse;font-size:12px;";
+          const thS = "padding:5px 8px;text-align:left;white-space:nowrap;color:#555;font-weight:600;border-bottom:1px solid #eee;width:160px;";
+          const tdS = "padding:5px 8px;border-bottom:1px solid #eee;";
+          const r = (label, val) => `<tr><td style="${thS}">${label}</td><td style="${tdS}">${val}</td></tr>`;
+
+          let rpcDistBlock = "";
+          if (d.testInfo.rpcEndpoints && d.testInfo.rpcRequestCounts) {
+            const rows = d.testInfo.rpcEndpoints.map((ep, i) => {
+              const cnt = d.testInfo.rpcRequestCounts[i]?.count;
+              const epShort = ep.replace(/^https?:\/\//, "").slice(0, 48);
+              return `<tr><td style="${thS}">#${i + 1}</td><td style="${tdS}"><code style="font-size:10px;word-break:break-all">${epShort}</code><div style="color:#666;font-size:11px;margin-top:2px">실제 <b>${N(cnt)}</b>건</div></td></tr>`;
+            }).join("");
+            rpcDistBlock = `<tr><td colspan="2" style="padding:10px 8px 4px;font-weight:700;color:#1565c0;border-bottom:1px solid #e3f2fd;background:#f5f9ff">RPC 요청 분배</td></tr>${rows}`;
+          }
+
+          summaryEl.innerHTML = `
+            <div style="text-align:center;padding:10px 0 6px;font-size:20px;font-weight:bold;color:${passed ? '#2e7d32' : '#e65100'}">
+              ${passed ? 'PASS' : 'MEASURED'} &mdash; ${d.results.actualRps} 건/초
+            </div>
+            <table style="${tStyle}">
+              ${r("RPC 메서드", d.testInfo.rpcMethod)}
+              ${r("지갑 (표시용)", `<code style="font-size:11px">${d.testInfo.walletAddress}</code>`)}
+              ${r("노드 수", `${d.testInfo.nodeCount}개`)}
+              ${rpcDistBlock}
+              ${r("초당 요청 수", `${N(d.testInfo.targetTps)} 건/초`)}
+              ${r("반복", `${d.testInfo.durationSeconds}초`)}
+              ${r("총 요청", `${N(d.testInfo.totalPlannedRequests)}건`)}
+              ${r("성공", `<span style="color:#2e7d32">${N(d.results.successCount)}건 (${d.results.successRate})</span>`)}
+              ${r("실패", `<span style="color:#c62828">${N(d.results.failCount)}건</span>`)}
+              ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} 건/초</b>`)}
+              ${r("총 소요 시간", `${d.results.totalElapsedSeconds}초`)}
+              ${r("평균 응답", `${d.latency.avgMs} ms`)}
+              ${r("최소 / 최대", `${d.latency.minMs} ms / ${d.latency.maxMs} ms`)}
+              ${r("P50 / P95 / P99", `${d.latency.p50Ms} / ${d.latency.p95Ms} / ${d.latency.p99Ms} ms`)}
+              ${r("표본 블록 번호", `<code>${d.results.sampleBlockNumber}</code>`)}
+            </table>
+            <div style="text-align:center;margin-top:8px;font-size:12px;font-weight:600;color:${passed ? '#2e7d32' : '#e65100'}">${d.verdict}</div>
+          `;
+
+          if (d.perSecondStats && d.perSecondStats.length > 0) {
+            const hS = "padding:4px 6px;text-align:center;font-size:11px;";
+            const cS = "padding:3px 6px;text-align:right;font-size:11px;font-family:monospace;";
+            let secTable = `<div style="margin-top:12px;font-weight:600;font-size:12px;color:#333;">초별 통계</div>
+              <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+              <tr style="background:#37474f;color:#fff">
+                <th style="${hS}">초</th><th style="${hS}">요청</th><th style="${hS}">성공</th>
+                <th style="${hS}">실패</th><th style="${hS}">소요(ms)</th><th style="${hS}">평균(ms)</th>
+                <th style="${hS}">최소(ms)</th><th style="${hS}">최대(ms)</th><th style="${hS}">P95(ms)</th>
+              </tr>`;
+            d.perSecondStats.forEach((s, si) => {
+              const bg = si % 2 === 0 ? "#f8f9fa" : "#fff";
+              secTable += `<tr style="background:${bg}">
+                <td style="${cS}text-align:center">${s.second}</td>
+                <td style="${cS}">${N(s.requests)}</td><td style="${cS}">${N(s.success)}</td>
+                <td style="${cS}">${s.fail}</td><td style="${cS}">${s.elapsedMs}</td>
+                <td style="${cS}">${s.avgLatencyMs}</td><td style="${cS}">${s.minLatencyMs}</td>
+                <td style="${cS}">${s.maxLatencyMs}</td><td style="${cS}">${s.p95LatencyMs}</td>
+              </tr>`;
+            });
+            secTable += "</table>";
+            summaryEl.innerHTML += secTable;
+          }
+
+          renderTpsCharts(d);
+          panelEl.style.display = "block";
+        }
+
+      } catch (error) {
+        statusEl.style.display = "none";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "TPS 테스트 실행";
+        summaryEl.innerHTML = `<div style="color:#c62828;font-weight:bold;padding:10px;">오류: ${error.message}</div>`;
+        panelEl.style.display = "block";
+      }
+    });
+  }
+
+  const tpsPdfBtn = document.getElementById("tpsDownloadPdfBtn");
+  if (tpsPdfBtn) {
+    tpsPdfBtn.addEventListener("click", async () => {
+      if (!lastTpsReport) {
+        alert("먼저 TPS 테스트를 실행해 주세요.");
+        return;
+      }
+      try {
+        const response = await fetch("/api/utils/tps-test/pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ report: lastTpsReport }),
+        });
+        if (!response.ok) throw new Error("PDF 다운로드 실패");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `TPS_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        alert("PDF 다운로드 중 오류: " + error.message);
+      }
+    });
+  }
+
+  let tpsChartInstances = [];
+  function renderTpsCharts(d) {
+    tpsChartInstances.forEach((c) => c.destroy());
+    tpsChartInstances = [];
+    if (typeof Chart === "undefined") return;
+
+    const stats = d.perSecondStats || [];
+    const labels = stats.map((s) => s.second + "초");
+    const target = d.testInfo.targetTps;
+
+    const chartBase = { responsive: true, maintainAspectRatio: true };
+
+    const barCtx = document.getElementById("tpsBarChart");
+    if (barCtx && stats.length) {
+      tpsChartInstances.push(new Chart(barCtx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "성공 요청",
+              data: stats.map((s) => s.success),
+              backgroundColor: stats.map((s) => s.success >= target ? "#66bb6a" : "#42a5f5"),
+              borderRadius: 4,
+            },
+            {
+              label: `목표 (${target.toLocaleString()})`,
+              data: stats.map(() => target),
+              type: "line",
+              borderColor: "#f44336",
+              borderDash: [6, 3],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          ...chartBase,
+          aspectRatio: 1.6,
+          plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: "요청 수", font: { size: 11 } } },
+            x: { title: { display: true, text: "경과 시간", font: { size: 11 } } },
+          },
+        },
+      }));
+    }
+
+    const lineCtx = document.getElementById("tpsLatencyChart");
+    if (lineCtx && stats.length) {
+      tpsChartInstances.push(new Chart(lineCtx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "평균", data: stats.map((s) => s.avgLatencyMs), borderColor: "#1e88e5", borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false },
+            { label: "P95", data: stats.map((s) => s.p95LatencyMs), borderColor: "#ff9800", borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false },
+            { label: "최대", data: stats.map((s) => s.maxLatencyMs), borderColor: "#e53935", borderWidth: 1.5, borderDash: [4, 3], pointRadius: 2, tension: 0.3, fill: false },
+          ],
+        },
+        options: {
+          ...chartBase,
+          aspectRatio: 1.6,
+          plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: "ms", font: { size: 11 } } },
+            x: { title: { display: true, text: "경과 시간", font: { size: 11 } } },
+          },
+        },
+      }));
+    }
+
+    const doughCtx = document.getElementById("tpsSuccessChart");
+    if (doughCtx) {
+      const ok = d.results.successCount;
+      const fail = d.results.failCount;
+      const pct = ((ok / (ok + fail)) * 100).toFixed(1);
+      tpsChartInstances.push(new Chart(doughCtx, {
+        type: "doughnut",
+        data: {
+          labels: ["성공", "실패"],
+          datasets: [{
+            data: [ok, fail],
+            backgroundColor: ["#66bb6a", "#ef5350"],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          ...chartBase,
+          aspectRatio: 1,
+          cutout: "65%",
+          plugins: {
+            legend: { position: "bottom", labels: { font: { size: 11 } } },
+            tooltip: { callbacks: { label: (c) => `${c.label}: ${Number(c.raw).toLocaleString()}건` } },
+          },
+        },
+        plugins: [{
+          id: "centerText",
+          afterDraw(chart) {
+            const { ctx, chartArea } = chart;
+            if (!chartArea) return;
+            ctx.save();
+            ctx.font = "bold 22px sans-serif";
+            ctx.fillStyle = ok / (ok + fail) >= 0.99 ? "#2e7d32" : "#e65100";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(pct + "%", chartArea.left + chartArea.width / 2, chartArea.top + chartArea.height / 2);
+            ctx.restore();
+          },
+        }],
+      }));
+    }
+
+    const distCtx = document.getElementById("tpsLatencyDistChart");
+    if (distCtx) {
+      const lt = d.latency;
+      tpsChartInstances.push(new Chart(distCtx, {
+        type: "bar",
+        data: {
+          labels: ["최소", "P50", "평균", "P95", "P99", "최대"],
+          datasets: [{
+            data: [lt.minMs, lt.p50Ms, lt.avgMs, lt.p95Ms, lt.p99Ms, lt.maxMs],
+            backgroundColor: ["#66bb6a", "#42a5f5", "#29b6f6", "#ffa726", "#ef5350", "#c62828"],
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          ...chartBase,
+          indexAxis: "y",
+          aspectRatio: 1.3,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => c.raw + " ms" } },
+          },
+          scales: {
+            x: { beginAtZero: true, title: { display: true, text: "ms", font: { size: 11 } } },
+          },
+        },
+      }));
+    }
+  }
 };

@@ -1406,6 +1406,493 @@ exports.transferDressTokenAndSwap = async (req, res) => {
   }
 };
 
+/**
+ * 블록체인 조회 TPS 성능 테스트
+ * eth_blockNumber를 동시에 호출해 처리량을 측정한다 (일부 노드는 eth_getBalance가 result:null을 반환해 Web3 파싱 오류가 나므로 사용하지 않음)
+ */
+const runTpsTest = async (req, res) => {
+  const { walletAddress: walletRaw, targetTps, durationSeconds, rpcUrls, rpcWeights } = req.body;
+  const walletAddress = walletRaw != null ? String(walletRaw).trim() : "";
+
+  try {
+
+    const tps = Math.min(parseInt(targetTps) || 1000, 5000);
+    const duration = Math.min(parseInt(durationSeconds) || 5, 30);
+    const endpoints = (rpcUrls && rpcUrls.length > 0)
+      ? rpcUrls
+      : [process.env.RPC_URL || "https://besu.dressdio.me"];
+
+    const weightsRaw = Array.isArray(rpcWeights) ? rpcWeights : null;
+    const weights = endpoints.map((_, i) => {
+      const w = weightsRaw && weightsRaw[i] !== undefined && weightsRaw[i] !== null
+        ? parseFloat(weightsRaw[i])
+        : 1;
+      return Number.isFinite(w) && w > 0 ? w : 1;
+    });
+    const weightSum = weights.reduce((a, b) => a + b, 0);
+
+    /** 가중치 비율로 엔드포인트 선택 (전역 순번 기준, 매 초마다 비율 유지) */
+    const pickEndpoint = (globalIdx) => {
+      let r = globalIdx % weightSum;
+      for (let e = 0; e < weights.length; e++) {
+        r -= weights[e];
+        if (r < 0) return e;
+      }
+      return weights.length - 1;
+    };
+
+    const { Web3 } = require("web3");
+    const web3Instances = endpoints.map((url) => new Web3(url));
+
+    const totalRequests = tps * duration;
+    const requestLogs = [];
+    const perSecondStats = [];
+
+    const testStartTime = Date.now();
+
+    for (let sec = 0; sec < duration; sec++) {
+      const batchStart = Date.now();
+      const batchPromises = [];
+      let secSuccess = 0;
+      let secFail = 0;
+      const secLatencies = [];
+
+      for (let i = 0; i < tps; i++) {
+        const idx = sec * tps + i;
+        const endpointIdx = pickEndpoint(idx);
+        const w3 = web3Instances[endpointIdx];
+        batchPromises.push(
+          (async () => {
+            const reqStart = Date.now();
+            try {
+              const blockNo = await w3.eth.getBlockNumber();
+              const reqEnd = Date.now();
+              const latency = reqEnd - reqStart;
+              secSuccess++;
+              secLatencies.push(latency);
+              requestLogs.push({
+                seq: idx + 1,
+                second: sec + 1,
+                timestamp: new Date(reqStart).toISOString(),
+                rpcEndpoint: endpoints[endpointIdx],
+                method: "eth_blockNumber",
+                params: [],
+                success: true,
+                latencyMs: latency,
+                responseBlockNumber: String(blockNo),
+                error: null,
+              });
+            } catch (err) {
+              const reqEnd = Date.now();
+              const latency = reqEnd - reqStart;
+              secFail++;
+              secLatencies.push(latency);
+              const errMsg = err && typeof err.message === "string" ? err.message : String(err);
+              requestLogs.push({
+                seq: idx + 1,
+                second: sec + 1,
+                timestamp: new Date(reqStart).toISOString(),
+                rpcEndpoint: endpoints[endpointIdx],
+                method: "eth_blockNumber",
+                params: [],
+                success: false,
+                latencyMs: latency,
+                responseBlockNumber: null,
+                error: errMsg,
+              });
+            }
+          })()
+        );
+      }
+
+      await Promise.all(batchPromises);
+
+      const batchEnd = Date.now();
+      const sortedLat = secLatencies.sort((a, b) => a - b);
+      perSecondStats.push({
+        second: sec + 1,
+        requests: tps,
+        success: secSuccess,
+        fail: secFail,
+        elapsedMs: batchEnd - batchStart,
+        avgLatencyMs: sortedLat.length > 0 ? parseFloat((sortedLat.reduce((s, v) => s + v, 0) / sortedLat.length).toFixed(2)) : 0,
+        minLatencyMs: sortedLat.length > 0 ? sortedLat[0] : 0,
+        maxLatencyMs: sortedLat.length > 0 ? sortedLat[sortedLat.length - 1] : 0,
+        p95LatencyMs: sortedLat.length > 0 ? sortedLat[Math.floor(sortedLat.length * 0.95)] : 0,
+      });
+
+      if (sec < duration - 1) {
+        const elapsed = Date.now() - batchStart;
+        const wait = Math.max(0, 1000 - elapsed);
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+
+    const testEndTime = Date.now();
+    const totalElapsedMs = testEndTime - testStartTime;
+
+    requestLogs.sort((a, b) => a.seq - b.seq);
+
+    const successCount = requestLogs.filter((r) => r.success).length;
+    const failCount = requestLogs.filter((r) => !r.success).length;
+    const successRate = ((successCount / totalRequests) * 100).toFixed(2);
+    const actualRps = (successCount / (totalElapsedMs / 1000)).toFixed(2);
+
+    const latencies = requestLogs.filter((r) => r.success).map((r) => r.latencyMs).sort((a, b) => a - b);
+    const avgLatency = latencies.length > 0
+      ? (latencies.reduce((s, v) => s + v, 0) / latencies.length).toFixed(2)
+      : 0;
+    const minLatency = latencies.length > 0 ? latencies[0] : 0;
+    const maxLatency = latencies.length > 0 ? latencies[latencies.length - 1] : 0;
+    const p50 = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.5)] : 0;
+    const p95 = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.95)] : 0;
+    const p99 = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.99)] : 0;
+
+    const sampleBlockNumber = requestLogs.find((r) => r.success)?.responseBlockNumber || "N/A";
+
+    const rpcRequestCounts = endpoints.map((ep) => ({
+      endpoint: ep,
+      count: requestLogs.filter((r) => r.rpcEndpoint === ep).length,
+    }));
+    const rpcExpectedPct = weights.map((w) => parseFloat(((w / weightSum) * 100).toFixed(2)));
+
+    const report = {
+      testInfo: {
+        testDate: new Date(testStartTime).toISOString(),
+        walletAddress: walletAddress || "(미입력)",
+        rpcMethod: "eth_blockNumber",
+        rpcEndpoints: endpoints,
+        rpcWeights: weights,
+        rpcWeightSum: weightSum,
+        rpcExpectedDistributionPct: rpcExpectedPct,
+        rpcRequestCounts,
+        nodeCount: endpoints.length,
+        targetTps: tps,
+        durationSeconds: duration,
+        totalPlannedRequests: totalRequests,
+      },
+      results: {
+        totalElapsedMs,
+        totalElapsedSeconds: (totalElapsedMs / 1000).toFixed(2),
+        successCount,
+        failCount,
+        successRate: `${successRate}%`,
+        actualRps: parseFloat(actualRps),
+        sampleBlockNumber,
+      },
+      latency: {
+        avgMs: parseFloat(avgLatency),
+        minMs: minLatency,
+        maxMs: maxLatency,
+        p50Ms: p50,
+        p95Ms: p95,
+        p99Ms: p99,
+      },
+      perSecondStats,
+      requestLogs,
+      verdict: parseFloat(actualRps) >= tps
+        ? `PASS (통과) - 목표 초당 ${tps}건 달성 (실제 초당 ${actualRps}건 처리)`
+        : `목표 초당 ${tps}건 중 실제 초당 ${actualRps}건 처리`,
+    };
+
+    return res.json({ success: true, data: report });
+  } catch (error) {
+    logger.error("[TPS Test] 오류:", error);
+    return res.status(500).json({ success: false, message: "TPS 테스트 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/**
+ * TPS 테스트 결과를 PDF로 다운로드 (초별 집계 + 전체 RPC 요청 로그 포함)
+ */
+const downloadTpsReport = async (req, res) => {
+  const { report } = req.body;
+
+  try {
+    if (!report || !report.testInfo || !report.results || !report.latency) {
+      return res.status(400).json({ success: false, message: "유효한 report 데이터가 필요합니다." });
+    }
+
+    const PDFDocument = require("pdfkit");
+    const path = require("path");
+    const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+
+    const fontPath = path.join(__dirname, "../../assets/fonts/AppleGothic.ttf");
+    doc.registerFont("KR", fontPath);
+
+    res.setHeader("Content-Type", "application/pdf");
+    const fileName = `TPS_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    doc.pipe(res);
+
+    const ti = report.testInfo;
+    const rs = report.results;
+    const lt = report.latency;
+    const L = 40;
+    const R = 555;
+    const TW = R - L;
+    const passed = rs.actualRps >= ti.targetTps;
+
+    const checkPage = (h) => { if (doc.y + h > 780) doc.addPage(); };
+
+    // ── helpers ──
+
+    const sectionTitle = (title) => {
+      checkPage(30);
+      doc.moveDown(0.6);
+      doc.fontSize(12).font("KR").fillColor("#1a237e").text(title, L);
+      const ly = doc.y + 1;
+      doc.moveTo(L, ly).lineTo(R, ly).strokeColor("#ccc").lineWidth(0.5).stroke();
+      doc.moveDown(0.4);
+      doc.fillColor("#000");
+    };
+
+    const kvRow = (label, value, opts = {}) => {
+      checkPage(16);
+      const y = doc.y;
+      const labelW = 170;
+      if (opts.bg) { doc.rect(L, y - 1, TW, 14).fill(opts.bg); doc.fillColor("#000"); }
+      doc.fontSize(9).font("KR").fillColor("#333").text(label, L + 8, y, { width: labelW });
+      doc.fontSize(9).font("KR").fillColor(opts.color || "#000").text(String(value), L + labelW + 8, y, { width: TW - labelW - 16 });
+      doc.y = y + 14;
+    };
+
+    const drawGrid = (cols, rows, startY, rowH, headerH, fontSize) => {
+      const hdrColor = "#37474f";
+      const startX = L;
+
+      const drawHdr = () => {
+        checkPage(headerH + 4);
+        const y = doc.y;
+        doc.rect(startX, y, TW, headerH).fill(hdrColor);
+        let x = startX;
+        cols.forEach((c) => {
+          doc.fontSize(fontSize).font("KR").fillColor("#fff")
+            .text(c.label, x, y + (headerH - fontSize) / 2, { width: c.width, align: "center" });
+          x += c.width;
+        });
+        // vertical lines
+        x = startX;
+        cols.forEach((c) => {
+          doc.moveTo(x, y).lineTo(x, y + headerH).strokeColor("#546e7a").lineWidth(0.3).stroke();
+          x += c.width;
+        });
+        doc.moveTo(x, y).lineTo(x, y + headerH).stroke();
+        doc.fillColor("#000");
+        doc.y = y + headerH;
+      };
+
+      drawHdr();
+
+      rows.forEach((vals, ri) => {
+        if (doc.y + rowH > 780) { doc.addPage(); drawHdr(); }
+        const y = doc.y;
+        const bg = vals._bg || (ri % 2 === 0 ? "#f8f9fa" : "#fff");
+        doc.rect(startX, y, TW, rowH).fill(bg);
+
+        // outer border
+        doc.rect(startX, y, TW, rowH).strokeColor("#ddd").lineWidth(0.3).stroke();
+        // vertical lines
+        let x = startX;
+        cols.forEach((c) => {
+          doc.moveTo(x, y).lineTo(x, y + rowH).strokeColor("#ddd").lineWidth(0.3).stroke();
+          x += c.width;
+        });
+        doc.moveTo(x, y).lineTo(x, y + rowH).stroke();
+
+        // cell text
+        x = startX;
+        vals.forEach((val, ci) => {
+          const align = cols[ci].align || "center";
+          doc.fontSize(fontSize).font("KR").fillColor(vals._color || "#000")
+            .text(String(val), x + 2, y + (rowH - fontSize) / 2, { width: cols[ci].width - 4, align });
+          x += cols[ci].width;
+        });
+
+        doc.y = y + rowH;
+      });
+    };
+
+    // ═══════ Page 1: Summary ═══════
+
+    doc.fontSize(18).font("KR").fillColor("#000")
+      .text("Blockchain Query TPS Performance Report", { align: "center" });
+    doc.moveDown(0.15);
+    doc.fontSize(9).font("KR").fillColor("#777")
+      .text("Private Blockchain  |  Hyperledger Besu (Clique)  |  Read-Only Performance Test", { align: "center" });
+    doc.fillColor("#000").moveDown(0.8);
+
+    // 1. Test Environment
+    sectionTitle("1. Test Environment");
+    kvRow("Test Date", ti.testDate);
+    kvRow("RPC Method", ti.rpcMethod, { bg: "#f8f9fa" });
+    kvRow("Wallet (optional label)", ti.walletAddress);
+    kvRow("RPC Endpoints", `${ti.nodeCount} node(s)`, { bg: "#f8f9fa" });
+    (ti.rpcEndpoints || []).forEach((ep, i) => {
+      const act = ti.rpcRequestCounts && ti.rpcRequestCounts[i]
+        ? `${ti.rpcRequestCounts[i].count} req`
+        : "—";
+      kvRow(`    #${i + 1}`, `${ep}  |  ${act}`);
+    });
+    kvRow("Target TPS", `${ti.targetTps.toLocaleString()} req/sec`, { bg: "#f8f9fa" });
+    kvRow("Duration", `${ti.durationSeconds} sec`);
+    kvRow("Total Requests", `${ti.totalPlannedRequests.toLocaleString()}  (${ti.targetTps.toLocaleString()} x ${ti.durationSeconds}s)`, { bg: "#f8f9fa" });
+
+    // 2. Results
+    sectionTitle("2. Results");
+    kvRow("Elapsed Time", `${rs.totalElapsedSeconds} sec  (${rs.totalElapsedMs} ms)`);
+    kvRow("Success", `${rs.successCount.toLocaleString()}  (${rs.successRate})`, { bg: "#e8f5e9", color: "#2e7d32" });
+    kvRow("Fail", `${rs.failCount.toLocaleString()}`, { bg: rs.failCount > 0 ? "#ffebee" : "#f8f9fa", color: rs.failCount > 0 ? "#c62828" : "#000" });
+    kvRow("Sample block #", rs.sampleBlockNumber);
+    doc.moveDown(0.4);
+    checkPage(30);
+    doc.rect(L, doc.y, TW, 26).fill(passed ? "#e8f5e9" : "#fff3e0").strokeColor(passed ? "#66bb6a" : "#ff9800").lineWidth(1).stroke();
+    doc.fontSize(14).font("KR").fillColor(passed ? "#2e7d32" : "#e65100")
+      .text(`Achieved TPS:  ${rs.actualRps}  req/sec`, L, doc.y + 6, { width: TW, align: "center" });
+    doc.fillColor("#000");
+    doc.y += 30;
+
+    // 3. Latency
+    sectionTitle("3. Latency");
+    const latCols = [
+      { label: "Avg", width: TW / 6 },
+      { label: "Min", width: TW / 6 },
+      { label: "Max", width: TW / 6 },
+      { label: "P50", width: TW / 6 },
+      { label: "P95", width: TW / 6 },
+      { label: "P99", width: TW / 6 },
+    ];
+    const latVals = [`${lt.avgMs}`, `${lt.minMs}`, `${lt.maxMs}`, `${lt.p50Ms}`, `${lt.p95Ms}`, `${lt.p99Ms}`];
+    latVals._bg = "#f8f9fa";
+    drawGrid(latCols, [latVals], doc.y, 16, 16, 8);
+    doc.moveDown(0.1);
+    doc.fontSize(7).fillColor("#999").text("(unit: ms)", { align: "right" });
+    doc.fillColor("#000");
+
+    // 4. Verdict
+    sectionTitle("4. Verdict");
+    checkPage(20);
+    doc.fontSize(12).font("KR").fillColor(passed ? "#2e7d32" : "#e65100")
+      .text(report.verdict, { align: "center" });
+    doc.fillColor("#000");
+
+    // ═══════ 5. Per-Second TPS Chart ═══════
+    if (report.perSecondStats && report.perSecondStats.length > 0) {
+      doc.addPage();
+      const stats = report.perSecondStats;
+
+      sectionTitle("5. Per-Second Throughput");
+      const cL = L + 30, cW = TW - 40, cH = 160;
+      const cTop = doc.y + 5, cBot = cTop + cH;
+      const mx = Math.max(ti.targetTps, ...stats.map((s) => s.success)) * 1.15;
+      const bW = Math.min(36, (cW - 8) / stats.length - 4);
+      const bG = (cW - bW * stats.length) / (stats.length + 1);
+
+      doc.moveTo(cL, cTop).lineTo(cL, cBot).strokeColor("#333").lineWidth(0.7).stroke();
+      doc.moveTo(cL, cBot).lineTo(cL + cW, cBot).strokeColor("#333").lineWidth(0.7).stroke();
+      for (let g = 0; g <= 4; g++) {
+        const v = Math.round((mx / 4) * g);
+        const gy = cBot - (cH * g) / 4;
+        doc.moveTo(cL, gy).lineTo(cL + cW, gy).strokeColor("#eee").lineWidth(0.3).stroke();
+        doc.fontSize(6).font("KR").fillColor("#999")
+          .text(v.toLocaleString(), L, gy - 3, { width: 28, align: "right", lineBreak: false });
+      }
+      const tgY = cBot - (cH * ti.targetTps) / mx;
+      for (let dx = 0; dx < cW; dx += 6) {
+        doc.moveTo(cL + dx, tgY).lineTo(cL + Math.min(dx + 3, cW), tgY).strokeColor("#f44336").lineWidth(0.7).stroke();
+      }
+      doc.fontSize(6).font("KR").fillColor("#f44336")
+        .text(`Target ${ti.targetTps.toLocaleString()}`, cL + cW - 65, tgY - 8, { width: 65, align: "right", lineBreak: false });
+      stats.forEach((s, i) => {
+        const bx = cL + bG + i * (bW + bG);
+        const bh = (cH * s.success) / mx;
+        const bTop = cBot - bh;
+        doc.rect(bx, bTop, bW, bh).fill(s.success >= ti.targetTps ? "#66bb6a" : "#42a5f5");
+        doc.fontSize(5.5).font("KR").fillColor("#333")
+          .text(s.success.toLocaleString(), bx - 3, bTop - 8, { width: bW + 6, align: "center", lineBreak: false });
+        doc.fontSize(5.5).font("KR").fillColor("#555")
+          .text(`${s.second}s`, bx - 2, cBot + 2, { width: bW + 4, align: "center", lineBreak: false });
+      });
+      doc.fillColor("#000");
+      doc.y = cBot + 16;
+      doc.fontSize(6).font("KR").fillColor("#aaa")
+        .text("Green = Target reached  |  Blue = Below target  |  Red dashed = Target TPS", { align: "center", lineBreak: false });
+      doc.moveDown(1);
+
+      // ═══════ 6. Per-Second Stats Table ═══════
+      sectionTitle("6. Per-Second Statistics");
+
+      const secCols = [
+        { label: "Sec",  width: 40 },
+        { label: "Req",  width: 55 },
+        { label: "OK",   width: 50 },
+        { label: "Fail", width: 45 },
+        { label: "Elapsed", width: 60 },
+        { label: "Avg",  width: 55 },
+        { label: "Min",  width: 50 },
+        { label: "Max",  width: 55 },
+        { label: "P95",  width: 55 },
+      ];
+      // adjust last col to fill remaining
+      const used = secCols.reduce((s, c) => s + c.width, 0);
+      secCols[secCols.length - 1].width += TW - used;
+
+      const secRows = report.perSecondStats.map((s) => {
+        const v = [s.second, s.requests, s.success, s.fail, s.elapsedMs, s.avgLatencyMs, s.minLatencyMs, s.maxLatencyMs, s.p95LatencyMs];
+        return v;
+      });
+
+      drawGrid(secCols, secRows, doc.y, 14, 16, 7.5);
+      doc.moveDown(0.1);
+      doc.fontSize(7).fillColor("#999").text("Elapsed / Avg / Min / Max / P95 unit: ms", { align: "right" });
+      doc.fillColor("#000");
+    }
+
+    // ═══════ 7. Full RPC Request Logs ═══════
+    if (report.requestLogs && report.requestLogs.length > 0) {
+      doc.addPage();
+      sectionTitle(`7. RPC Request Logs  (${report.requestLogs.length.toLocaleString()} rows)`);
+
+      const logCols = [
+        { label: "#",        width: 38 },
+        { label: "Sec",      width: 30 },
+        { label: "Timestamp", width: 120 },
+        { label: "OK",       width: 24 },
+        { label: "ms",       width: 42 },
+        { label: "Block #", width: 145 },
+        { label: "Endpoint", width: TW - 38 - 30 - 120 - 24 - 42 - 145 },
+      ];
+
+      const logRows = report.requestLogs.map((log) => {
+        const ep = (log.rpcEndpoint || "").replace(/^https?:\/\//, "").slice(0, 22);
+        const bal = log.success ? (log.responseBlockNumber || "0") : (log.error ? log.error.slice(0, 24) : "ERR");
+        const ts = (log.timestamp || "").replace("T", " ").slice(11, 23);
+        const v = [log.seq, log.second, ts, log.success ? "Y" : "N", log.latencyMs, bal, ep];
+        if (!log.success) { v._bg = "#ffebee"; v._color = "#c62828"; }
+        return v;
+      });
+
+      drawGrid(logCols, logRows, doc.y, 10, 14, 6);
+    }
+
+    // ── Footer on all pages ──
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
+      doc.switchToPage(i);
+      doc.fontSize(7).font("KR").fillColor("#bbb")
+        .text(
+          `Generated: ${new Date().toISOString()}  |  Dressdio Blockchain Platform  |  Page ${i + 1} / ${pageCount}`,
+          L, 810, { width: TW, align: "center" }
+        );
+    }
+
+    doc.end();
+  } catch (error) {
+    logger.error("[TPS PDF] 오류:", error);
+    return res.status(500).json({ success: false, message: "PDF 생성 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
 module.exports = {
   faucet: exports.faucet,
   swapDressToDp: exports.swapDressToDp,
@@ -1416,4 +1903,6 @@ module.exports = {
   uploadFileToIPFS: exports.uploadFileToIPFS,
   uploadJSONToIPFS: exports.uploadJSONToIPFS,
   debugIpNftState,
+  runTpsTest,
+  downloadTpsReport,
 };

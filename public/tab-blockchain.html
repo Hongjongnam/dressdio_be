@@ -1,5 +1,61 @@
 <h2>Blockchain Utils</h2>
 <div class="api-grid">
+
+  <fieldset style="grid-column: 1 / -1; border: 2px solid #1565c0;">
+    <legend style="color:#1565c0; font-weight:bold;">TPS 성능 테스트 (POST /api/utils/tps-test)</legend>
+    <form id="tps-test-form" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px 16px; align-items:end;">
+      <div style="grid-column:1/-1; display:grid; grid-template-columns:1fr 120px 120px; gap:10px; align-items:end;">
+        <div>
+          <label for="tpsWalletAddress">지갑 주소 (선택)</label>
+          <input type="text" id="tpsWalletAddress" name="walletAddress" placeholder="리포트에만 표시" style="margin:0" />
+        </div>
+        <div>
+          <label for="tpsTargetTps">초당 요청 수</label>
+          <input type="number" id="tpsTargetTps" name="targetTps" value="1000" min="1" max="5000" required style="margin:0" />
+        </div>
+        <div>
+          <label for="tpsDuration">반복 (초)</label>
+          <input type="number" id="tpsDuration" name="durationSeconds" value="5" min="1" max="30" required style="margin:0" />
+        </div>
+      </div>
+      <div style="grid-column:1/-1; display:flex; align-items:center; gap:16px;">
+        <button type="submit" id="tpsTestBtn" style="margin:0; white-space:nowrap;">테스트 실행</button>
+        <span id="tpsCalcTotal" style="font-size:13px; color:#555;">1,000 x 5 = <b>5,000건</b></span>
+      </div>
+    </form>
+
+    <div id="tps-test-status" style="display:none; margin-top:10px; padding:10px; background:#fff3e0; border-radius:6px; font-weight:bold;">
+      테스트 실행 중...
+    </div>
+
+    <div id="tps-result-panel" style="display:none; margin-top:12px;">
+      <div id="tps-result-summary"></div>
+
+      <div id="tps-charts" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px;">
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px;">초별 처리량 (TPS)</div>
+          <div style="position:relative; width:100%;"><canvas id="tpsBarChart"></canvas></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px;">초별 응답 시간 추이 (ms)</div>
+          <div style="position:relative; width:100%;"><canvas id="tpsLatencyChart"></canvas></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px; text-align:center;">성공률</div>
+          <div style="position:relative; width:100%; max-width:240px; margin:0 auto;"><canvas id="tpsSuccessChart"></canvas></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px; text-align:center;">응답 시간 분포</div>
+          <div style="position:relative; width:100%;"><canvas id="tpsLatencyDistChart"></canvas></div>
+        </div>
+      </div>
+
+      <button type="button" id="tpsDownloadPdfBtn" style="margin-top:14px; padding:8px 18px; background:#1565c0; color:white; border:none; border-radius:6px; cursor:pointer;">
+        PDF 보고서 다운로드
+      </button>
+    </div>
+  </fieldset>
+
   <fieldset>
     <legend>1. Dress Token 잔액 조회 (Polygon) (GET /api/utils/dress-token/balance)</legend>
     <p class="description">
@@ -25,7 +81,7 @@
         id="dress-balance-summary"
         style="display: none; margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;"
       >
-        <h4 style="margin-top: 0">💰 잔액 요약</h4>
+        <h4 style="margin-top: 0">잔액 요약</h4>
         <div style="display: grid; gap: 10px">
           <div>
             <strong>지갑 주소:</strong>
@@ -42,7 +98,7 @@
             MATIC
           </div>
           <div id="summary-warning" style="display: none; color: #f44336; font-weight: bold">
-            ⚠️ <span id="summary-warning-text"></span>
+            <span id="summary-warning-text"></span>
           </div>
         </div>
       </div>
@@ -103,14 +159,14 @@
             id="loadDPWalletDataBtn"
             style="margin-right: 10px; padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;"
           >
-            📁 localStorage에서 불러오기
+            localStorage에서 불러오기
           </button>
           <button
             type="button"
             id="clearDPWalletDataBtn"
             style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;"
           >
-            🗑️ 필드 초기화
+            필드 초기화
           </button>
         </div>
 
@@ -178,14 +234,14 @@
             id="loadDressWalletDataBtn"
             style="margin-right: 10px; padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;"
           >
-            📁 localStorage에서 불러오기
+            localStorage에서 불러오기
           </button>
           <button
             type="button"
             id="clearDressWalletDataBtn"
             style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;"
           >
-            🗑️ 필드 초기화
+            필드 초기화
           </button>
         </div>
 
@@ -217,7 +273,7 @@
     <legend>5. Dress Token 전송 + 자동 스왑 (POST /api/utils/dress-token/transfer-and-swap)</legend>
     <p class="description">
       한 번의 요청으로 Dress Token 전송과 DP Token 스왑을 모두 처리합니다.
-      받는 주소 입력 불필요 — 자동으로 플랫폼 어드민 지갑으로 전송됩니다. (1 DRESS → 5 DP)
+      받는 주소 입력 불필요 — 자동으로 플랫폼 어드민 지갑으로 전송됩니다. (1 DRESS = 5 DP)
     </p>
     <form id="dress-token-transfer-and-swap-form">
       <label for="swapIntegratedAccessToken">액세스 토큰</label>
@@ -259,14 +315,14 @@
             id="loadSwapIntegratedWalletDataBtn"
             style="margin-right: 10px; padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;"
           >
-            📁 localStorage에서 불러오기
+            localStorage에서 불러오기
           </button>
           <button
             type="button"
             id="clearSwapIntegratedWalletDataBtn"
             style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;"
           >
-            🗑️ 필드 초기화
+            필드 초기화
           </button>
         </div>
 
@@ -297,7 +353,7 @@
       id="swap-integrated-summary"
       style="display: none; margin-top: 20px; padding: 20px; background: #f5f5f5; border-radius: 8px; border: 1px solid #e2e8f0;"
     >
-      <h4 style="margin: 0 0 15px 0;">✅ 스왑 완료</h4>
+      <h4 style="margin: 0 0 15px 0;">스왑 완료</h4>
       <div style="display: grid; gap: 10px">
         <div style="padding: 10px; background: white; border-radius: 4px; border: 1px solid #e2e8f0;">
           <strong>전송한 DRESS:</strong>

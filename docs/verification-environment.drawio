@@ -1,0 +1,149 @@
+<mxfile host="app.diagrams.net" modified="2026-04-09T12:00:00.000Z" agent="Dressdio" version="22.1.0" type="device">
+  <diagram id="verification-env" name="검증 환경">
+    <mxGraphModel dx="1100" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1260" pageHeight="620" math="0" shadow="0" background="#FAFAFA">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="&lt;font color=&quot;#263238&quot;&gt;&lt;b style=&quot;font-size:14px&quot;&gt;검증 환경&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#546E7A&quot; style=&quot;font-size:11px&quot;&gt;Blockchain Verification Environment&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="220" y="16" width="800" height="36" as="geometry" />
+        </mxCell>
+
+        <mxCell id="client" value="&lt;font color=&quot;#0D47A1&quot;&gt;&lt;b&gt;Client · Web&lt;/b&gt;&lt;br&gt;&lt;/font&gt;&lt;font color=&quot;#1565C0&quot; style=&quot;font-size:10px&quot;&gt;Chrome / 시험단말&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=1.5;fontSize=11;arcSize=5;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+          <mxGeometry x="36" y="256" width="118" height="64" as="geometry" />
+        </mxCell>
+
+        <mxCell id="aws_cloud" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#90A4AE;strokeWidth=1;dashed=1;dashPattern=10 6;arcSize=2;" vertex="1" parent="1">
+          <mxGeometry x="210" y="64" width="880" height="400" as="geometry" />
+        </mxCell>
+
+        <mxCell id="aws_logo" value="" style="outlineConnect=0;gradientColor=none;fillColor=#232F3E;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.aws_logo;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="aws_cloud">
+          <mxGeometry x="14" y="10" width="22" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="aws_title" value="&lt;font color=&quot;#37474F&quot;&gt;&lt;b style=&quot;font-size:11px&quot;&gt;AWS Cloud&lt;/b&gt;&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="aws_cloud">
+          <mxGeometry x="40" y="8" width="100" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- API -->
+        <mxCell id="api" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E65100;strokeColor=#BF360C;strokeWidth=1.5;arcSize=4;container=1;" vertex="1" parent="1">
+          <mxGeometry x="252" y="160" width="196" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="icon_ec2_api" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="api">
+          <mxGeometry x="10" y="18" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="api_lbl" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b style=&quot;font-size:11px&quot;&gt;Dressdio API Server&lt;/b&gt;&lt;br&gt;&lt;/font&gt;&lt;font color=&quot;#FFE0B2&quot; style=&quot;font-size:9px&quot;&gt;EC2 · fs.dressdio.me&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=2;overflow=width;whiteSpace=wrap;" vertex="1" parent="api">
+          <mxGeometry x="46" y="14" width="140" height="44" as="geometry" />
+        </mxCell>
+
+        <!-- ALB -->
+        <mxCell id="alb" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=1.5;arcSize=4;container=1;" vertex="1" parent="1">
+          <mxGeometry x="468" y="156" width="128" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="icon_alb" value="" style="outlineConnect=0;gradientColor=none;fillColor=#F59E02;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_load_balancing;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="alb">
+          <mxGeometry x="10" y="14" width="36" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="alb_lbl" value="&lt;font color=&quot;#E65100&quot;&gt;&lt;b style=&quot;font-size:10px&quot;&gt;Application Load&lt;/b&gt;&lt;br&gt;&lt;/font&gt;&lt;font color=&quot;#BF360C&quot; style=&quot;font-size:9px&quot;&gt;Balancer&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#5D4037&quot; style=&quot;font-size:8px&quot;&gt;RPC 분산&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;overflow=width;whiteSpace=wrap;" vertex="1" parent="alb">
+          <mxGeometry x="50" y="10" width="70" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Besu: 노드 1~5 각각 EC2 아이콘 + 한 줄 -->
+        <mxCell id="besu_group" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F8E9;strokeColor=#558B2F;strokeWidth=1.5;arcSize=3;container=1;" vertex="1" parent="1">
+          <mxGeometry x="608" y="120" width="392" height="228" as="geometry" />
+        </mxCell>
+        <mxCell id="icon_vpc" value="" style="outlineConnect=0;gradientColor=none;fillColor=#8C4FFF;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.virtual_private_cloud;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="besu_group">
+          <mxGeometry x="10" y="10" width="24" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="icon_asg" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.auto_scaling_group;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="besu_group">
+          <mxGeometry x="350" y="8" width="26" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="besu_header" value="&lt;font color=&quot;#1B5E20&quot; style=&quot;font-size:11px&quot;&gt;&lt;b&gt;Blockchain Besu network&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#33691E&quot; style=&quot;font-size:9px&quot;&gt;Docker · Besu · 5× EC2&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" vertex="1" parent="besu_group">
+          <mxGeometry x="38" y="8" width="300" height="32" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#689F38;strokeWidth=1;container=1;" vertex="1" parent="besu_group">
+          <mxGeometry x="10" y="44" width="372" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="n1_icon" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="n1">
+          <mxGeometry x="8" y="5" width="22" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="n1_lbl" value="&lt;font color=&quot;#1B5E20&quot; style=&quot;font-size:9px&quot;&gt;&lt;b&gt;노드 1&lt;/b&gt; · 게이트웨이 · besu.dressdio.me · t3.large&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="n1">
+          <mxGeometry x="36" y="4" width="326" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#689F38;strokeWidth=1;container=1;" vertex="1" parent="besu_group">
+          <mxGeometry x="10" y="80" width="372" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n2_icon" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="n2">
+          <mxGeometry x="8" y="4" width="22" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="n2_lbl" value="&lt;font color=&quot;#1B5E20&quot; style=&quot;font-size:9px&quot;&gt;&lt;b&gt;노드 2&lt;/b&gt; · JSON-RPC :8545 · t3.medium · 3.34.48.231&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="n2">
+          <mxGeometry x="36" y="3" width="326" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#689F38;strokeWidth=1;container=1;" vertex="1" parent="besu_group">
+          <mxGeometry x="10" y="114" width="372" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n3_icon" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="n3">
+          <mxGeometry x="8" y="4" width="22" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="n3_lbl" value="&lt;font color=&quot;#1B5E20&quot; style=&quot;font-size:9px&quot;&gt;&lt;b&gt;노드 3&lt;/b&gt; · JSON-RPC :8545 · t3.medium · 54.180.94.230&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="n3">
+          <mxGeometry x="36" y="3" width="326" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#689F38;strokeWidth=1;container=1;" vertex="1" parent="besu_group">
+          <mxGeometry x="10" y="148" width="372" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n4_icon" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="n4">
+          <mxGeometry x="8" y="4" width="22" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="n4_lbl" value="&lt;font color=&quot;#1B5E20&quot; style=&quot;font-size:9px&quot;&gt;&lt;b&gt;노드 4&lt;/b&gt; · JSON-RPC :8545 · t3.medium · 54.180.86.47&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="n4">
+          <mxGeometry x="36" y="3" width="326" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#689F38;strokeWidth=1;container=1;" vertex="1" parent="besu_group">
+          <mxGeometry x="10" y="182" width="372" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="n5_icon" value="" style="outlineConnect=0;gradientColor=none;fillColor=#ED7100;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="n5">
+          <mxGeometry x="8" y="4" width="22" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="n5_lbl" value="&lt;font color=&quot;#1B5E20&quot; style=&quot;font-size:9px&quot;&gt;&lt;b&gt;노드 5&lt;/b&gt; · JSON-RPC :8545 · t3.medium · 3.39.194.185&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;" vertex="1" parent="n5">
+          <mxGeometry x="36" y="3" width="326" height="22" as="geometry" />
+        </mxCell>
+
+        <!-- Smart Contract -->
+        <mxCell id="sc" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE7F6;strokeColor=#7B1FA2;strokeWidth=1.5;arcSize=4;container=1;" vertex="1" parent="1">
+          <mxGeometry x="1028" y="200" width="140" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="icon_mbc" value="" style="outlineConnect=0;gradientColor=none;fillColor=#8C4FFF;strokeColor=none;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.managed_blockchain;aspect=fixed;html=1;pointerEvents=0;" vertex="1" parent="sc">
+          <mxGeometry x="8" y="26" width="26" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sc_lbl" value="&lt;div style=&quot;color:#4A148C;font-size:10px;font-weight:bold;text-align:left;line-height:1.2&quot;&gt;SMART CONTRACT&lt;/div&gt;&lt;div style=&quot;color:#6A1B9A;font-size:8px;margin-top:6px;text-align:left;line-height:1.25&quot;&gt;온체인 로직 · 데이터&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;overflow=hidden;whiteSpace=wrap;" vertex="1" parent="sc">
+          <mxGeometry x="38" y="12" width="92" height="58" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: 직선 위주 · 얇은 선 · 라벨 최소화 -->
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#546E7A;" edge="1" parent="1" source="client" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#90A4AE;dashed=1;dashPattern=5 4;" edge="1" parent="1" source="api" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3a" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#546E7A;" edge="1" parent="1" source="api" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3b" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#E65100;" edge="1" parent="1" source="alb" target="besu_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#90A4AE;dashed=1;dashPattern=5 4;" edge="1" parent="1" source="besu_group" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#546E7A;" edge="1" parent="1" source="besu_group" target="sc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classicThin;endFill=1;strokeWidth=1;strokeColor=#90A4AE;dashed=1;dashPattern=5 4;" edge="1" parent="1" source="sc" target="besu_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
