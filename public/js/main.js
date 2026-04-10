@@ -1792,7 +1792,7 @@ const setupBlockchainTab = () => {
 
       const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1100;
       const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 5;
-      /** 메인 RPC + 노드 2~5 (가중치: 메인 2, 나머지 각 1) — UI에 노출하지 않고 고정 전송 */
+      /** 메인 RPC + 노드 2~5 — 가중치 모두 1(균등), UI에 노출하지 않고 고정 전송 */
       const rpcUrls = [
         "https://besu.dressdio.me",
         "http://3.34.48.231:8545",
@@ -1800,7 +1800,7 @@ const setupBlockchainTab = () => {
         "http://54.180.86.47:8545",
         "http://3.39.194.185:8545",
       ];
-      const rpcWeights = [2, 1, 1, 1, 1];
+      const rpcWeights = [1, 1, 1, 1, 1];
 
       try {
         const response = await fetch("/api/utils/tps-test", {

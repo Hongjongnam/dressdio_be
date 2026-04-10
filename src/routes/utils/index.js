@@ -265,7 +265,7 @@ router.get(
  *                 items:
  *                   type: string
  *               rpcWeights:
- *                 description: rpcUrls와 동일 길이. 비율만 의미 (예 메인 5, 나머지 1이면 메인에 약 5/(5+N))
+ *                 description: rpcUrls와 동일 길이. 비율만 의미 (예 전부 1이면 균등 분배)
  *                 type: array
  *                 items:
  *                   type: number
