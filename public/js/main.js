@@ -1774,20 +1774,6 @@ const setupBlockchainTab = () => {
   // ===== TPS 성능 테스트 =====
   let lastTpsReport = null;
 
-  const tpsTpsInput = document.getElementById("tpsTargetTps");
-  const tpsDurInput = document.getElementById("tpsDuration");
-  const tpsCalcEl = document.getElementById("tpsCalcTotal");
-  const updateTpsCalc = () => {
-    const t = parseInt(tpsTpsInput?.value) || 0;
-    const d = parseInt(tpsDurInput?.value) || 0;
-    const total = t * d;
-    if (tpsCalcEl) {
-      tpsCalcEl.innerHTML = `${t.toLocaleString()} x ${d} = <b>${total.toLocaleString()}건</b>`;
-    }
-  };
-  if (tpsTpsInput) tpsTpsInput.addEventListener("input", updateTpsCalc);
-  if (tpsDurInput) tpsDurInput.addEventListener("input", updateTpsCalc);
-
   const tpsForm = document.getElementById("tps-test-form");
   if (tpsForm) {
     tpsForm.addEventListener("submit", async (e) => {
@@ -1804,8 +1790,8 @@ const setupBlockchainTab = () => {
       submitBtn.disabled = true;
       submitBtn.textContent = "테스트 실행 중...";
 
-      const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1500;
-      const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 10;
+      const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1100;
+      const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 5;
       /** 메인 RPC + 노드 2~5 (가중치: 메인 2, 나머지 각 1) — UI에 노출하지 않고 고정 전송 */
       const rpcUrls = [
         "https://besu.dressdio.me",
@@ -1913,6 +1899,30 @@ const setupBlockchainTab = () => {
     });
   }
 
+  /**
+   * PDF용: Nginx client_max_body_size(종종 1MB) 초과 방지. 실패 시 error 문자열이 매우 길어져 413이 날 수 있음.
+   */
+  function slimReportForTpsPdf(report) {
+    const MAX_ERR_LEN = 120;
+    const MAX_LOG_ROWS = 4000;
+    const out = JSON.parse(JSON.stringify(report));
+    const logs = out.requestLogs;
+    if (!Array.isArray(logs) || logs.length === 0) return out;
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i];
+      if (log && log.error != null) {
+        const s = String(log.error);
+        log.error = s.length > MAX_ERR_LEN ? `${s.slice(0, MAX_ERR_LEN)}…` : s;
+      }
+    }
+    if (logs.length > MAX_LOG_ROWS) {
+      out.testInfo = out.testInfo || {};
+      out.testInfo.pdfLogsNote = `요청 로그 ${logs.length.toLocaleString()}건 중 앞 ${MAX_LOG_ROWS.toLocaleString()}건만 PDF에 포함`;
+      out.requestLogs = logs.slice(0, MAX_LOG_ROWS);
+    }
+    return out;
+  }
+
   const tpsPdfBtn = document.getElementById("tpsDownloadPdfBtn");
   if (tpsPdfBtn) {
     tpsPdfBtn.addEventListener("click", async () => {
@@ -1921,10 +1931,11 @@ const setupBlockchainTab = () => {
         return;
       }
       try {
+        const reportForPdf = slimReportForTpsPdf(lastTpsReport);
         const response = await fetch("/api/utils/tps-test/pdf", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ report: lastTpsReport }),
+          body: JSON.stringify({ report: reportForPdf }),
         });
         const ct = response.headers.get("content-type") || "";
         if (!response.ok) {
@@ -1936,6 +1947,10 @@ const setupBlockchainTab = () => {
             else if (errBody.error) detail = String(errBody.error);
           } catch (_) {
             if (errText) detail = errText.slice(0, 300);
+          }
+          if (response.status === 413) {
+            detail =
+              "요청 본문이 서버(Nginx) 허용 크기를 초과했습니다. 실패 로그가 많으면 PDF 데이터가 커질 수 있습니다. 잠시 후 다시 시도하거나 관리자에게 client_max_body_size 조정을 요청하세요.";
           }
           throw new Error(detail);
         }
