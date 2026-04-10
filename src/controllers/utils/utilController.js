@@ -1550,6 +1550,11 @@ const runTpsTest = async (req, res) => {
 
     const sampleBlockNumber = requestLogs.find((r) => r.success)?.responseBlockNumber || "N/A";
 
+    const batchScheduleMet =
+      perSecondStats.length === duration &&
+      perSecondStats.every((s) => s.success === tps && s.fail === 0);
+    const throughputPass = parseFloat(actualRps) >= tps;
+
     const rpcRequestCounts = endpoints.map((ep) => ({
       endpoint: ep,
       count: requestLogs.filter((r) => r.rpcEndpoint === ep).length,
@@ -1578,6 +1583,10 @@ const runTpsTest = async (req, res) => {
         failCount,
         successRate: `${successRate}%`,
         actualRps: parseFloat(actualRps),
+        /** 벽시계 기준: 총 성공 ÷ 총 경과 초 (배치가 1초를 넘기면 목표 TPS보다 낮게 나올 수 있음) */
+        throughputPass,
+        /** 매 "초" 루프마다 목표 건수만큼 성공했는지 */
+        batchScheduleMet,
         sampleBlockNumber,
       },
       latency: {
@@ -1590,9 +1599,11 @@ const runTpsTest = async (req, res) => {
       },
       perSecondStats,
       requestLogs,
-      verdict: parseFloat(actualRps) >= tps
-        ? `PASS (통과) - 목표 초당 ${tps}건 달성 (실제 초당 ${actualRps}건 처리)`
-        : `목표 초당 ${tps}건 중 실제 초당 ${actualRps}건 처리`,
+      verdict: throughputPass
+        ? `PASS (통과) - 벽시계 기준 실효 RPS ${actualRps}건/초로 목표 ${tps}건/초 달성`
+        : batchScheduleMet && failCount === 0
+          ? `성공률 100%, 매 초 ${tps}건 완료. 벽시계 실효 RPS는 ${actualRps}건/초(총 ${(totalElapsedMs / 1000).toFixed(2)}초) — RPC·네트워크 지연으로 매 배치 소요가 1초를 넘어 실효 처리량이 목표 미만으로 집계됨`
+          : `목표 초당 ${tps}건 중 실제 초당 ${actualRps}건 처리`,
     };
 
     return res.json({ success: true, data: report });
@@ -1615,10 +1626,16 @@ const downloadTpsReport = async (req, res) => {
 
     const PDFDocument = require("pdfkit");
     const path = require("path");
+    const fs = require("fs");
     const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
 
     const fontPath = path.join(__dirname, "../../assets/fonts/AppleGothic.ttf");
-    doc.registerFont("KR", fontPath);
+    const bodyFont = fs.existsSync(fontPath) ? "KR" : "Helvetica";
+    if (bodyFont === "KR") {
+      doc.registerFont("KR", fontPath);
+    } else {
+      logger.warn("[TPS PDF] AppleGothic.ttf 없음 — Helvetica 사용 (한글 깨질 수 있음)");
+    }
 
     res.setHeader("Content-Type", "application/pdf");
     const fileName = `TPS_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
@@ -1631,7 +1648,8 @@ const downloadTpsReport = async (req, res) => {
     const L = 40;
     const R = 555;
     const TW = R - L;
-    const passed = rs.actualRps >= ti.targetTps;
+    const passed =
+      rs.throughputPass !== undefined ? rs.throughputPass : rs.actualRps >= ti.targetTps;
 
     const checkPage = (h) => { if (doc.y + h > 780) doc.addPage(); };
 
@@ -1640,7 +1658,7 @@ const downloadTpsReport = async (req, res) => {
     const sectionTitle = (title) => {
       checkPage(30);
       doc.moveDown(0.6);
-      doc.fontSize(12).font("KR").fillColor("#1a237e").text(title, L);
+      doc.fontSize(12).font(bodyFont).fillColor("#1a237e").text(title, L);
       const ly = doc.y + 1;
       doc.moveTo(L, ly).lineTo(R, ly).strokeColor("#ccc").lineWidth(0.5).stroke();
       doc.moveDown(0.4);
@@ -1652,8 +1670,8 @@ const downloadTpsReport = async (req, res) => {
       const y = doc.y;
       const labelW = 170;
       if (opts.bg) { doc.rect(L, y - 1, TW, 14).fill(opts.bg); doc.fillColor("#000"); }
-      doc.fontSize(9).font("KR").fillColor("#333").text(label, L + 8, y, { width: labelW });
-      doc.fontSize(9).font("KR").fillColor(opts.color || "#000").text(String(value), L + labelW + 8, y, { width: TW - labelW - 16 });
+      doc.fontSize(9).font(bodyFont).fillColor("#333").text(label, L + 8, y, { width: labelW });
+      doc.fontSize(9).font(bodyFont).fillColor(opts.color || "#000").text(String(value), L + labelW + 8, y, { width: TW - labelW - 16 });
       doc.y = y + 14;
     };
 
@@ -1667,7 +1685,7 @@ const downloadTpsReport = async (req, res) => {
         doc.rect(startX, y, TW, headerH).fill(hdrColor);
         let x = startX;
         cols.forEach((c) => {
-          doc.fontSize(fontSize).font("KR").fillColor("#fff")
+          doc.fontSize(fontSize).font(bodyFont).fillColor("#fff")
             .text(c.label, x, y + (headerH - fontSize) / 2, { width: c.width, align: "center" });
           x += c.width;
         });
@@ -1704,7 +1722,7 @@ const downloadTpsReport = async (req, res) => {
         x = startX;
         vals.forEach((val, ci) => {
           const align = cols[ci].align || "center";
-          doc.fontSize(fontSize).font("KR").fillColor(vals._color || "#000")
+          doc.fontSize(fontSize).font(bodyFont).fillColor(vals._color || "#000")
             .text(String(val), x + 2, y + (rowH - fontSize) / 2, { width: cols[ci].width - 4, align });
           x += cols[ci].width;
         });
@@ -1715,10 +1733,10 @@ const downloadTpsReport = async (req, res) => {
 
     // ═══════ Page 1: Summary ═══════
 
-    doc.fontSize(18).font("KR").fillColor("#000")
+    doc.fontSize(18).font(bodyFont).fillColor("#000")
       .text("Blockchain Query TPS Performance Report", { align: "center" });
     doc.moveDown(0.15);
-    doc.fontSize(9).font("KR").fillColor("#777")
+    doc.fontSize(9).font(bodyFont).fillColor("#777")
       .text("Private Blockchain  |  Hyperledger Besu (Clique)  |  Read-Only Performance Test", { align: "center" });
     doc.fillColor("#000").moveDown(0.8);
 
@@ -1747,7 +1765,7 @@ const downloadTpsReport = async (req, res) => {
     doc.moveDown(0.4);
     checkPage(30);
     doc.rect(L, doc.y, TW, 26).fill(passed ? "#e8f5e9" : "#fff3e0").strokeColor(passed ? "#66bb6a" : "#ff9800").lineWidth(1).stroke();
-    doc.fontSize(14).font("KR").fillColor(passed ? "#2e7d32" : "#e65100")
+    doc.fontSize(14).font(bodyFont).fillColor(passed ? "#2e7d32" : "#e65100")
       .text(`Achieved TPS:  ${rs.actualRps}  req/sec`, L, doc.y + 6, { width: TW, align: "center" });
     doc.fillColor("#000");
     doc.y += 30;
@@ -1772,7 +1790,7 @@ const downloadTpsReport = async (req, res) => {
     // 4. Verdict
     sectionTitle("4. Verdict");
     checkPage(20);
-    doc.fontSize(12).font("KR").fillColor(passed ? "#2e7d32" : "#e65100")
+    doc.fontSize(12).font(bodyFont).fillColor(passed ? "#2e7d32" : "#e65100")
       .text(report.verdict, { align: "center" });
     doc.fillColor("#000");
 
@@ -1794,28 +1812,28 @@ const downloadTpsReport = async (req, res) => {
         const v = Math.round((mx / 4) * g);
         const gy = cBot - (cH * g) / 4;
         doc.moveTo(cL, gy).lineTo(cL + cW, gy).strokeColor("#eee").lineWidth(0.3).stroke();
-        doc.fontSize(6).font("KR").fillColor("#999")
+        doc.fontSize(6).font(bodyFont).fillColor("#999")
           .text(v.toLocaleString(), L, gy - 3, { width: 28, align: "right", lineBreak: false });
       }
       const tgY = cBot - (cH * ti.targetTps) / mx;
       for (let dx = 0; dx < cW; dx += 6) {
         doc.moveTo(cL + dx, tgY).lineTo(cL + Math.min(dx + 3, cW), tgY).strokeColor("#f44336").lineWidth(0.7).stroke();
       }
-      doc.fontSize(6).font("KR").fillColor("#f44336")
+      doc.fontSize(6).font(bodyFont).fillColor("#f44336")
         .text(`Target ${ti.targetTps.toLocaleString()}`, cL + cW - 65, tgY - 8, { width: 65, align: "right", lineBreak: false });
       stats.forEach((s, i) => {
         const bx = cL + bG + i * (bW + bG);
         const bh = (cH * s.success) / mx;
         const bTop = cBot - bh;
         doc.rect(bx, bTop, bW, bh).fill(s.success >= ti.targetTps ? "#66bb6a" : "#42a5f5");
-        doc.fontSize(5.5).font("KR").fillColor("#333")
+        doc.fontSize(5.5).font(bodyFont).fillColor("#333")
           .text(s.success.toLocaleString(), bx - 3, bTop - 8, { width: bW + 6, align: "center", lineBreak: false });
-        doc.fontSize(5.5).font("KR").fillColor("#555")
+        doc.fontSize(5.5).font(bodyFont).fillColor("#555")
           .text(`${s.second}s`, bx - 2, cBot + 2, { width: bW + 4, align: "center", lineBreak: false });
       });
       doc.fillColor("#000");
       doc.y = cBot + 16;
-      doc.fontSize(6).font("KR").fillColor("#aaa")
+      doc.fontSize(6).font(bodyFont).fillColor("#aaa")
         .text("Green = Target reached  |  Blue = Below target  |  Red dashed = Target TPS", { align: "center", lineBreak: false });
       doc.moveDown(1);
 
@@ -1879,7 +1897,7 @@ const downloadTpsReport = async (req, res) => {
     const pageCount = doc.bufferedPageRange().count;
     for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(i);
-      doc.fontSize(7).font("KR").fillColor("#bbb")
+      doc.fontSize(7).font(bodyFont).fillColor("#bbb")
         .text(
           `Generated: ${new Date().toISOString()}  |  Dressdio Blockchain Platform  |  Page ${i + 1} / ${pageCount}`,
           L, 810, { width: TW, align: "center" }

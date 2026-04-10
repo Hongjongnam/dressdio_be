@@ -1832,7 +1832,16 @@ const setupBlockchainTab = () => {
         if (result.success && result.data) {
           lastTpsReport = result.data;
           const d = result.data;
-          const passed = d.results.actualRps >= d.testInfo.targetTps;
+          const ti = d.testInfo;
+          const rs = d.results;
+          const throughputPass =
+            rs.throughputPass !== undefined ? rs.throughputPass : rs.actualRps >= ti.targetTps;
+          const batchScheduleMet =
+            rs.batchScheduleMet !== undefined
+              ? rs.batchScheduleMet
+              : (d.perSecondStats || []).length === ti.durationSeconds &&
+                (d.perSecondStats || []).every((s) => s.success === ti.targetTps && s.fail === 0);
+          const passed = throughputPass;
           const N = (v) => Number(v).toLocaleString();
 
           const tStyle = "width:100%;border-collapse:collapse;font-size:12px;";
@@ -1852,8 +1861,9 @@ const setupBlockchainTab = () => {
 
           summaryEl.innerHTML = `
             <div style="text-align:center;padding:10px 0 6px;font-size:20px;font-weight:bold;color:${passed ? '#2e7d32' : '#e65100'}">
-              ${passed ? 'PASS' : 'MEASURED'} &mdash; ${d.results.actualRps} 건/초
+              ${passed ? 'PASS' : 'MEASURED'} &mdash; 벽시계 실효 ${d.results.actualRps} 건/초
             </div>
+            ${batchScheduleMet && !passed ? `<div style="text-align:center;font-size:13px;color:#2e7d32;margin-bottom:6px;font-weight:600">매 초 목표 건수 달성 (${ti.durationSeconds}/${ti.durationSeconds}초)</div>` : ""}
             <table style="${tStyle}">
               ${r("RPC 메서드", d.testInfo.rpcMethod)}
               ${r("지갑 (표시용)", `<code style="font-size:11px">${d.testInfo.walletAddress}</code>`)}
@@ -1864,7 +1874,8 @@ const setupBlockchainTab = () => {
               ${r("총 요청", `${N(d.testInfo.totalPlannedRequests)}건`)}
               ${r("성공", `<span style="color:#2e7d32">${N(d.results.successCount)}건 (${d.results.successRate})</span>`)}
               ${r("실패", `<span style="color:#c62828">${N(d.results.failCount)}건</span>`)}
-              ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} 건/초</b>`)}
+              ${r("벽시계 실효 RPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} 건/초</b><div style="font-size:11px;color:#666;font-weight:400;margin-top:2px">총 성공 ÷ 총 경과 시간 (배치가 1초보다 길면 목표보다 낮게 나올 수 있음)</div>`)}
+              ${r("매 초 배치 완료", batchScheduleMet ? `<span style="color:#2e7d32">예 (초마다 ${N(ti.targetTps)}건 성공)</span>` : "아니오")}
               ${r("총 소요 시간", `${d.results.totalElapsedSeconds}초`)}
               ${r("평균 응답", `${d.latency.avgMs} ms`)}
               ${r("최소 / 최대", `${d.latency.minMs} ms / ${d.latency.maxMs} ms`)}
@@ -1925,7 +1936,23 @@ const setupBlockchainTab = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ report: lastTpsReport }),
         });
-        if (!response.ok) throw new Error("PDF 다운로드 실패");
+        const ct = response.headers.get("content-type") || "";
+        if (!response.ok) {
+          const errText = await response.text();
+          let detail = `HTTP ${response.status}`;
+          try {
+            const errBody = JSON.parse(errText);
+            if (errBody.message) detail = errBody.message;
+            else if (errBody.error) detail = String(errBody.error);
+          } catch (_) {
+            if (errText) detail = errText.slice(0, 300);
+          }
+          throw new Error(detail);
+        }
+        if (!ct.includes("application/pdf")) {
+          const t = await response.text();
+          throw new Error(t && t.length < 300 ? t : "서버가 PDF가 아닌 응답을 반환했습니다.");
+        }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
