@@ -3,24 +3,21 @@
 
   <fieldset style="grid-column: 1 / -1; border: 2px solid #1565c0;">
     <legend style="color:#1565c0; font-weight:bold;">TPS 성능 테스트 (POST /api/utils/tps-test)</legend>
-    <form id="tps-test-form" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px 16px; align-items:end;">
-      <div style="grid-column:1/-1; display:grid; grid-template-columns:1fr 120px 120px; gap:10px; align-items:end;">
-        <div>
-          <label for="tpsWalletAddress">지갑 주소 (선택)</label>
-          <input type="text" id="tpsWalletAddress" name="walletAddress" placeholder="리포트에만 표시" style="margin:0" />
-        </div>
-        <div>
-          <label for="tpsTargetTps">초당 요청 수</label>
-          <input type="number" id="tpsTargetTps" name="targetTps" value="1000" min="1" max="5000" required style="margin:0" />
-        </div>
-        <div>
-          <label for="tpsDuration">반복 (초)</label>
-          <input type="number" id="tpsDuration" name="durationSeconds" value="5" min="1" max="30" required style="margin:0" />
-        </div>
+    <p class="description" style="margin:0 0 10px; font-size:12px; color:#666; line-height:1.45;">
+      각 노드에 <code style="font-size:11px;">eth_blockNumber</code>(현재 블록 높이) 조회만 반복해 읽기 부하를 재는 테스트입니다. 지갑·트랜잭션과 무관합니다.
+    </p>
+    <form id="tps-test-form" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; align-items:end; max-width:420px;">
+      <div>
+        <label for="tpsTargetTps">초당 요청 수</label>
+        <input type="number" id="tpsTargetTps" name="targetTps" value="1500" min="1" max="5000" required style="margin:0" />
+      </div>
+      <div>
+        <label for="tpsDuration">반복 (초)</label>
+        <input type="number" id="tpsDuration" name="durationSeconds" value="10" min="1" max="30" required style="margin:0" />
       </div>
       <div style="grid-column:1/-1; display:flex; align-items:center; gap:16px;">
         <button type="submit" id="tpsTestBtn" style="margin:0; white-space:nowrap;">테스트 실행</button>
-        <span id="tpsCalcTotal" style="font-size:13px; color:#555;">1,000 x 5 = <b>5,000건</b></span>
+        <span id="tpsCalcTotal" style="font-size:13px; color:#555;">1,500 x 10 = <b>15,000건</b></span>
       </div>
     </form>
 

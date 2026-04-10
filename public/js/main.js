@@ -1804,9 +1804,8 @@ const setupBlockchainTab = () => {
       submitBtn.disabled = true;
       submitBtn.textContent = "테스트 실행 중...";
 
-      const walletAddress = document.getElementById("tpsWalletAddress").value.trim();
-      const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1000;
-      const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 5;
+      const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1500;
+      const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 10;
       /** 메인 RPC + 노드 2~5 (가중치: 메인 2, 나머지 각 1) — UI에 노출하지 않고 고정 전송 */
       const rpcUrls = [
         "https://besu.dressdio.me",
@@ -1821,7 +1820,7 @@ const setupBlockchainTab = () => {
         const response = await fetch("/api/utils/tps-test", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ walletAddress, targetTps, durationSeconds, rpcUrls, rpcWeights }),
+          body: JSON.stringify({ targetTps, durationSeconds, rpcUrls, rpcWeights }),
         });
         const result = await response.json();
 
@@ -1834,14 +1833,8 @@ const setupBlockchainTab = () => {
           const d = result.data;
           const ti = d.testInfo;
           const rs = d.results;
-          const throughputPass =
+          const passed =
             rs.throughputPass !== undefined ? rs.throughputPass : rs.actualRps >= ti.targetTps;
-          const batchScheduleMet =
-            rs.batchScheduleMet !== undefined
-              ? rs.batchScheduleMet
-              : (d.perSecondStats || []).length === ti.durationSeconds &&
-                (d.perSecondStats || []).every((s) => s.success === ti.targetTps && s.fail === 0);
-          const passed = throughputPass;
           const N = (v) => Number(v).toLocaleString();
 
           const tStyle = "width:100%;border-collapse:collapse;font-size:12px;";
@@ -1861,12 +1854,10 @@ const setupBlockchainTab = () => {
 
           summaryEl.innerHTML = `
             <div style="text-align:center;padding:10px 0 6px;font-size:20px;font-weight:bold;color:${passed ? '#2e7d32' : '#e65100'}">
-              ${passed ? 'PASS' : 'MEASURED'} &mdash; 벽시계 실효 ${d.results.actualRps} 건/초
+              ${passed ? 'PASS' : 'MEASURED'} &mdash; 달성 <b>${d.results.actualRps} TPS</b> <span style="font-size:14px;font-weight:600">(초당 ${d.results.actualRps}건)</span>
             </div>
-            ${batchScheduleMet && !passed ? `<div style="text-align:center;font-size:13px;color:#2e7d32;margin-bottom:6px;font-weight:600">매 초 목표 건수 달성 (${ti.durationSeconds}/${ti.durationSeconds}초)</div>` : ""}
             <table style="${tStyle}">
               ${r("RPC 메서드", d.testInfo.rpcMethod)}
-              ${r("지갑 (표시용)", `<code style="font-size:11px">${d.testInfo.walletAddress}</code>`)}
               ${r("노드 수", `${d.testInfo.nodeCount}개`)}
               ${rpcDistBlock}
               ${r("초당 요청 수", `${N(d.testInfo.targetTps)} 건/초`)}
@@ -1874,8 +1865,7 @@ const setupBlockchainTab = () => {
               ${r("총 요청", `${N(d.testInfo.totalPlannedRequests)}건`)}
               ${r("성공", `<span style="color:#2e7d32">${N(d.results.successCount)}건 (${d.results.successRate})</span>`)}
               ${r("실패", `<span style="color:#c62828">${N(d.results.failCount)}건</span>`)}
-              ${r("벽시계 실효 RPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} 건/초</b><div style="font-size:11px;color:#666;font-weight:400;margin-top:2px">총 성공 ÷ 총 경과 시간 (배치가 1초보다 길면 목표보다 낮게 나올 수 있음)</div>`)}
-              ${r("매 초 배치 완료", batchScheduleMet ? `<span style="color:#2e7d32">예 (초마다 ${N(ti.targetTps)}건 성공)</span>` : "아니오")}
+              ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} TPS (건/초)</b><div style="font-size:11px;color:#666;font-weight:400;margin-top:2px">TPS = 초당 처리 건수 · 성공 요청 수 ÷ 반복(초)</div>`)}
               ${r("총 소요 시간", `${d.results.totalElapsedSeconds}초`)}
               ${r("평균 응답", `${d.latency.avgMs} ms`)}
               ${r("최소 / 최대", `${d.latency.minMs} ms / ${d.latency.maxMs} ms`)}
