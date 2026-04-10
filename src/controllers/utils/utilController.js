@@ -1416,8 +1416,8 @@ const runTpsTest = async (req, res) => {
 
   try {
 
-    const tps = Math.min(parseInt(targetTps) || 1500, 5000);
-    const duration = Math.min(parseInt(durationSeconds) || 10, 30);
+    const tps = Math.min(parseInt(targetTps) || 1100, 5000);
+    const duration = Math.min(parseInt(durationSeconds) || 5, 30);
     const endpoints = (rpcUrls && rpcUrls.length > 0)
       ? rpcUrls
       : [process.env.RPC_URL || "https://besu.dressdio.me"];
@@ -1605,7 +1605,31 @@ const runTpsTest = async (req, res) => {
 };
 
 /**
- * TPS 테스트 결과를 PDF로 다운로드 (초별 집계 + 전체 RPC 요청 로그 포함)
+ * PDF 생성 전 본문 크기·메모리 완화 (실패 로그의 error 필드가 길면 JSON이 Nginx 한도 초과 → 413)
+ */
+function normalizeTpsReportForPdfInPlace(report) {
+  const MAX_ERR_LEN = 120;
+  const MAX_LOG_ROWS = 4000;
+  const logs = report.requestLogs;
+  if (!Array.isArray(logs) || logs.length === 0) return;
+  for (let i = 0; i < logs.length; i++) {
+    const log = logs[i];
+    if (log && log.error != null) {
+      const s = String(log.error);
+      log.error = s.length > MAX_ERR_LEN ? `${s.slice(0, MAX_ERR_LEN)}…` : s;
+    }
+  }
+  if (logs.length > MAX_LOG_ROWS) {
+    report.testInfo = report.testInfo || {};
+    if (!report.testInfo.pdfLogsNote) {
+      report.testInfo.pdfLogsNote = `요청 로그 ${logs.length.toLocaleString()}건 중 앞 ${MAX_LOG_ROWS.toLocaleString()}건만 표시`;
+    }
+    report.requestLogs = logs.slice(0, MAX_LOG_ROWS);
+  }
+}
+
+/**
+ * TPS 테스트 결과를 PDF로 다운로드 (초별 집계 + RPC 요청 로그 포함)
  */
 const downloadTpsReport = async (req, res) => {
   const { report } = req.body;
@@ -1614,6 +1638,8 @@ const downloadTpsReport = async (req, res) => {
     if (!report || !report.testInfo || !report.results || !report.latency) {
       return res.status(400).json({ success: false, message: "유효한 report 데이터가 필요합니다." });
     }
+
+    normalizeTpsReportForPdfInPlace(report);
 
     const PDFDocument = require("pdfkit");
     const path = require("path");
@@ -1859,7 +1885,12 @@ const downloadTpsReport = async (req, res) => {
     // ═══════ 7. Full RPC Request Logs ═══════
     if (report.requestLogs && report.requestLogs.length > 0) {
       doc.addPage();
-      sectionTitle(`7. RPC Request Logs  (${report.requestLogs.length.toLocaleString()} rows)`);
+      const logTitle = `7. RPC Request Logs  (${report.requestLogs.length.toLocaleString()} rows)`;
+      sectionTitle(logTitle);
+      if (ti.pdfLogsNote) {
+        doc.fontSize(8).font(bodyFont).fillColor("#e65100").text(ti.pdfLogsNote, L, doc.y, { width: TW });
+        doc.fillColor("#000").moveDown(0.5);
+      }
 
       const logCols = [
         { label: "#",        width: 38 },
