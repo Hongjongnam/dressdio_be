@@ -243,4 +243,45 @@ router.get(
   utilController.debugIpNftState
 );
 
+/**
+ * @swagger
+ * /api/utils/tps-test:
+ *   post:
+ *     summary: 블록체인 조회 TPS 성능 테스트 (eth_blockNumber)
+ *     tags: [Utils]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               walletAddress:
+ *                 type: string
+ *                 description: 선택. 리포트에만 표시 (조회에는 사용하지 않음)
+ *               targetTps:
+ *                 type: integer
+ *               durationSeconds:
+ *                 type: integer
+ *               rpcUrls:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               rpcWeights:
+ *                 description: rpcUrls와 동일 길이. 비율만 의미 (예 메인 5, 나머지 1이면 메인에 약 5/(5+N))
+ *                 type: array
+ *                 items:
+ *                   type: number
+ */
+router.post("/tps-test", utilController.runTpsTest);
+
+/**
+ * @swagger
+ * /api/utils/tps-test/pdf:
+ *   post:
+ *     summary: TPS 테스트 결과 PDF 다운로드
+ *     tags: [Utils]
+ */
+router.post("/tps-test/pdf", utilController.downloadTpsReport);
+
 module.exports = router;
