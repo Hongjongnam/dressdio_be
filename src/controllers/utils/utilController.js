@@ -1467,15 +1467,92 @@ function tpsFormatAxiosError(err) {
   return String(err);
 }
 
+const crypto = require("crypto");
+
+/** TPS live(SSE) 잡 — 단일 프로세스 기준; PM2 클러스터면 동일 워커로 붙어야 함 */
+const tpsLiveJobs = new Map();
+const TPS_LIVE_ROW_CAP = 12000;
+
+function tpsLiveInitJob() {
+  const jobId = crypto.randomBytes(12).toString("hex");
+  tpsLiveJobs.set(jobId, { rows: [], done: false, report: null, error: null, subscribers: new Set() });
+  setTimeout(() => {
+    const j = tpsLiveJobs.get(jobId);
+    if (j && j.subscribers.size === 0) tpsLiveJobs.delete(jobId);
+  }, 25 * 60 * 1000);
+  return jobId;
+}
+
+function tpsLiveEmit(jobId, evt) {
+  const job = tpsLiveJobs.get(jobId);
+  if (!job) return;
+  if (evt.type === "row" && evt.row) {
+    job.rows.push(evt.row);
+    if (job.rows.length > TPS_LIVE_ROW_CAP) job.rows.shift();
+  }
+  if (evt.type === "done" && evt.data) {
+    job.done = true;
+    job.report = evt.data;
+  }
+  if (evt.type === "error") {
+    job.done = true;
+    job.error = evt.message || "error";
+  }
+  const payload = `data: ${JSON.stringify(evt)}\n\n`;
+  [...job.subscribers].forEach((r) => {
+    try {
+      r.write(payload);
+      if (evt.type === "done" || evt.type === "error") {
+        try {
+          r.end();
+        } catch (_) {}
+        job.subscribers.delete(r);
+      }
+    } catch (_) {}
+  });
+}
+
+/** GET /api/utils/tps-test/stream/:jobId — EventSource용 */
+const streamTpsTest = (req, res) => {
+  const { jobId } = req.params;
+  const job = tpsLiveJobs.get(jobId);
+  if (!job) {
+    return res.status(404).json({ success: false, message: "세션이 없거나 만료되었습니다." });
+  }
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") res.flushHeaders();
+  for (let i = 0; i < job.rows.length; i++) {
+    res.write(`data: ${JSON.stringify({ type: "row", row: job.rows[i] })}\n\n`);
+  }
+  if (job.done) {
+    if (job.report) {
+      res.write(`data: ${JSON.stringify({ type: "done", success: true, data: job.report })}\n\n`);
+    } else if (job.error) {
+      res.write(`data: ${JSON.stringify({ type: "error", message: job.error })}\n\n`);
+    }
+    res.end();
+    return;
+  }
+  job.subscribers.add(res);
+  req.on("close", () => {
+    try {
+      job.subscribers.delete(res);
+    } catch (_) {}
+  });
+};
+
 /**
- * 블록체인 조회 TPS 성능 테스트
+ * 블록체인 조회 TPS 성능 테스트 (실제 부하 로직)
  * eth_blockNumber를 호출한다. 매 초 경계마다 targetTps개를 추가로 발사(이전 요청 완료를 기다리지 않음).
- * 달성 TPS = 성공 건수 ÷ duration(초). 일부 노드는 eth_getBalance가 result:null을 반환해 사용하지 않음.
+ * onEachRow: 요청 1건이 끝날 때마다 호출(완료 순서). live SSE용.
  *
- * 구현: 이 핸들러 안에서만 axios + http(s).Agent(keep-alive)로 JSON-RPC — 타 API·전역 에이전트와 분리.
+ * 구현: 이 함수 안에서만 axios + http(s).Agent(keep-alive)로 JSON-RPC — 타 API·전역 에이전트와 분리.
  */
-const runTpsTest = async (req, res) => {
-  const { targetTps, durationSeconds, rpcUrls, rpcWeights } = req.body;
+async function runTpsWorkload(body, onEachRow) {
+  const { targetTps, durationSeconds, rpcUrls, rpcWeights } = body;
 
   const http = require("http");
   const https = require("https");
@@ -1511,8 +1588,8 @@ const runTpsTest = async (req, res) => {
      * 각 RPC는 TPS_RPC_TIMEOUT_MS(기본 120s)만 적용. (과거 전역 마감으로 per-RPC 시간을 깎으면
      * 고부하 시 remaining이 줄어 전 요청이 ~50ms만 시도되어 성공 0·0TPS가 발생했음.)
      */
-    const tps = Math.min(parseInt(targetTps) || 1100, 5000);
-    const duration = Math.min(parseInt(durationSeconds) || 5, 30);
+    const tps = Math.min(Math.max(parseInt(targetTps, 10) || 1300, 1), 1300);
+    const duration = Math.min(parseInt(durationSeconds) || 5, 60);
 
     /**
      * 배포 서버 전용(실서비스 로직과 무관): TPS 테스트만 VPC 내부 RPC(프라이빗 IP:8545)로 보내려면
@@ -1623,6 +1700,7 @@ const runTpsTest = async (req, res) => {
               }
             }
             const reqStart = Date.now();
+            let row;
             try {
               const blockNo = await promiseWithTimeout(
                 tpsEthBlockNumber(client, rpcTimeoutMs, idx + 1),
@@ -1631,7 +1709,7 @@ const runTpsTest = async (req, res) => {
               );
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
-              requestLogs.push({
+              row = {
                 seq: idx + 1,
                 second: sec + 1,
                 timestamp: new Date(reqStart).toISOString(),
@@ -1642,12 +1720,12 @@ const runTpsTest = async (req, res) => {
                 latencyMs: latency,
                 responseBlockNumber: String(blockNo),
                 error: null,
-              });
+              };
             } catch (err) {
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
               const errMsg = tpsFormatAxiosError(err);
-              requestLogs.push({
+              row = {
                 seq: idx + 1,
                 second: sec + 1,
                 timestamp: new Date(reqStart).toISOString(),
@@ -1658,7 +1736,15 @@ const runTpsTest = async (req, res) => {
                 latencyMs: latency,
                 responseBlockNumber: null,
                 error: errMsg,
-              });
+              };
+            }
+            requestLogs.push(row);
+            if (typeof onEachRow === "function") {
+              try {
+                onEachRow(row);
+              } catch (feedErr) {
+                logger.warn("[TPS Test] live row 콜백:", feedErr && feedErr.message);
+              }
             }
           })()
         );
@@ -1795,10 +1881,10 @@ const runTpsTest = async (req, res) => {
       verdict: `설정 초당 요청 ${tps}건, 관측 TPS ${actualRps}건/초`,
     };
 
-    return res.json({ success: true, data: report });
+    return report;
   } catch (error) {
     logger.error("[TPS Test] 오류:", error);
-    return res.status(500).json({ success: false, message: "TPS 테스트 중 오류가 발생했습니다.", error: error.message });
+    throw error;
   } finally {
     if (rpcClients && Array.isArray(rpcClients)) {
       for (const c of rpcClients) {
@@ -1811,14 +1897,36 @@ const runTpsTest = async (req, res) => {
       }
     }
   }
+}
+
+const runTpsTest = async (req, res) => {
+  try {
+    if (req.body && req.body.live === true) {
+      const jobId = tpsLiveInitJob();
+      runTpsWorkload(req.body, (row) => {
+        tpsLiveEmit(jobId, { type: "row", row });
+      })
+        .then((report) => {
+          tpsLiveEmit(jobId, { type: "done", success: true, data: report });
+        })
+        .catch((err) => {
+          tpsLiveEmit(jobId, { type: "error", message: err.message });
+        });
+      return res.json({ success: true, jobId, live: true });
+    }
+    const report = await runTpsWorkload(req.body);
+    return res.json({ success: true, data: report });
+  } catch (error) {
+    logger.error("[TPS Test] 오류:", error);
+    return res.status(500).json({ success: false, message: "TPS 테스트 중 오류가 발생했습니다.", error: error.message });
+  }
 };
 
 /**
- * PDF 생성 전 본문 크기·메모리 완화 (실패 로그의 error 필드가 길면 JSON이 Nginx 한도 초과 → 413)
+ * PDF용: 각 로그의 error 문자열만 적당히 줄여 JSON POST 크기 완화(행 수는 자르지 않음).
  */
 function normalizeTpsReportForPdfInPlace(report) {
-  const MAX_ERR_LEN = 120;
-  const MAX_LOG_ROWS = 4000;
+  const MAX_ERR_LEN = 500;
   const logs = report.requestLogs;
   if (!Array.isArray(logs) || logs.length === 0) return;
   for (let i = 0; i < logs.length; i++) {
@@ -1828,12 +1936,8 @@ function normalizeTpsReportForPdfInPlace(report) {
       log.error = s.length > MAX_ERR_LEN ? `${s.slice(0, MAX_ERR_LEN)}…` : s;
     }
   }
-  if (logs.length > MAX_LOG_ROWS) {
-    report.testInfo = report.testInfo || {};
-    if (!report.testInfo.pdfLogsNote) {
-      report.testInfo.pdfLogsNote = `요청 로그 ${logs.length.toLocaleString()}건 중 앞 ${MAX_LOG_ROWS.toLocaleString()}건만 표시`;
-    }
-    report.requestLogs = logs.slice(0, MAX_LOG_ROWS);
+  if (report.testInfo && report.testInfo.pdfLogsNote) {
+    delete report.testInfo.pdfLogsNote;
   }
 }
 
@@ -2016,50 +2120,195 @@ const downloadTpsReport = async (req, res) => {
       .text(report.verdict, { align: "center" });
     doc.fillColor("#000");
 
-    // ═══════ 5. Per-Second TPS Chart ═══════
-    if (report.perSecondStats && report.perSecondStats.length > 0) {
+    const requestLogsAll = Array.isArray(report.requestLogs) ? report.requestLogs : [];
+    const latForHist = requestLogsAll
+      .filter((l) => l && l.success && typeof l.latencyMs === "number")
+      .map((l) => Number(l.latencyMs));
+    const hasPerSec = report.perSecondStats && report.perSecondStats.length > 0;
+    const okFailTotal = (rs.successCount || 0) + (rs.failCount || 0);
+    const showViz = hasPerSec || okFailTotal > 0 || latForHist.length > 0;
+
+    // ═══════ 5. 시각화 (대시보드와 동일 지표) ═══════
+    if (showViz) {
       doc.addPage();
-      const stats = report.perSecondStats;
+      sectionTitle("5. 시각화 (Visualization)");
 
-      sectionTitle("5. Per-Second Throughput");
-      const cL = L + 30, cW = TW - 40, cH = 160;
-      const cTop = doc.y + 5, cBot = cTop + cH;
-      const mx = Math.max(ti.targetTps, ...stats.map((s) => s.success)) * 1.15;
-      const bW = Math.min(36, (cW - 8) / stats.length - 4);
-      const bG = (cW - bW * stats.length) / (stats.length + 1);
+      if (hasPerSec) {
+        const stats = report.perSecondStats;
 
-      doc.moveTo(cL, cTop).lineTo(cL, cBot).strokeColor("#333").lineWidth(0.7).stroke();
-      doc.moveTo(cL, cBot).lineTo(cL + cW, cBot).strokeColor("#333").lineWidth(0.7).stroke();
-      for (let g = 0; g <= 4; g++) {
-        const v = Math.round((mx / 4) * g);
-        const gy = cBot - (cH * g) / 4;
-        doc.moveTo(cL, gy).lineTo(cL + cW, gy).strokeColor("#eee").lineWidth(0.3).stroke();
-        doc.fontSize(6).font(bodyFont).fillColor("#999")
-          .text(v.toLocaleString(), L, gy - 3, { width: 28, align: "right", lineBreak: false });
+        checkPage(220);
+        doc.fontSize(10).font(bodyFont).fillColor("#37474f").text("5.1 초당 성공 건수 및 목표 TPS", L, doc.y);
+        doc.moveDown(0.35);
+        const cL = L + 30;
+        const cW = TW - 40;
+        const cH = 160;
+        const cTop = doc.y + 5;
+        const cBot = cTop + cH;
+        const mx = Math.max(ti.targetTps, ...stats.map((s) => s.success)) * 1.15;
+        const bW = Math.min(36, (cW - 8) / stats.length - 4);
+        const bG = (cW - bW * stats.length) / (stats.length + 1);
+
+        doc.moveTo(cL, cTop).lineTo(cL, cBot).strokeColor("#333").lineWidth(0.7).stroke();
+        doc.moveTo(cL, cBot).lineTo(cL + cW, cBot).strokeColor("#333").lineWidth(0.7).stroke();
+        for (let g = 0; g <= 4; g++) {
+          const v = Math.round((mx / 4) * g);
+          const gy = cBot - (cH * g) / 4;
+          doc.moveTo(cL, gy).lineTo(cL + cW, gy).strokeColor("#eee").lineWidth(0.3).stroke();
+          doc.fontSize(6).font(bodyFont).fillColor("#999")
+            .text(v.toLocaleString(), L, gy - 3, { width: 28, align: "right", lineBreak: false });
+        }
+        const tgY = cBot - (cH * ti.targetTps) / mx;
+        for (let dx = 0; dx < cW; dx += 6) {
+          doc.moveTo(cL + dx, tgY).lineTo(cL + Math.min(dx + 3, cW), tgY).strokeColor("#f44336").lineWidth(0.7).stroke();
+        }
+        doc.fontSize(6).font(bodyFont).fillColor("#f44336")
+          .text(`Target ${ti.targetTps.toLocaleString()}`, cL + cW - 65, tgY - 8, { width: 65, align: "right", lineBreak: false });
+        stats.forEach((s, i) => {
+          const bx = cL + bG + i * (bW + bG);
+          const bh = (cH * s.success) / mx;
+          const bTop = cBot - bh;
+          doc.rect(bx, bTop, bW, bh).fill(s.success >= ti.targetTps ? "#66bb6a" : "#42a5f5");
+          doc.fontSize(5.5).font(bodyFont).fillColor("#333")
+            .text(s.success.toLocaleString(), bx - 3, bTop - 8, { width: bW + 6, align: "center", lineBreak: false });
+          doc.fontSize(5.5).font(bodyFont).fillColor("#555")
+            .text(`${s.second}s`, bx - 2, cBot + 2, { width: bW + 4, align: "center", lineBreak: false });
+        });
+        doc.fillColor("#000");
+        doc.y = cBot + 16;
+        doc.fontSize(6).font(bodyFont).fillColor("#aaa")
+          .text("Green = Target reached  |  Blue = Below target  |  Red dashed = Target TPS", { align: "center", lineBreak: false });
+        doc.moveDown(0.8);
+
+        // 5.2 초당 평균 응답 시간 (라인)
+        checkPage(200);
+        doc.fontSize(10).font(bodyFont).fillColor("#37474f").text("5.2 초당 평균 응답 시간 (ms)", L, doc.y);
+        doc.moveDown(0.35);
+        const cL2 = L + 30;
+        const cW2 = TW - 40;
+        const cH2 = 120;
+        const cTop2 = doc.y + 8;
+        const cBot2 = cTop2 + cH2;
+        const avgs = stats.map((s) => Number(s.avgLatencyMs) || 0);
+        const mx2 = Math.max(1, ...avgs) * 1.1;
+
+        doc.moveTo(cL2, cTop2).lineTo(cL2, cBot2).strokeColor("#333").lineWidth(0.6).stroke();
+        doc.moveTo(cL2, cBot2).lineTo(cL2 + cW2, cBot2).strokeColor("#333").lineWidth(0.6).stroke();
+        for (let g = 0; g <= 4; g++) {
+          const v = Math.round((mx2 / 4) * g);
+          const gy = cBot2 - (cH2 * g) / 4;
+          doc.moveTo(cL2, gy).lineTo(cL2 + cW2, gy).strokeColor("#eee").lineWidth(0.3).stroke();
+          doc.fontSize(6).font(bodyFont).fillColor("#999")
+            .text(v.toLocaleString(), L, gy - 3, { width: 28, align: "right", lineBreak: false });
+        }
+        const n2 = stats.length;
+        doc.save();
+        let firstPt = true;
+        for (let i = 0; i < n2; i++) {
+          const xi = n2 <= 1 ? cL2 + cW2 / 2 : cL2 + (cW2 * i) / (n2 - 1);
+          const yi = cBot2 - (cH2 * avgs[i]) / mx2;
+          if (firstPt) {
+            doc.moveTo(xi, yi);
+            firstPt = false;
+          } else {
+            doc.lineTo(xi, yi);
+          }
+        }
+        doc.strokeColor("#7b1fa2").lineWidth(1).stroke();
+        doc.restore();
+        for (let i = 0; i < n2; i++) {
+          const xi = n2 <= 1 ? cL2 + cW2 / 2 : cL2 + (cW2 * i) / (n2 - 1);
+          const yi = cBot2 - (cH2 * avgs[i]) / mx2;
+          doc.circle(xi, yi, 2).fill("#7b1fa2");
+        }
+        doc.fillColor("#000");
+        doc.y = cBot2 + 8;
+        doc.fontSize(5.5).font(bodyFont).fillColor("#888")
+          .text(
+            `0s — ${stats[0].second}s  ·  mid ${stats[Math.floor((n2 - 1) / 2)].second}s  ·  ${stats[n2 - 1].second}s`,
+            L + 30,
+            doc.y,
+            { width: TW - 60, align: "center", lineBreak: false }
+          );
+        doc.fillColor("#000");
+        doc.y = cBot2 + 22;
+        doc.moveDown(0.5);
       }
-      const tgY = cBot - (cH * ti.targetTps) / mx;
-      for (let dx = 0; dx < cW; dx += 6) {
-        doc.moveTo(cL + dx, tgY).lineTo(cL + Math.min(dx + 3, cW), tgY).strokeColor("#f44336").lineWidth(0.7).stroke();
-      }
-      doc.fontSize(6).font(bodyFont).fillColor("#f44336")
-        .text(`Target ${ti.targetTps.toLocaleString()}`, cL + cW - 65, tgY - 8, { width: 65, align: "right", lineBreak: false });
-      stats.forEach((s, i) => {
-        const bx = cL + bG + i * (bW + bG);
-        const bh = (cH * s.success) / mx;
-        const bTop = cBot - bh;
-        doc.rect(bx, bTop, bW, bh).fill(s.success >= ti.targetTps ? "#66bb6a" : "#42a5f5");
-        doc.fontSize(5.5).font(bodyFont).fillColor("#333")
-          .text(s.success.toLocaleString(), bx - 3, bTop - 8, { width: bW + 6, align: "center", lineBreak: false });
-        doc.fontSize(5.5).font(bodyFont).fillColor("#555")
-          .text(`${s.second}s`, bx - 2, cBot + 2, { width: bW + 4, align: "center", lineBreak: false });
-      });
-      doc.fillColor("#000");
-      doc.y = cBot + 16;
-      doc.fontSize(6).font(bodyFont).fillColor("#aaa")
-        .text("Green = Target reached  |  Blue = Below target  |  Red dashed = Target TPS", { align: "center", lineBreak: false });
-      doc.moveDown(1);
 
-      // ═══════ 6. Per-Second Stats Table ═══════
+      if (okFailTotal > 0) {
+        checkPage(110);
+        doc.fontSize(10).font(bodyFont).fillColor("#37474f").text("5.3 성공 / 실패", L, doc.y);
+        doc.moveDown(0.4);
+        const ok = rs.successCount || 0;
+        const fail = rs.failCount || 0;
+        const barY = doc.y;
+        const barW = TW - 60;
+        const barH = 20;
+        const barL = L + 30;
+        const wOk = (barW * ok) / okFailTotal;
+        const wFail = barW - wOk;
+        doc.rect(barL, barY, wOk, barH).fill("#2e7d32");
+        doc.rect(barL + wOk, barY, wFail, barH).fill("#c62828");
+        doc.rect(barL, barY, barW, barH).strokeColor("#333").lineWidth(0.4).stroke();
+        doc.fontSize(8).font(bodyFont).fillColor("#fff")
+          .text(
+            ok > 0 ? `성공 ${ok.toLocaleString()} (${((ok / okFailTotal) * 100).toFixed(1)}%)` : "",
+            barL + 6,
+            barY + 5,
+            { width: Math.max(wOk - 12, 0), lineBreak: false }
+          );
+        doc.fontSize(8).font(bodyFont).fillColor("#fff")
+          .text(
+            fail > 0 ? `실패 ${fail.toLocaleString()} (${((fail / okFailTotal) * 100).toFixed(1)}%)` : "",
+            barL + wOk + 6,
+            barY + 5,
+            { width: Math.max(wFail - 12, 0), lineBreak: false }
+          );
+        doc.fillColor("#000");
+        doc.y = barY + barH + 10;
+        doc.fontSize(8).font(bodyFont).fillColor("#555")
+          .text(`총 ${okFailTotal.toLocaleString()}건`, L + 30, doc.y, { width: TW - 60 });
+        doc.y += 16;
+        doc.moveDown(0.3);
+      }
+
+      if (latForHist.length > 0) {
+        checkPage(200);
+        doc.fontSize(10).font(bodyFont).fillColor("#37474f").text("5.4 응답 시간 분포 (ms, 성공 요청만)", L, doc.y);
+        doc.moveDown(0.4);
+        const buckets = [0, 0, 0, 0, 0];
+        const labels = ["0–50", "50–100", "100–200", "200–500", "500+"];
+        latForHist.forEach((ms) => {
+          if (ms < 50) buckets[0] += 1;
+          else if (ms < 100) buckets[1] += 1;
+          else if (ms < 200) buckets[2] += 1;
+          else if (ms < 500) buckets[3] += 1;
+          else buckets[4] += 1;
+        });
+        const maxB = Math.max(1, ...buckets);
+        const hTop = doc.y + 6;
+        const hBot = hTop + 112;
+        const hL = L + 30;
+        const hW = TW - 60;
+        const slotW = hW / 5;
+        const bw = slotW - 10;
+        for (let b = 0; b < 5; b++) {
+          const bx = hL + b * slotW + 5;
+          const bh = (100 * buckets[b]) / maxB;
+          doc.rect(bx, hBot - bh, bw, bh).fill("#5c6bc0");
+          doc.fontSize(6).font(bodyFont).fillColor("#333")
+            .text(String(buckets[b]), bx, hBot - bh - 12, { width: bw, align: "center", lineBreak: false });
+          doc.fontSize(6).font(bodyFont).fillColor("#555")
+            .text(labels[b], bx - 2, hBot + 4, { width: bw + 4, align: "center", lineBreak: false });
+        }
+        doc.moveTo(hL, hBot).lineTo(hL + hW, hBot).strokeColor("#333").lineWidth(0.5).stroke();
+        doc.fillColor("#000");
+        doc.y = hBot + 22;
+      }
+    }
+
+    // ═══════ 6. Per-Second Stats Table ═══════
+    if (hasPerSec) {
+      doc.addPage();
       sectionTitle("6. Per-Second Statistics");
 
       const secCols = [
@@ -2073,7 +2322,6 @@ const downloadTpsReport = async (req, res) => {
         { label: "Max",  width: 55 },
         { label: "P95",  width: 55 },
       ];
-      // adjust last col to fill remaining
       const used = secCols.reduce((s, c) => s + c.width, 0);
       secCols[secCols.length - 1].width += TW - used;
 
@@ -2149,5 +2397,6 @@ module.exports = {
   uploadJSONToIPFS: exports.uploadJSONToIPFS,
   debugIpNftState,
   runTpsTest,
+  streamTpsTest,
   downloadTpsReport,
 };
