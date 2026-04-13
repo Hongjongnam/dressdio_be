@@ -1823,90 +1823,51 @@ const setupBlockchainTab = () => {
             rs.throughputPass !== undefined ? rs.throughputPass : rs.actualRps >= ti.targetTps;
           const N = (v) => Number(v).toLocaleString();
 
-          const tStyle = "width:100%;border-collapse:collapse;font-size:12px;";
-          const thS = "padding:5px 8px;text-align:left;white-space:nowrap;color:#555;font-weight:600;border-bottom:1px solid #eee;width:160px;";
-          const tdS = "padding:5px 8px;border-bottom:1px solid #eee;";
+          const tStyle = "width:100%;border-collapse:collapse;font-size:12px;max-width:520px;";
+          const thS =
+            "padding:6px 10px;text-align:left;white-space:nowrap;color:#333;font-weight:600;border-bottom:1px solid #e0e0e0;width:42%;vertical-align:top;";
+          const tdS = "padding:6px 10px;border-bottom:1px solid #e0e0e0;vertical-align:top;";
           const r = (label, val) => `<tr><td style="${thS}">${label}</td><td style="${tdS}">${val}</td></tr>`;
 
-          let rpcDistBlock = "";
-          if (d.testInfo.rpcEndpoints && d.testInfo.rpcRequestCounts) {
-            const rows = d.testInfo.rpcEndpoints.map((ep, i) => {
-              const cnt = d.testInfo.rpcRequestCounts[i]?.count;
-              const epShort = ep.replace(/^https?:\/\//, "").slice(0, 48);
-              return `<tr><td style="${thS}">#${i + 1}</td><td style="${tdS}"><code style="font-size:10px;word-break:break-all">${epShort}</code><div style="color:#666;font-size:11px;margin-top:2px">실제 <b>${N(cnt)}</b>건</div></td></tr>`;
-            }).join("");
-            rpcDistBlock = `<tr><td colspan="2" style="padding:10px 8px 4px;font-weight:700;color:#1565c0;border-bottom:1px solid #e3f2fd;background:#f5f9ff">RPC 요청 분배</td></tr>${rows}`;
-          }
+          const sn = rs.sampleBlockNumber;
+          const sampleBlk =
+            sn !== undefined && sn !== null && String(sn).trim() !== "" && String(sn) !== "N/A"
+              ? `<code>${String(sn).replace(/</g, "&lt;")}</code>`
+              : "—";
+
+          const goalLine = passed
+            ? `<span style="color:#2e7d32">목표 ${N(ti.targetTps)} 건/초 대비 달성 <b>${rs.actualRps}</b> 건/초 (목표 충족)</span>`
+            : `<span style="color:#e65100">목표 ${N(ti.targetTps)} 건/초 대비 달성 <b>${rs.actualRps}</b> 건/초 (목표 미달)</span>`;
 
           summaryEl.innerHTML = `
-            <div style="text-align:center;padding:10px 0 6px;font-size:20px;font-weight:bold;color:${passed ? '#2e7d32' : '#e65100'}">
-              ${passed ? 'PASS' : 'MEASURED'} &mdash; 달성 <b>${d.results.actualRps} TPS</b> <span style="font-size:14px;font-weight:600">(초당 ${d.results.actualRps}건)</span>
-            </div>
+            <div style="margin-bottom:10px;font-size:13px;line-height:1.5;">${goalLine}</div>
             <table style="${tStyle}">
-              ${r("RPC 메서드", d.testInfo.rpcMethod)}
-              ${r("노드 수", `${d.testInfo.nodeCount}개`)}
-              ${rpcDistBlock}
-              ${r("초당 요청 수", `${N(d.testInfo.targetTps)} 건/초`)}
-              ${r("반복", `${d.testInfo.durationSeconds}초`)}
-              ${r("총 요청", `${N(d.testInfo.totalPlannedRequests)}건`)}
-              ${r("성공", `<span style="color:#2e7d32">${N(d.results.successCount)}건 (${d.results.successRate})</span>`)}
-              ${r("실패", `<span style="color:#c62828">${N(d.results.failCount)}건</span>`)}
+              ${r("부하 유형", `${ti.rpcMethod} 반복 호출(블록 높이 조회, 읽기 전용)`)}
+              ${r("목표 초당 요청 수", `${N(ti.targetTps)} 건/초`)}
+              ${r("측정 구간", `${ti.durationSeconds} 초`)}
+              ${r("총 요청", `${N(ti.totalPlannedRequests)}건`)}
+              ${r("성공", `${N(rs.successCount)}건 (${rs.successRate})`)}
+              ${r("실패", `${N(rs.failCount)}건`)}
               ${
-                d.results.failCount > 0 && d.results.firstFailureMessage
+                rs.failCount > 0 && rs.firstFailureMessage
                   ? r(
-                      "실패 예시(첫 건)",
-                      `<span style="font-size:11px;word-break:break-word">${String(
-                        d.results.firstFailureMessage
-                      )
+                      "실패 사유(예시 1건)",
+                      `<span style="font-size:11px;word-break:break-word">${String(rs.firstFailureMessage)
                         .replace(/&/g, "&amp;")
                         .replace(/</g, "&lt;")
                         .replace(/>/g, "&gt;")}</span>`
                     )
                   : ""
               }
-              ${r("달성 TPS", `<b style="font-size:15px;color:${passed ? '#2e7d32' : '#e65100'}">${d.results.actualRps} TPS (건/초)</b>`)}
-              ${r("총 소요 시간", `${d.results.totalElapsedSeconds}초`)}
-              ${
-                d.results.globalDeadlineMaxWallSeconds != null
-                  ? r(
-                      "완료 상한(참고)",
-                      `참고(대략 완료 상한 힌트): 반복×배수+1 ≈ <b>${d.results.globalDeadlineMaxWallSeconds}</b>초 — 실제는 건당 <code style="font-size:11px">TPS_RPC_TIMEOUT_MS</code>까지 대기`
-                    )
-                  : ""
-              }
+              ${r("달성 TPS", `<b>${rs.actualRps}</b> 건/초 <span style="color:#666;font-size:11px;font-weight:400">(성공 건수 ÷ 측정 구간 초)</span>`)}
+              ${r("총 소요 시간", `${rs.totalElapsedSeconds} 초 <span style="color:#666;font-size:11px;font-weight:400">(발사 시작~전체 완료)</span>`)}
               ${r("평균 응답", `${d.latency.avgMs} ms`)}
               ${r("최소 / 최대", `${d.latency.minMs} ms / ${d.latency.maxMs} ms`)}
               ${r("P50 / P95 / P99", `${d.latency.p50Ms} / ${d.latency.p95Ms} / ${d.latency.p99Ms} ms`)}
-              ${r("표본 블록 번호", `<code>${d.results.sampleBlockNumber}</code>`)}
+              ${r("표본 블록 번호", sampleBlk)}
             </table>
-            <div style="text-align:center;margin-top:8px;font-size:12px;font-weight:600;color:${passed ? '#2e7d32' : '#e65100'}">${d.verdict}</div>
           `;
 
-          if (d.perSecondStats && d.perSecondStats.length > 0) {
-            const hS = "padding:4px 6px;text-align:center;font-size:11px;";
-            const cS = "padding:3px 6px;text-align:right;font-size:11px;font-family:monospace;";
-            let secTable = `<div style="margin-top:12px;font-weight:600;font-size:12px;color:#333;">초별 통계</div>
-              <table style="width:100%;border-collapse:collapse;margin-top:4px;">
-              <tr style="background:#37474f;color:#fff">
-                <th style="${hS}">초</th><th style="${hS}">요청</th><th style="${hS}">성공</th>
-                <th style="${hS}">실패</th><th style="${hS}">소요(ms)</th><th style="${hS}">평균(ms)</th>
-                <th style="${hS}">최소(ms)</th><th style="${hS}">최대(ms)</th><th style="${hS}">P95(ms)</th>
-              </tr>`;
-            d.perSecondStats.forEach((s, si) => {
-              const bg = si % 2 === 0 ? "#f8f9fa" : "#fff";
-              secTable += `<tr style="background:${bg}">
-                <td style="${cS}text-align:center">${s.second}</td>
-                <td style="${cS}">${N(s.requests)}</td><td style="${cS}">${N(s.success)}</td>
-                <td style="${cS}">${s.fail}</td><td style="${cS}">${s.elapsedMs}</td>
-                <td style="${cS}">${s.avgLatencyMs}</td><td style="${cS}">${s.minLatencyMs}</td>
-                <td style="${cS}">${s.maxLatencyMs}</td><td style="${cS}">${s.p95LatencyMs}</td>
-              </tr>`;
-            });
-            secTable += "</table>";
-            summaryEl.innerHTML += secTable;
-          }
-
-          renderTpsCharts(d);
           panelEl.style.display = "block";
         }
 
@@ -1994,146 +1955,4 @@ const setupBlockchainTab = () => {
     });
   }
 
-  let tpsChartInstances = [];
-  function renderTpsCharts(d) {
-    tpsChartInstances.forEach((c) => c.destroy());
-    tpsChartInstances = [];
-    if (typeof Chart === "undefined") return;
-
-    const stats = d.perSecondStats || [];
-    const labels = stats.map((s) => s.second + "초");
-    const target = d.testInfo.targetTps;
-
-    const chartBase = { responsive: true, maintainAspectRatio: true };
-
-    const barCtx = document.getElementById("tpsBarChart");
-    if (barCtx && stats.length) {
-      tpsChartInstances.push(new Chart(barCtx, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "성공 요청",
-              data: stats.map((s) => s.success),
-              backgroundColor: stats.map((s) => s.success >= target ? "#66bb6a" : "#42a5f5"),
-              borderRadius: 4,
-            },
-            {
-              label: `목표 (${target.toLocaleString()})`,
-              data: stats.map(() => target),
-              type: "line",
-              borderColor: "#f44336",
-              borderDash: [6, 3],
-              borderWidth: 2,
-              pointRadius: 0,
-              fill: false,
-            },
-          ],
-        },
-        options: {
-          ...chartBase,
-          aspectRatio: 1.6,
-          plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
-          scales: {
-            y: { beginAtZero: true, title: { display: true, text: "요청 수", font: { size: 11 } } },
-            x: { title: { display: true, text: "경과 시간", font: { size: 11 } } },
-          },
-        },
-      }));
-    }
-
-    const lineCtx = document.getElementById("tpsLatencyChart");
-    if (lineCtx && stats.length) {
-      tpsChartInstances.push(new Chart(lineCtx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            { label: "평균", data: stats.map((s) => s.avgLatencyMs), borderColor: "#1e88e5", borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false },
-            { label: "P95", data: stats.map((s) => s.p95LatencyMs), borderColor: "#ff9800", borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false },
-            { label: "최대", data: stats.map((s) => s.maxLatencyMs), borderColor: "#e53935", borderWidth: 1.5, borderDash: [4, 3], pointRadius: 2, tension: 0.3, fill: false },
-          ],
-        },
-        options: {
-          ...chartBase,
-          aspectRatio: 1.6,
-          plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
-          scales: {
-            y: { beginAtZero: true, title: { display: true, text: "ms", font: { size: 11 } } },
-            x: { title: { display: true, text: "경과 시간", font: { size: 11 } } },
-          },
-        },
-      }));
-    }
-
-    const doughCtx = document.getElementById("tpsSuccessChart");
-    if (doughCtx) {
-      const ok = d.results.successCount;
-      const fail = d.results.failCount;
-      const pct = ((ok / (ok + fail)) * 100).toFixed(1);
-      tpsChartInstances.push(new Chart(doughCtx, {
-        type: "doughnut",
-        data: {
-          labels: ["성공", "실패"],
-          datasets: [{
-            data: [ok, fail],
-            backgroundColor: ["#66bb6a", "#ef5350"],
-            borderWidth: 0,
-          }],
-        },
-        options: {
-          ...chartBase,
-          aspectRatio: 1,
-          cutout: "65%",
-          plugins: {
-            legend: { position: "bottom", labels: { font: { size: 11 } } },
-            tooltip: { callbacks: { label: (c) => `${c.label}: ${Number(c.raw).toLocaleString()}건` } },
-          },
-        },
-        plugins: [{
-          id: "centerText",
-          afterDraw(chart) {
-            const { ctx, chartArea } = chart;
-            if (!chartArea) return;
-            ctx.save();
-            ctx.font = "bold 22px sans-serif";
-            ctx.fillStyle = ok / (ok + fail) >= 0.99 ? "#2e7d32" : "#e65100";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(pct + "%", chartArea.left + chartArea.width / 2, chartArea.top + chartArea.height / 2);
-            ctx.restore();
-          },
-        }],
-      }));
-    }
-
-    const distCtx = document.getElementById("tpsLatencyDistChart");
-    if (distCtx) {
-      const lt = d.latency;
-      tpsChartInstances.push(new Chart(distCtx, {
-        type: "bar",
-        data: {
-          labels: ["최소", "P50", "평균", "P95", "P99", "최대"],
-          datasets: [{
-            data: [lt.minMs, lt.p50Ms, lt.avgMs, lt.p95Ms, lt.p99Ms, lt.maxMs],
-            backgroundColor: ["#66bb6a", "#42a5f5", "#29b6f6", "#ffa726", "#ef5350", "#c62828"],
-            borderRadius: 4,
-          }],
-        },
-        options: {
-          ...chartBase,
-          indexAxis: "y",
-          aspectRatio: 1.3,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: (c) => c.raw + " ms" } },
-          },
-          scales: {
-            x: { beginAtZero: true, title: { display: true, text: "ms", font: { size: 11 } } },
-          },
-        },
-      }));
-    }
-  }
 };

@@ -1426,12 +1426,78 @@ function promiseWithTimeout(promise, ms, timeoutMessage) {
 }
 
 /**
+ * TPS 전용: 스킴 없는 호스트(:포트)는 http로 간주 (다른 API에 영향 없음)
+ */
+function normalizeTpsRpcBaseUrl(url) {
+  const s = String(url || "").trim();
+  if (!s) throw new Error("RPC URL이 비어 있습니다.");
+  const withScheme = /^https?:\/\//i.test(s) ? s : `http://${s}`;
+  return withScheme.replace(/\/+$/, "");
+}
+
+/**
+ * TPS 전용 JSON-RPC(eth_blockNumber). Web3 대비 직렬화·프로바이더 오버헤드 감소 + keep-alive 재사용.
+ */
+async function tpsEthBlockNumber(axiosInstance, rpcTimeoutMs, jsonRpcId) {
+  const body = { jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: jsonRpcId };
+  const res = await axiosInstance.post("/", body, {
+    timeout: rpcTimeoutMs,
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = res.data;
+  if (data && data.error) {
+    const e = data.error;
+    throw new Error(typeof e.message === "string" ? e.message : JSON.stringify(e));
+  }
+  const hex = data && data.result;
+  if (typeof hex !== "string" || !/^0x[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error("Invalid eth_blockNumber result");
+  }
+  return BigInt(hex).toString();
+}
+
+function tpsFormatAxiosError(err) {
+  if (err && err.code === "ECONNABORTED") return err.message || "request timeout";
+  if (err && err.response && err.response.data !== undefined) {
+    const d = err.response.data;
+    const s = typeof d === "string" ? d : JSON.stringify(d);
+    return s.length > 500 ? `${s.slice(0, 500)}…` : s;
+  }
+  if (err && typeof err.message === "string") return err.message;
+  return String(err);
+}
+
+/**
  * 블록체인 조회 TPS 성능 테스트
  * eth_blockNumber를 호출한다. 매 초 경계마다 targetTps개를 추가로 발사(이전 요청 완료를 기다리지 않음).
  * 달성 TPS = 성공 건수 ÷ duration(초). 일부 노드는 eth_getBalance가 result:null을 반환해 사용하지 않음.
+ *
+ * 구현: 이 핸들러 안에서만 axios + http(s).Agent(keep-alive)로 JSON-RPC — 타 API·전역 에이전트와 분리.
  */
 const runTpsTest = async (req, res) => {
   const { targetTps, durationSeconds, rpcUrls, rpcWeights } = req.body;
+
+  const http = require("http");
+  const https = require("https");
+  const axios = require("axios");
+
+  /** TPS 테스트 RPC 호스트당 동시 소켓 상한 (기본 1024). 다른 라우트에는 미사용. */
+  const rawSockets = parseInt(process.env.TPS_HTTP_MAX_SOCKETS, 10);
+  const maxSockets =
+    Number.isFinite(rawSockets) && rawSockets >= 64 && rawSockets <= 4096 ? rawSockets : 1024;
+
+  /**
+   * 매 초마다 targetTps개를 한 틱에 몰아넣으면 노드/LB 순간 동시 연결 피크로 socket hang up이 반복될 수 있음.
+   * 기본 true: 같은 초 안에서 (i/targetTps)*1000 ms 만큼 지연을 나눠 발사(초당 합계는 동일).
+   * 버스트 한계만 재현하려면 TPS_STAGGER_WITHIN_SECOND=0
+   */
+  const staggerRaw = process.env.TPS_STAGGER_WITHIN_SECOND;
+  const staggerWithinSecond =
+    staggerRaw === undefined || staggerRaw === null || String(staggerRaw).trim() === ""
+      ? true
+      : !/^(0|false|no|off)$/i.test(String(staggerRaw).trim());
+
+  let rpcClients = null;
 
   try {
 
@@ -1444,22 +1510,7 @@ const runTpsTest = async (req, res) => {
     /**
      * 각 RPC는 TPS_RPC_TIMEOUT_MS(기본 120s)만 적용. (과거 전역 마감으로 per-RPC 시간을 깎으면
      * 고부하 시 remaining이 줄어 전 요청이 ~50ms만 시도되어 성공 0·0TPS가 발생했음.)
-     * TPS_GLOBAL_DEADLINE_MULT는 로그·리포트용 참고(대략적인 완료 상한 초)만.
      */
-    const rawMult = process.env.TPS_GLOBAL_DEADLINE_MULT;
-    let globalDeadlineMult = 2;
-    if (rawMult !== undefined && rawMult !== null && String(rawMult).trim() !== "") {
-      const s = String(rawMult).trim().toLowerCase();
-      if (s === "0" || s === "off" || s === "false" || s === "no") {
-        globalDeadlineMult = null;
-      } else {
-        const m = parseFloat(String(rawMult), 10);
-        if (Number.isFinite(m) && m >= 1 && m <= 20) {
-          globalDeadlineMult = m;
-        }
-      }
-    }
-
     const tps = Math.min(parseInt(targetTps) || 1100, 5000);
     const duration = Math.min(parseInt(durationSeconds) || 5, 30);
     const endpoints = (rpcUrls && rpcUrls.length > 0)
@@ -1485,21 +1536,38 @@ const runTpsTest = async (req, res) => {
       return weights.length - 1;
     };
 
-    const { Web3 } = require("web3");
-    const web3Instances = endpoints.map((url) => new Web3(url));
+    const baseUrls = endpoints.map((u) => normalizeTpsRpcBaseUrl(u));
+    rpcClients = baseUrls.map((baseURL) => {
+      const httpAgent = new http.Agent({
+        keepAlive: true,
+        keepAliveMsecs: 1000,
+        maxSockets,
+        maxFreeSockets: Math.min(512, maxSockets),
+      });
+      const httpsAgent = new https.Agent({
+        keepAlive: true,
+        keepAliveMsecs: 1000,
+        maxSockets,
+        maxFreeSockets: Math.min(512, maxSockets),
+      });
+      const instance = axios.create({
+        baseURL,
+        timeout: rpcTimeoutMs,
+        httpAgent,
+        httpsAgent,
+        maxRedirects: 0,
+        validateStatus: (status) => status >= 200 && status < 300,
+      });
+      return { instance, httpAgent, httpsAgent, baseURL };
+    });
 
     const totalRequests = tps * duration;
     const requestLogs = [];
 
     const testStartTime = Date.now();
-    const referenceWallHintSeconds =
-      globalDeadlineMult != null ? duration * globalDeadlineMult + 1 : null;
 
     logger.info(
-      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, RPC 건당 타임아웃 ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개` +
-        (referenceWallHintSeconds != null
-          ? `, 참고 상한 약 ${referenceWallHintSeconds}s (반복×TPS_GLOBAL_DEADLINE_MULT+1)`
-          : "")
+      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, transport=json-rpc+axios+keep-alive, maxSockets/host=${maxSockets}, staggerWithinSec=${staggerWithinSecond}, RPC 건당 타임아웃 ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개`
     );
 
     const allPromises = [];
@@ -1514,13 +1582,19 @@ const runTpsTest = async (req, res) => {
       for (let i = 0; i < tps; i++) {
         const idx = sec * tps + i;
         const endpointIdx = pickEndpoint(idx);
-        const w3 = web3Instances[endpointIdx];
+        const client = rpcClients[endpointIdx].instance;
         allPromises.push(
           (async () => {
+            if (staggerWithinSecond && tps > 1) {
+              const staggerMs = (i * 1000) / tps;
+              if (staggerMs > 0) {
+                await new Promise((r) => setTimeout(r, staggerMs));
+              }
+            }
             const reqStart = Date.now();
             try {
               const blockNo = await promiseWithTimeout(
-                w3.eth.getBlockNumber(),
+                tpsEthBlockNumber(client, rpcTimeoutMs, idx + 1),
                 rpcTimeoutMs,
                 `eth_blockNumber timeout ${rpcTimeoutMs}ms`
               );
@@ -1541,7 +1615,7 @@ const runTpsTest = async (req, res) => {
             } catch (err) {
               const reqEnd = Date.now();
               const latency = reqEnd - reqStart;
-              const errMsg = err && typeof err.message === "string" ? err.message : String(err);
+              const errMsg = tpsFormatAxiosError(err);
               requestLogs.push({
                 seq: idx + 1,
                 second: sec + 1,
@@ -1624,6 +1698,12 @@ const runTpsTest = async (req, res) => {
       testInfo: {
         testDate: new Date(testStartTime).toISOString(),
         rpcMethod: "eth_blockNumber",
+        /** TPS 전용: 전역 Web3 미사용, 엔드포인트별 keep-alive Agent + JSON-RPC */
+        tpsTransport: {
+          mode: "json-rpc+axios+keep-alive",
+          maxSocketsPerHost: maxSockets,
+          staggerWithinSecond: staggerWithinSecond,
+        },
         rpcEndpoints: endpoints,
         rpcWeights: weights,
         rpcWeightSum: weightSum,
@@ -1643,10 +1723,6 @@ const runTpsTest = async (req, res) => {
         actualRps: parseFloat(actualRps),
         throughputPass,
         sampleBlockNumber,
-        /** 참고: 반복×배수+1초(대략 완료 상한 힌트). RPC 건당 제한과는 무관 */
-        globalDeadlineMult: globalDeadlineMult != null ? globalDeadlineMult : null,
-        globalDeadlineMaxWallSeconds:
-          globalDeadlineMult != null ? duration * globalDeadlineMult + 1 : null,
         firstFailureMessage,
       },
       latency: {
@@ -1668,6 +1744,17 @@ const runTpsTest = async (req, res) => {
   } catch (error) {
     logger.error("[TPS Test] 오류:", error);
     return res.status(500).json({ success: false, message: "TPS 테스트 중 오류가 발생했습니다.", error: error.message });
+  } finally {
+    if (rpcClients && Array.isArray(rpcClients)) {
+      for (const c of rpcClients) {
+        try {
+          if (c.httpAgent && typeof c.httpAgent.destroy === "function") c.httpAgent.destroy();
+          if (c.httpsAgent && typeof c.httpsAgent.destroy === "function") c.httpsAgent.destroy();
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
   }
 };
 
