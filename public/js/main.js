@@ -1830,8 +1830,9 @@ const setupBlockchainTab = () => {
 
     const commonOpts = {
       responsive: true,
-      maintainAspectRatio: true,
-      plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 11 } } } },
+      maintainAspectRatio: false,
+      layout: { padding: { top: 4, right: 4, bottom: 4, left: 4 } },
+      plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 10 } } } },
     };
 
     const barEl = document.getElementById("tpsBarChart");
@@ -1923,9 +1924,10 @@ const setupBlockchainTab = () => {
         },
         options: {
           responsive: true,
-          maintainAspectRatio: true,
+          maintainAspectRatio: false,
+          layout: { padding: { top: 4, bottom: 4 } },
           plugins: {
-            legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+            legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } },
             tooltip: {
               callbacks: {
                 label(ctx) {
@@ -1967,24 +1969,44 @@ const setupBlockchainTab = () => {
     );
   }
 
+  let tpsEventSource = null;
+
   const tpsForm = document.getElementById("tps-test-form");
   if (tpsForm) {
     tpsForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       lastTpsReport = null;
+      if (tpsEventSource) {
+        try {
+          tpsEventSource.close();
+        } catch (_) {
+          /* noop */
+        }
+        tpsEventSource = null;
+      }
 
       const statusEl = document.getElementById("tps-test-status");
       const panelEl = document.getElementById("tps-result-panel");
       const summaryEl = document.getElementById("tps-result-summary");
       const submitBtn = document.getElementById("tpsTestBtn");
+      const livePanel = document.getElementById("tps-live-panel");
+      const liveTbody = document.getElementById("tps-live-tbody");
+      const liveStats = document.getElementById("tps-live-stats");
 
       statusEl.style.display = "block";
       panelEl.style.display = "none";
+      if (livePanel) livePanel.style.display = "block";
+      if (liveTbody) liveTbody.innerHTML = "";
+      if (liveStats) liveStats.textContent = "연결 중…";
       submitBtn.disabled = true;
-      submitBtn.textContent = "테스트 실행 중...";
+      submitBtn.textContent = "TPS 테스트 실행 중...";
 
-      const targetTps = parseInt(document.getElementById("tpsTargetTps").value) || 1100;
+      const targetTps = Math.min(
+        Math.max(parseInt(document.getElementById("tpsTargetTps").value, 10) || 1300, 1),
+        1300
+      );
       const durationSeconds = parseInt(document.getElementById("tpsDuration").value) || 5;
+      const totalPlanned = targetTps * durationSeconds;
       /** 메인 RPC + 노드 2~5 — 가중치 모두 1(균등), UI에 노출하지 않고 고정 전송 */
       const rpcUrls = [
         "https://besu.dressdio.me",
@@ -1995,48 +2017,53 @@ const setupBlockchainTab = () => {
       ];
       const rpcWeights = [1, 1, 1, 1, 1];
 
-      try {
-        const response = await fetch("/api/utils/tps-test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ targetTps, durationSeconds, rpcUrls, rpcWeights }),
-        });
-        const result = await response.json();
+      const appendLiveRow = (row) => {
+        if (!liveTbody) return;
+        const tr = document.createElement("tr");
+        const ep = String(row.rpcEndpoint || "")
+          .replace(/^https?:\/\//, "")
+          .slice(0, 36);
+        tr.style.background = row.success ? "#fff" : "#ffebee";
+        tr.innerHTML = `
+          <td style="padding:3px 6px;">${row.seq}</td>
+          <td style="padding:3px 6px;">${row.second}</td>
+          <td style="padding:3px 6px;">${row.success ? "OK" : "FAIL"}</td>
+          <td style="padding:3px 6px;text-align:right;">${row.latencyMs}</td>
+          <td style="padding:3px 6px;word-break:break-all;">${ep}</td>`;
+        liveTbody.appendChild(tr);
+        while (liveTbody.rows.length > 200) {
+          liveTbody.deleteRow(0);
+        }
+      };
 
-        statusEl.style.display = "none";
-        submitBtn.disabled = false;
-        submitBtn.textContent = "TPS 테스트 실행";
+      const renderTpsSummary = (d) => {
+        const ti = d.testInfo;
+        const rs = d.results;
+        const N = (v) => Number(v).toLocaleString();
 
-        if (result.success && result.data) {
-          lastTpsReport = result.data;
-          const d = result.data;
-          const ti = d.testInfo;
-          const rs = d.results;
-          const N = (v) => Number(v).toLocaleString();
+        const tStyle = "width:100%;border-collapse:collapse;font-size:12px;max-width:520px;";
+        const thS =
+          "padding:6px 10px;text-align:left;white-space:nowrap;color:#333;font-weight:600;border-bottom:1px solid #e0e0e0;width:42%;vertical-align:top;";
+        const tdS = "padding:6px 10px;border-bottom:1px solid #e0e0e0;vertical-align:top;";
+        const r = (label, val) => `<tr><td style="${thS}">${label}</td><td style="${tdS}">${val}</td></tr>`;
 
-          const tStyle = "width:100%;border-collapse:collapse;font-size:12px;max-width:520px;";
-          const thS =
-            "padding:6px 10px;text-align:left;white-space:nowrap;color:#333;font-weight:600;border-bottom:1px solid #e0e0e0;width:42%;vertical-align:top;";
-          const tdS = "padding:6px 10px;border-bottom:1px solid #e0e0e0;vertical-align:top;";
-          const r = (label, val) => `<tr><td style="${thS}">${label}</td><td style="${tdS}">${val}</td></tr>`;
+        const sn = rs.sampleBlockNumber;
+        const sampleBlk =
+          sn !== undefined && sn !== null && String(sn).trim() !== "" && String(sn) !== "N/A"
+            ? `<code>${String(sn).replace(/</g, "&lt;")}</code>`
+            : "—";
 
-          const sn = rs.sampleBlockNumber;
-          const sampleBlk =
-            sn !== undefined && sn !== null && String(sn).trim() !== "" && String(sn) !== "N/A"
-              ? `<code>${String(sn).replace(/</g, "&lt;")}</code>`
-              : "—";
+        const tpsHeadBox =
+          "display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px;background:#eef5fb;border:1px solid #c5d9ed;border-radius:8px;padding:8px 16px;";
+        const tpsHeadNum =
+          "font-size:1.5rem;font-weight:700;color:#0d47a1;letter-spacing:-0.02em;line-height:1.2;";
+        const tpsHeadUnit = "font-size:0.95rem;font-weight:600;color:#546e7a;";
+        const tpsRowNum =
+          "display:inline-block;background:#f5f9fc;border:1px solid #d6e4f0;border-radius:6px;padding:4px 12px;font-size:1.05rem;font-weight:700;color:#0d47a1;";
 
-          const tpsHeadBox =
-            "display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px;background:#eef5fb;border:1px solid #c5d9ed;border-radius:8px;padding:8px 16px;";
-          const tpsHeadNum =
-            "font-size:1.5rem;font-weight:700;color:#0d47a1;letter-spacing:-0.02em;line-height:1.2;";
-          const tpsHeadUnit = "font-size:0.95rem;font-weight:600;color:#546e7a;";
-          const tpsRowNum =
-            "display:inline-block;background:#f5f9fc;border:1px solid #d6e4f0;border-radius:6px;padding:4px 12px;font-size:1.05rem;font-weight:700;color:#0d47a1;";
+        const summaryHead = `초당 요청 설정 <b>${N(ti.targetTps)}</b>건 <span style="color:#bdbdbd;margin:0 4px">·</span> <span style="${tpsHeadBox}"><span style="font-size:12px;font-weight:600;color:#546e7a;">관측 TPS</span><span><span style="${tpsHeadNum}">${rs.actualRps}</span> <span style="${tpsHeadUnit}">건/초</span></span></span>`;
 
-          const summaryHead = `초당 요청 설정 <b>${N(ti.targetTps)}</b>건 <span style="color:#bdbdbd;margin:0 4px">·</span> <span style="${tpsHeadBox}"><span style="font-size:12px;font-weight:600;color:#546e7a;">관측 TPS</span><span><span style="${tpsHeadNum}">${rs.actualRps}</span> <span style="${tpsHeadUnit}">건/초</span></span></span>`;
-
-          summaryEl.innerHTML = `
+        summaryEl.innerHTML = `
             <div style="margin-bottom:12px;font-size:14px;line-height:1.55;color:#333;">${summaryHead}</div>
             <table style="${tStyle}">
               ${r("부하 유형", `${ti.rpcMethod} 반복 호출`)}
@@ -2065,23 +2092,103 @@ const setupBlockchainTab = () => {
             </table>
           `;
 
-          panelEl.style.display = "block";
-          requestAnimationFrame(() => renderTpsCharts(d));
-        } else {
-          lastTpsReport = null;
-          clearTpsCharts();
-          summaryEl.innerHTML = `<div style="color:#c62828;font-weight:bold;padding:10px;">${
-            result.message || "TPS 테스트에 실패했습니다."
-          }</div>`;
-          panelEl.style.display = "block";
+        panelEl.style.display = "block";
+        requestAnimationFrame(() => renderTpsCharts(d));
+      };
+
+      try {
+        const startRes = await fetch("/api/utils/tps-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetTps, durationSeconds, rpcUrls, rpcWeights, live: true }),
+        });
+        const startJson = await startRes.json();
+        if (!startRes.ok || !startJson.success || !startJson.jobId) {
+          throw new Error(startJson.message || startJson.error || `HTTP ${startRes.status}`);
         }
 
+        const streamUrl = `${window.location.origin}/api/utils/tps-test/stream/${startJson.jobId}`;
+        let ok = 0;
+        let fail = 0;
+        let seen = 0;
+        let streamFinished = false;
+
+        await new Promise((resolve, reject) => {
+          const maxWaitMs = Math.min(durationSeconds * 90 * 1000 + 180000, 20 * 60 * 1000);
+          const timeoutId = setTimeout(() => {
+            if (streamFinished) return;
+            streamFinished = true;
+            try {
+              if (tpsEventSource) tpsEventSource.close();
+            } catch (_) {
+              /* noop */
+            }
+            tpsEventSource = null;
+            reject(new Error("테스트가 제한 시간 내에 끝나지 않았습니다."));
+          }, maxWaitMs);
+
+          tpsEventSource = new EventSource(streamUrl);
+          if (liveStats) {
+            liveStats.textContent = `진행 0 / ${totalPlanned} · 성공 0 · 실패 0`;
+          }
+
+          tpsEventSource.onmessage = (ev) => {
+            let msg;
+            try {
+              msg = JSON.parse(ev.data);
+            } catch (_) {
+              return;
+            }
+            if (msg.type === "row" && msg.row) {
+              seen += 1;
+              if (msg.row.success) ok += 1;
+              else fail += 1;
+              if (liveStats) {
+                liveStats.textContent = `진행 ${seen} / ${totalPlanned} · 성공 ${ok} · 실패 ${fail}`;
+              }
+              appendLiveRow(msg.row);
+            } else if (msg.type === "done" && msg.data) {
+              streamFinished = true;
+              clearTimeout(timeoutId);
+              try {
+                tpsEventSource.close();
+              } catch (_) {
+                /* noop */
+              }
+              tpsEventSource = null;
+              lastTpsReport = msg.data;
+              renderTpsSummary(msg.data);
+              statusEl.style.display = "none";
+              submitBtn.disabled = false;
+              submitBtn.textContent = "TPS 테스트 실행";
+              resolve();
+            } else if (msg.type === "error") {
+              streamFinished = true;
+              clearTimeout(timeoutId);
+              try {
+                tpsEventSource.close();
+              } catch (_) {
+                /* noop */
+              }
+              tpsEventSource = null;
+              reject(new Error(msg.message || "TPS 테스트 오류"));
+            }
+          };
+        });
       } catch (error) {
         statusEl.style.display = "none";
         submitBtn.disabled = false;
         submitBtn.textContent = "TPS 테스트 실행";
         lastTpsReport = null;
         clearTpsCharts();
+        if (tpsEventSource) {
+          try {
+            tpsEventSource.close();
+          } catch (_) {
+            /* noop */
+          }
+          tpsEventSource = null;
+        }
         summaryEl.innerHTML = `<div style="color:#c62828;font-weight:bold;padding:10px;">오류: ${error.message}</div>`;
         panelEl.style.display = "block";
       }
@@ -2089,14 +2196,16 @@ const setupBlockchainTab = () => {
   }
 
   /**
-   * PDF용: Nginx client_max_body_size(종종 1MB) 초과 방지. 실패 시 error 문자열이 매우 길어져 413이 날 수 있음.
+   * PDF용: error 문자열만 줄여 POST 본문 크기 완화(요청 로그 행 수는 그대로 전달).
    */
   function slimReportForTpsPdf(report) {
-    const MAX_ERR_LEN = 120;
-    const MAX_LOG_ROWS = 4000;
+    const MAX_ERR_LEN = 500;
     const out = JSON.parse(JSON.stringify(report));
     const logs = out.requestLogs;
     if (!Array.isArray(logs) || logs.length === 0) return out;
+    if (out.testInfo && out.testInfo.pdfLogsNote) {
+      delete out.testInfo.pdfLogsNote;
+    }
     for (let i = 0; i < logs.length; i++) {
       const log = logs[i];
       if (log && log.error != null) {
@@ -2104,12 +2213,76 @@ const setupBlockchainTab = () => {
         log.error = s.length > MAX_ERR_LEN ? `${s.slice(0, MAX_ERR_LEN)}…` : s;
       }
     }
-    if (logs.length > MAX_LOG_ROWS) {
-      out.testInfo = out.testInfo || {};
-      out.testInfo.pdfLogsNote = `요청 로그 ${logs.length.toLocaleString()}건 중 앞 ${MAX_LOG_ROWS.toLocaleString()}건만 PDF에 포함`;
-      out.requestLogs = logs.slice(0, MAX_LOG_ROWS);
-    }
     return out;
+  }
+
+  function tpsCsvEscapeCell(v) {
+    if (v == null || v === undefined) return "";
+    const s = String(v);
+    if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  function downloadTpsReportAsCsv(report) {
+    const logs = report && Array.isArray(report.requestLogs) ? report.requestLogs : [];
+    const header = [
+      "seq",
+      "second",
+      "timestamp",
+      "success",
+      "latency_ms",
+      "method",
+      "rpc_endpoint",
+      "response_block_number",
+      "error",
+    ];
+    const lines = [header.join(",")];
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i];
+      lines.push(
+        [
+          log.seq,
+          log.second,
+          log.timestamp,
+          log.success === true ? "true" : log.success === false ? "false" : "",
+          log.latencyMs,
+          log.method,
+          log.rpcEndpoint,
+          log.responseBlockNumber != null && log.responseBlockNumber !== ""
+            ? log.responseBlockNumber
+            : "",
+          log.error != null ? log.error : "",
+        ]
+          .map(tpsCsvEscapeCell)
+          .join(",")
+      );
+    }
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `TPS_request_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const tpsCsvBtn = document.getElementById("tpsDownloadCsvBtn");
+  if (tpsCsvBtn) {
+    tpsCsvBtn.addEventListener("click", () => {
+      if (!lastTpsReport) {
+        alert("먼저 TPS 테스트를 실행해 주세요.");
+        return;
+      }
+      const logs = lastTpsReport.requestLogs;
+      if (!Array.isArray(logs) || logs.length === 0) {
+        alert("다운로드할 요청 로그가 없습니다.");
+        return;
+      }
+      downloadTpsReportAsCsv(lastTpsReport);
+    });
   }
 
   const tpsPdfBtn = document.getElementById("tpsDownloadPdfBtn");

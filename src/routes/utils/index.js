@@ -258,6 +258,7 @@ router.get(
  *             properties:
  *               targetTps:
  *                 type: integer
+ *                 description: 초당 요청 수 (1~1300, API에서는 초과 시 1300으로 제한)
  *               durationSeconds:
  *                 type: integer
  *               rpcUrls:
@@ -271,6 +272,11 @@ router.get(
  *                   type: number
  */
 router.post("/tps-test", utilController.runTpsTest);
+
+/**
+ * TPS 테스트 실시간 로그 (Server-Sent Events). POST /tps-test body에 live:true 로 받은 jobId 사용.
+ */
+router.get("/tps-test/stream/:jobId", utilController.streamTpsTest);
 
 /**
  * @swagger

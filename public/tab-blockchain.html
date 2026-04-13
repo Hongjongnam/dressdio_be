@@ -9,47 +9,73 @@
     </p>
     <form id="tps-test-form" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; align-items:end; max-width:420px;">
       <div>
-        <label for="tpsTargetTps">초당 요청 수</label>
-        <input type="number" id="tpsTargetTps" name="targetTps" value="1100" min="1" max="5000" required style="margin:0" />
+        <label for="tpsTargetTps">초당 요청 수 <span style="font-weight:400;color:#888;">(최대 1300)</span></label>
+        <input type="number" id="tpsTargetTps" name="targetTps" value="1300" min="1" max="1300" required style="margin:0" title="1 ~ 1300" />
       </div>
       <div>
         <label for="tpsDuration">측정 구간 (초)</label>
-        <input type="number" id="tpsDuration" name="durationSeconds" value="5" min="1" max="30" required style="margin:0" />
+        <input type="number" id="tpsDuration" name="durationSeconds" value="5" min="1" max="60" required style="margin:0" />
       </div>
       <div style="grid-column:1/-1;">
-        <button type="submit" id="tpsTestBtn" style="margin:0; white-space:nowrap;">테스트 실행</button>
+        <button type="submit" id="tpsTestBtn" style="margin:0; white-space:nowrap;">TPS 테스트 실행</button>
       </div>
     </form>
 
     <div id="tps-test-status" style="display:none; margin-top:10px; padding:10px; background:#fff3e0; border-radius:6px; font-weight:bold;">
-      테스트 실행 중...
+      TPS 테스트 실행 중...
+    </div>
+
+    <div id="tps-live-panel" style="display:none; margin-top:12px; padding:12px; background:#fafafa; border:1px solid #e0e0e0; border-radius:8px; max-width:720px;">
+      <div style="font-size:13px; font-weight:700; color:#1565c0; margin-bottom:6px;">요청 및 응답</div>
+      <div id="tps-live-stats" style="font-size:12px; font-weight:600; color:#333; margin-bottom:8px;">실시간 로그</div>
+      <div style="max-height:240px; overflow:auto; border:1px solid #eee; border-radius:6px; background:#fff;">
+        <table style="width:100%; border-collapse:collapse; font-size:11px;">
+          <thead>
+            <tr style="background:#eceff1; position:sticky; top:0;">
+              <th style="padding:4px 6px; text-align:left;">#</th>
+              <th style="padding:4px 6px; text-align:left;">초</th>
+              <th style="padding:4px 6px; text-align:left;">결과</th>
+              <th style="padding:4px 6px; text-align:right;">ms</th>
+              <th style="padding:4px 6px; text-align:left;">엔드포인트</th>
+            </tr>
+          </thead>
+          <tbody id="tps-live-tbody"></tbody>
+        </table>
+      </div>
+      <p style="margin:8px 0 0; font-size:10px; color:#888;">완료되는 대로 표시됩니다(응답 순). 최근 약 200건만 유지합니다.</p>
     </div>
 
     <div id="tps-result-panel" style="display:none; margin-top:12px;">
       <div id="tps-result-summary"></div>
 
-      <div id="tps-charts" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px;">
-        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
-          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px;">초별 성공 건수</div>
-          <div style="position:relative; width:100%;"><canvas id="tpsBarChart"></canvas></div>
-        </div>
-        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
-          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px;">초별 응답 시간 (ms)</div>
-          <div style="position:relative; width:100%;"><canvas id="tpsLatencyChart"></canvas></div>
-        </div>
-        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
-          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px; text-align:center;">성공 / 실패</div>
-          <div style="position:relative; width:100%; max-width:240px; margin:0 auto;"><canvas id="tpsSuccessChart"></canvas></div>
-        </div>
-        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
-          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px; text-align:center;">응답 시간 분포 (ms)</div>
-          <div style="position:relative; width:100%;"><canvas id="tpsLatencyDistChart"></canvas></div>
-        </div>
+      <div id="tps-download-row" style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-start;">
+        <button type="button" id="tpsDownloadPdfBtn" style="width:auto; max-width:100%; margin-top:0; display:inline-flex; align-items:center; justify-content:center; padding:6px 14px; font-size:12px; line-height:1.35; background:#1565c0; color:white; border:none; border-radius:5px; cursor:pointer; white-space:nowrap;">
+          PDF 보고서
+        </button>
+        <button type="button" id="tpsDownloadCsvBtn" style="width:auto; max-width:100%; margin-top:0; display:inline-flex; align-items:center; justify-content:center; padding:6px 14px; font-size:12px; line-height:1.35; background:#fff; color:#1565c0; border:1px solid #1565c0; border-radius:5px; cursor:pointer; white-space:nowrap;">
+          요청·응답 CSV
+        </button>
       </div>
 
-      <button type="button" id="tpsDownloadPdfBtn" style="margin-top:14px; padding:8px 18px; background:#1565c0; color:white; border:none; border-radius:6px; cursor:pointer;">
-        PDF 보고서 다운로드
-      </button>
+      <div style="font-size:13px; font-weight:700; color:#333; margin:22px 0 10px; padding-bottom:4px; border-bottom:1px solid #e0e0e0; max-width:900px;">시각화</div>
+      <div id="tps-charts" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px 14px; margin-top:4px; max-width:900px;">
+        <div class="tps-chart-cell" style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:10px 12px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:4px;">초별 성공 건수</div>
+          <div class="tps-chart-wrap" style="position:relative; height:220px; width:100%;"><canvas id="tpsBarChart"></canvas></div>
+        </div>
+        <div class="tps-chart-cell" style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:10px 12px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:4px;">초별 응답 시간 (ms)</div>
+          <div class="tps-chart-wrap" style="position:relative; height:220px; width:100%;"><canvas id="tpsLatencyChart"></canvas></div>
+        </div>
+        <div class="tps-chart-cell" style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:10px 12px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:4px; text-align:center;">성공 / 실패</div>
+          <div class="tps-chart-wrap tps-chart-wrap--doughnut" style="position:relative; height:200px; max-width:260px; margin:0 auto; width:100%;"><canvas id="tpsSuccessChart"></canvas></div>
+        </div>
+        <div class="tps-chart-cell" style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:10px 12px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:4px; text-align:center;">응답 시간 분포 (ms)</div>
+          <div class="tps-chart-wrap" style="position:relative; height:220px; width:100%;"><canvas id="tpsLatencyDistChart"></canvas></div>
+        </div>
+      </div>
     </div>
   </fieldset>
 
