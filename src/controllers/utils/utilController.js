@@ -1513,11 +1513,42 @@ const runTpsTest = async (req, res) => {
      */
     const tps = Math.min(parseInt(targetTps) || 1100, 5000);
     const duration = Math.min(parseInt(durationSeconds) || 5, 30);
-    const endpoints = (rpcUrls && rpcUrls.length > 0)
-      ? rpcUrls
-      : [process.env.RPC_URL || "https://besu.dressdio.me"];
 
-    const weightsRaw = Array.isArray(rpcWeights) ? rpcWeights : null;
+    /**
+     * 배포 서버 전용(실서비스 로직과 무관): TPS 테스트만 VPC 내부 RPC(프라이빗 IP:8545)로 보내려면
+     * TPS_TEST_RPC_ENDPOINTS="http://172.31.a.b:8545,..." 를 설정하면 요청 body의 rpcUrls보다 우선한다.
+     * 로컬/미설정 시 기존과 동일(body 또는 기본 RPC_URL).
+     */
+    const envTpsRpc = process.env.TPS_TEST_RPC_ENDPOINTS;
+    let rpcEndpointSource = "request";
+    let endpoints;
+    if (envTpsRpc != null && String(envTpsRpc).trim() !== "") {
+      const parsed = String(envTpsRpc)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parsed.length > 0) {
+        endpoints = parsed;
+        rpcEndpointSource = "env:TPS_TEST_RPC_ENDPOINTS";
+      } else {
+        endpoints =
+          rpcUrls && rpcUrls.length > 0
+            ? rpcUrls
+            : [process.env.RPC_URL || "https://besu.dressdio.me"];
+      }
+    } else {
+      endpoints =
+        rpcUrls && rpcUrls.length > 0
+          ? rpcUrls
+          : [process.env.RPC_URL || "https://besu.dressdio.me"];
+    }
+
+    const weightsRaw =
+      rpcEndpointSource === "env:TPS_TEST_RPC_ENDPOINTS"
+        ? null
+        : Array.isArray(rpcWeights)
+          ? rpcWeights
+          : null;
     const weights = endpoints.map((_, i) => {
       const w = weightsRaw && weightsRaw[i] !== undefined && weightsRaw[i] !== null
         ? parseFloat(weightsRaw[i])
@@ -1567,7 +1598,7 @@ const runTpsTest = async (req, res) => {
     const testStartTime = Date.now();
 
     logger.info(
-      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, transport=json-rpc+axios+keep-alive, maxSockets/host=${maxSockets}, staggerWithinSec=${staggerWithinSecond}, RPC 건당 타임아웃 ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개`
+      `[TPS Test] 시작: ${tps}/s × ${duration}s = ${totalRequests}건, transport=json-rpc+axios+keep-alive, maxSockets/host=${maxSockets}, staggerWithinSec=${staggerWithinSecond}, RPC 건당 타임아웃 ${rpcTimeoutMs}ms, 노드 ${endpoints.length}개, rpc출처=${rpcEndpointSource}`
     );
 
     const allPromises = [];
@@ -1688,6 +1719,27 @@ const runTpsTest = async (req, res) => {
 
     const throughputPass = parseFloat(actualRps) >= tps;
 
+    /** TPS 완료 시점: 프로세스 메모리·엔드포인트별 실패 건수 — 부하 한계(백엔드 vs RPC) 추적용 */
+    try {
+      const mu = process.memoryUsage();
+      const rssMb = (mu.rss / 1024 / 1024).toFixed(1);
+      const heapMb = (mu.heapUsed / 1024 / 1024).toFixed(1);
+      const failByEndpoint = {};
+      for (let fi = 0; fi < requestLogs.length; fi++) {
+        const row = requestLogs[fi];
+        if (row && row.success === false && row.rpcEndpoint) {
+          const key = String(row.rpcEndpoint).replace(/^https?:\/\//, "").slice(0, 56);
+          failByEndpoint[key] = (failByEndpoint[key] || 0) + 1;
+        }
+      }
+      logger.info(
+        `[TPS Test] 완료: 성공 ${successCount}/${totalRequests} (${successRate}%), 실패 ${failCount}, wall ${totalElapsedMs}ms, ` +
+          `Node RSS=${rssMb}MiB heapUsed=${heapMb}MiB, 실패분포=${JSON.stringify(failByEndpoint)}`
+      );
+    } catch (e) {
+      logger.warn("[TPS Test] 완료 요약 로그 생략:", e && e.message);
+    }
+
     const rpcRequestCounts = endpoints.map((ep) => ({
       endpoint: ep,
       count: requestLogs.filter((r) => r.rpcEndpoint === ep).length,
@@ -1705,6 +1757,8 @@ const runTpsTest = async (req, res) => {
           staggerWithinSecond: staggerWithinSecond,
         },
         rpcEndpoints: endpoints,
+        /** request | env:TPS_TEST_RPC_ENDPOINTS — 배포에서 VPC 프라이빗 RPC만 쓸 때 구분 */
+        rpcEndpointSource,
         rpcWeights: weights,
         rpcWeightSum: weightSum,
         rpcExpectedDistributionPct: rpcExpectedPct,
