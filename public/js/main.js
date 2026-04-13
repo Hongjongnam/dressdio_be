@@ -1773,6 +1773,199 @@ const setupBlockchainTab = () => {
 
   // ===== TPS 성능 테스트 =====
   let lastTpsReport = null;
+  let tpsChartInstances = [];
+
+  function clearTpsCharts() {
+    tpsChartInstances.forEach((ch) => {
+      try {
+        ch.destroy();
+      } catch (e) {
+        /* noop */
+      }
+    });
+    tpsChartInstances = [];
+  }
+
+  function renderTpsCharts(d) {
+    if (typeof Chart === "undefined") return;
+    clearTpsCharts();
+
+    const ti = d.testInfo || {};
+    const rs = d.results || {};
+    const stats = Array.isArray(d.perSecondStats) ? d.perSecondStats : [];
+    const targetTps = Number(ti.targetTps) || 0;
+    const labels = stats.map((s) => `${s.second}초`);
+    const successPerSec = stats.map((s) => s.success);
+    const targetLine = stats.map(() => targetTps);
+    const avgLatPerSec = stats.map((s) => s.avgLatencyMs);
+
+    const ok = Number(rs.successCount) || 0;
+    const fail = Number(rs.failCount) || 0;
+    const totalOkFail = ok + fail;
+    let doughnutData;
+    let doughnutLabels;
+    let doughnutColors;
+    if (totalOkFail === 0) {
+      doughnutData = [1];
+      doughnutLabels = ["데이터 없음"];
+      doughnutColors = ["#e0e0e0"];
+    } else {
+      doughnutData = [ok, fail];
+      doughnutLabels = ["성공", "실패"];
+      doughnutColors = ["#2e7d32", "#c62828"];
+    }
+
+    const logs = Array.isArray(d.requestLogs) ? d.requestLogs : [];
+    const latencies = logs.filter((r) => r && r.success).map((r) => r.latencyMs);
+    const histLabels = ["0–50", "50–100", "100–200", "200–500", "500+"];
+    const histCounts = [0, 0, 0, 0, 0];
+    for (let i = 0; i < latencies.length; i++) {
+      const ms = latencies[i];
+      if (ms < 50) histCounts[0]++;
+      else if (ms < 100) histCounts[1]++;
+      else if (ms < 200) histCounts[2]++;
+      else if (ms < 500) histCounts[3]++;
+      else histCounts[4]++;
+    }
+
+    const commonOpts = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 11 } } } },
+    };
+
+    const barEl = document.getElementById("tpsBarChart");
+    const latEl = document.getElementById("tpsLatencyChart");
+    const succEl = document.getElementById("tpsSuccessChart");
+    const distEl = document.getElementById("tpsLatencyDistChart");
+    if (!barEl || !latEl || !succEl || !distEl) return;
+
+    if (labels.length > 0) {
+      tpsChartInstances.push(
+        new Chart(barEl.getContext("2d"), {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                type: "bar",
+                label: "성공 건수",
+                data: successPerSec,
+                backgroundColor: "rgba(21,101,192,0.55)",
+                borderColor: "#1565c0",
+                borderWidth: 1,
+                order: 1,
+              },
+              {
+                type: "line",
+                label: "설정 초당 요청",
+                data: targetLine,
+                borderColor: "#ff9800",
+                backgroundColor: "transparent",
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.2,
+                order: 2,
+              },
+            ],
+          },
+          options: {
+            ...commonOpts,
+            scales: {
+              y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+              x: { ticks: { font: { size: 10 }, maxRotation: 0 } },
+            },
+          },
+        })
+      );
+
+      tpsChartInstances.push(
+        new Chart(latEl.getContext("2d"), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "평균 응답 (ms)",
+                data: avgLatPerSec,
+                borderColor: "#6a1b9a",
+                backgroundColor: "rgba(106,27,154,0.08)",
+                fill: true,
+                tension: 0.25,
+                pointRadius: 2,
+              },
+            ],
+          },
+          options: {
+            ...commonOpts,
+            scales: {
+              y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+              x: { ticks: { font: { size: 10 }, maxRotation: 0 } },
+            },
+          },
+        })
+      );
+    }
+
+    tpsChartInstances.push(
+      new Chart(succEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: doughnutLabels,
+          datasets: [
+            {
+              data: doughnutData,
+              backgroundColor: doughnutColors,
+              borderWidth: 1,
+              borderColor: "#fff",
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                label(ctx) {
+                  const val = ctx.raw;
+                  if (totalOkFail === 0) return `${ctx.label}: —`;
+                  const pct = ((val / totalOkFail) * 100).toFixed(1);
+                  return `${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
+                },
+              },
+            },
+          },
+        },
+      })
+    );
+
+    tpsChartInstances.push(
+      new Chart(distEl.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: histLabels,
+          datasets: [
+            {
+              label: "건수",
+              data: histCounts,
+              backgroundColor: "rgba(46,125,50,0.55)",
+              borderColor: "#2e7d32",
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          ...commonOpts,
+          scales: {
+            y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+            x: { ticks: { font: { size: 10 }, maxRotation: 0 } },
+          },
+        },
+      })
+    );
+  }
 
   const tpsForm = document.getElementById("tps-test-form");
   if (tpsForm) {
@@ -1819,8 +2012,6 @@ const setupBlockchainTab = () => {
           const d = result.data;
           const ti = d.testInfo;
           const rs = d.results;
-          const passed =
-            rs.throughputPass !== undefined ? rs.throughputPass : rs.actualRps >= ti.targetTps;
           const N = (v) => Number(v).toLocaleString();
 
           const tStyle = "width:100%;border-collapse:collapse;font-size:12px;max-width:520px;";
@@ -1835,15 +2026,21 @@ const setupBlockchainTab = () => {
               ? `<code>${String(sn).replace(/</g, "&lt;")}</code>`
               : "—";
 
-          const goalLine = passed
-            ? `<span style="color:#2e7d32">목표 ${N(ti.targetTps)} 건/초 대비 달성 <b>${rs.actualRps}</b> 건/초 (목표 충족)</span>`
-            : `<span style="color:#e65100">목표 ${N(ti.targetTps)} 건/초 대비 달성 <b>${rs.actualRps}</b> 건/초 (목표 미달)</span>`;
+          const tpsHeadBox =
+            "display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px;background:#eef5fb;border:1px solid #c5d9ed;border-radius:8px;padding:8px 16px;";
+          const tpsHeadNum =
+            "font-size:1.5rem;font-weight:700;color:#0d47a1;letter-spacing:-0.02em;line-height:1.2;";
+          const tpsHeadUnit = "font-size:0.95rem;font-weight:600;color:#546e7a;";
+          const tpsRowNum =
+            "display:inline-block;background:#f5f9fc;border:1px solid #d6e4f0;border-radius:6px;padding:4px 12px;font-size:1.05rem;font-weight:700;color:#0d47a1;";
+
+          const summaryHead = `초당 요청 설정 <b>${N(ti.targetTps)}</b>건 <span style="color:#bdbdbd;margin:0 4px">·</span> <span style="${tpsHeadBox}"><span style="font-size:12px;font-weight:600;color:#546e7a;">관측 TPS</span><span><span style="${tpsHeadNum}">${rs.actualRps}</span> <span style="${tpsHeadUnit}">건/초</span></span></span>`;
 
           summaryEl.innerHTML = `
-            <div style="margin-bottom:10px;font-size:13px;line-height:1.5;">${goalLine}</div>
+            <div style="margin-bottom:12px;font-size:14px;line-height:1.55;color:#333;">${summaryHead}</div>
             <table style="${tStyle}">
-              ${r("부하 유형", `${ti.rpcMethod} 반복 호출(블록 높이 조회, 읽기 전용)`)}
-              ${r("목표 초당 요청 수", `${N(ti.targetTps)} 건/초`)}
+              ${r("부하 유형", `${ti.rpcMethod} 반복 호출`)}
+              ${r("초당 요청 설정", `${N(ti.targetTps)} 건`)}
               ${r("측정 구간", `${ti.durationSeconds} 초`)}
               ${r("총 요청", `${N(ti.totalPlannedRequests)}건`)}
               ${r("성공", `${N(rs.successCount)}건 (${rs.successRate})`)}
@@ -1859,8 +2056,8 @@ const setupBlockchainTab = () => {
                     )
                   : ""
               }
-              ${r("달성 TPS", `<b>${rs.actualRps}</b> 건/초 <span style="color:#666;font-size:11px;font-weight:400">(성공 건수 ÷ 측정 구간 초)</span>`)}
-              ${r("총 소요 시간", `${rs.totalElapsedSeconds} 초 <span style="color:#666;font-size:11px;font-weight:400">(발사 시작~전체 완료)</span>`)}
+              ${r("관측 TPS", `<span style="${tpsRowNum}">${rs.actualRps}</span> <span style="font-weight:500;color:#546e7a;">건/초</span>`)}
+              ${r("총 소요 시간", `${rs.totalElapsedSeconds} 초`)}
               ${r("평균 응답", `${d.latency.avgMs} ms`)}
               ${r("최소 / 최대", `${d.latency.minMs} ms / ${d.latency.maxMs} ms`)}
               ${r("P50 / P95 / P99", `${d.latency.p50Ms} / ${d.latency.p95Ms} / ${d.latency.p99Ms} ms`)}
@@ -1869,12 +2066,22 @@ const setupBlockchainTab = () => {
           `;
 
           panelEl.style.display = "block";
+          requestAnimationFrame(() => renderTpsCharts(d));
+        } else {
+          lastTpsReport = null;
+          clearTpsCharts();
+          summaryEl.innerHTML = `<div style="color:#c62828;font-weight:bold;padding:10px;">${
+            result.message || "TPS 테스트에 실패했습니다."
+          }</div>`;
+          panelEl.style.display = "block";
         }
 
       } catch (error) {
         statusEl.style.display = "none";
         submitBtn.disabled = false;
         submitBtn.textContent = "TPS 테스트 실행";
+        lastTpsReport = null;
+        clearTpsCharts();
         summaryEl.innerHTML = `<div style="color:#c62828;font-weight:bold;padding:10px;">오류: ${error.message}</div>`;
         panelEl.style.display = "block";
       }

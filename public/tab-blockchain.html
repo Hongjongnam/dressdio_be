@@ -4,8 +4,8 @@
   <fieldset style="grid-column: 1 / -1; border: 2px solid #1565c0;">
     <legend style="color:#1565c0; font-weight:bold;">TPS 성능 테스트 (POST /api/utils/tps-test)</legend>
     <p class="description" style="margin:0 0 10px; font-size:12px; color:#666; line-height:1.45;">
-      <code style="font-size:11px;">eth_blockNumber</code>(블록 높이)만 반복 호출하는 <strong>읽기 전용</strong> 부하 테스트입니다. 지갑·트랜잭션과 무관합니다.
-      <strong>측정 구간(초)</strong> 동안 목표 <strong>초당 요청 수</strong>를 유지하며, 결과는 모든 요청이 끝난 뒤 한 번에 집계됩니다.
+      <code style="font-size:11px;">eth_blockNumber</code> 읽기 전용. <strong>측정 구간</strong> 동안 설정한 <strong>초당 요청</strong>을 보냅니다.
+      <strong>관측 TPS</strong>는 성공 건수÷총 소요 시간입니다.
     </p>
     <form id="tps-test-form" style="display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; align-items:end; max-width:420px;">
       <div>
@@ -27,6 +27,25 @@
 
     <div id="tps-result-panel" style="display:none; margin-top:12px;">
       <div id="tps-result-summary"></div>
+
+      <div id="tps-charts" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px;">
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px;">초별 성공 건수</div>
+          <div style="position:relative; width:100%;"><canvas id="tpsBarChart"></canvas></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px;">초별 응답 시간 (ms)</div>
+          <div style="position:relative; width:100%;"><canvas id="tpsLatencyChart"></canvas></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px; text-align:center;">성공 / 실패</div>
+          <div style="position:relative; width:100%; max-width:240px; margin:0 auto;"><canvas id="tpsSuccessChart"></canvas></div>
+        </div>
+        <div style="background:#fff; border:1px solid #e0e0e0; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#333; margin-bottom:6px; text-align:center;">응답 시간 분포 (ms)</div>
+          <div style="position:relative; width:100%;"><canvas id="tpsLatencyDistChart"></canvas></div>
+        </div>
+      </div>
 
       <button type="button" id="tpsDownloadPdfBtn" style="margin-top:14px; padding:8px 18px; background:#1565c0; color:white; border:none; border-radius:6px; cursor:pointer;">
         PDF 보고서 다운로드

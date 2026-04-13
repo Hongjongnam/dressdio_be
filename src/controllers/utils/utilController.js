@@ -1698,8 +1698,11 @@ const runTpsTest = async (req, res) => {
     const successCount = requestLogs.filter((r) => r.success).length;
     const failCount = requestLogs.filter((r) => !r.success).length;
     const successRate = ((successCount / totalRequests) * 100).toFixed(2);
-    /** 달성 TPS: 설정한 테스트 구간(초)당 성공 건수 — 전 구간 성공 시 targetTps와 일치 */
-    const actualRps = (duration > 0 ? successCount / duration : 0).toFixed(2);
+    /** 달성 TPS: 성공 건수 ÷ 총 소요 시간(초) — 발사 시작~마지막 응답 완료까지의 벽시계 */
+    const actualRps =
+      totalElapsedMs > 0
+        ? ((successCount / totalElapsedMs) * 1000).toFixed(2)
+        : "0.00";
 
     const latencies = requestLogs.filter((r) => r.success).map((r) => r.latencyMs).sort((a, b) => a - b);
     const avgLatency = latencies.length > 0
@@ -1789,9 +1792,7 @@ const runTpsTest = async (req, res) => {
       },
       perSecondStats,
       requestLogs,
-      verdict: throughputPass
-        ? `PASS (통과) — 달성 ${actualRps} TPS (초당 처리 건수), 목표 ${tps} TPS`
-        : `달성 ${actualRps} TPS (건/초), 목표 ${tps} TPS`,
+      verdict: `설정 초당 요청 ${tps}건, 관측 TPS ${actualRps}건/초`,
     };
 
     return res.json({ success: true, data: report });
@@ -1873,9 +1874,6 @@ const downloadTpsReport = async (req, res) => {
     const L = 40;
     const R = 555;
     const TW = R - L;
-    const passed =
-      rs.throughputPass !== undefined ? rs.throughputPass : rs.actualRps >= ti.targetTps;
-
     const checkPage = (h) => { if (doc.y + h > 780) doc.addPage(); };
 
     // ── helpers ──
@@ -1976,7 +1974,7 @@ const downloadTpsReport = async (req, res) => {
         : "—";
       kvRow(`    #${i + 1}`, `${ep}  |  ${act}`);
     });
-    kvRow("Target TPS", `${ti.targetTps.toLocaleString()} req/sec`, { bg: "#f8f9fa" });
+    kvRow("설정 초당 요청", `${ti.targetTps.toLocaleString()} 건`, { bg: "#f8f9fa" });
     kvRow("Duration", `${ti.durationSeconds} sec`);
     kvRow("Total Requests", `${ti.totalPlannedRequests.toLocaleString()}  (${ti.targetTps.toLocaleString()} x ${ti.durationSeconds}s)`, { bg: "#f8f9fa" });
 
@@ -1988,9 +1986,9 @@ const downloadTpsReport = async (req, res) => {
     kvRow("Sample block #", rs.sampleBlockNumber);
     doc.moveDown(0.4);
     checkPage(30);
-    doc.rect(L, doc.y, TW, 26).fill(passed ? "#e8f5e9" : "#fff3e0").strokeColor(passed ? "#66bb6a" : "#ff9800").lineWidth(1).stroke();
-    doc.fontSize(14).font(bodyFont).fillColor(passed ? "#2e7d32" : "#e65100")
-      .text(`Achieved:  ${rs.actualRps}  TPS  (req/sec, read-only)`, L, doc.y + 6, { width: TW, align: "center" });
+    doc.rect(L, doc.y, TW, 26).fill("#f5f5f5").strokeColor("#ccc").lineWidth(1).stroke();
+    doc.fontSize(12).font(bodyFont).fillColor("#000")
+      .text(`관측 TPS ${rs.actualRps} 건/초  ·  설정 ${ti.targetTps} 건/초`, L, doc.y + 8, { width: TW, align: "center" });
     doc.fillColor("#000");
     doc.y += 30;
 
@@ -2011,10 +2009,10 @@ const downloadTpsReport = async (req, res) => {
     doc.fontSize(7).fillColor("#999").text("(unit: ms)", { align: "right" });
     doc.fillColor("#000");
 
-    // 4. Verdict
-    sectionTitle("4. Verdict");
+    // 4. 요약
+    sectionTitle("4. 요약");
     checkPage(20);
-    doc.fontSize(12).font(bodyFont).fillColor(passed ? "#2e7d32" : "#e65100")
+    doc.fontSize(11).font(bodyFont).fillColor("#000")
       .text(report.verdict, { align: "center" });
     doc.fillColor("#000");
 
