@@ -1773,6 +1773,8 @@ const setupBlockchainTab = () => {
 
   // ===== TPS 성능 테스트 =====
   let lastTpsReport = null;
+  /** live jobId — PDF는 GET으로 받아 Nginx POST 본문 한도를 피함 */
+  let lastTpsJobId = null;
   let tpsChartInstances = [];
 
   function clearTpsCharts() {
@@ -1976,6 +1978,7 @@ const setupBlockchainTab = () => {
     tpsForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       lastTpsReport = null;
+      lastTpsJobId = null;
       if (tpsEventSource) {
         try {
           tpsEventSource.close();
@@ -2106,6 +2109,7 @@ const setupBlockchainTab = () => {
         if (!startRes.ok || !startJson.success || !startJson.jobId) {
           throw new Error(startJson.message || startJson.error || `HTTP ${startRes.status}`);
         }
+        lastTpsJobId = startJson.jobId;
 
         const streamUrl = `${window.location.origin}/api/utils/tps-test/stream/${startJson.jobId}`;
         let ok = 0;
@@ -2293,12 +2297,27 @@ const setupBlockchainTab = () => {
         return;
       }
       try {
-        const reportForPdf = slimReportForTpsPdf(lastTpsReport);
-        const response = await fetch("/api/utils/tps-test/pdf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ report: reportForPdf }),
-        });
+        let response;
+        if (lastTpsJobId) {
+          response = await fetch(`/api/utils/tps-test/pdf/${encodeURIComponent(lastTpsJobId)}`, {
+            method: "GET",
+          });
+          if (response.status === 404) {
+            const reportForPdf = slimReportForTpsPdf(lastTpsReport);
+            response = await fetch("/api/utils/tps-test/pdf", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ report: reportForPdf }),
+            });
+          }
+        } else {
+          const reportForPdf = slimReportForTpsPdf(lastTpsReport);
+          response = await fetch("/api/utils/tps-test/pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ report: reportForPdf }),
+          });
+        }
         const ct = response.headers.get("content-type") || "";
         if (!response.ok) {
           const errText = await response.text();
