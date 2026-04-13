@@ -1942,19 +1942,12 @@ function normalizeTpsReportForPdfInPlace(report) {
 }
 
 /**
- * TPS 테스트 결과를 PDF로 다운로드 (초별 집계 + RPC 요청 로그 포함)
+ * TPS 리포트 → PDF 스트리밍 (본문 없이 jobId만으로 받을 때도 동일 로직 사용)
  */
-const downloadTpsReport = async (req, res) => {
-  const { report } = req.body;
+function pipeTpsReportPdf(report, res) {
+  normalizeTpsReportForPdfInPlace(report);
 
-  try {
-    if (!report || !report.testInfo || !report.results || !report.latency) {
-      return res.status(400).json({ success: false, message: "유효한 report 데이터가 필요합니다." });
-    }
-
-    normalizeTpsReportForPdfInPlace(report);
-
-    const PDFDocument = require("pdfkit");
+  const PDFDocument = require("pdfkit");
     const path = require("path");
     const fs = require("fs");
     const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
@@ -2380,6 +2373,34 @@ const downloadTpsReport = async (req, res) => {
     }
 
     doc.end();
+}
+
+const downloadTpsReport = async (req, res) => {
+  try {
+    const { report } = req.body;
+    if (!report || !report.testInfo || !report.results || !report.latency) {
+      return res.status(400).json({ success: false, message: "유효한 report 데이터가 필요합니다." });
+    }
+    pipeTpsReportPdf(report, res);
+  } catch (error) {
+    logger.error("[TPS PDF] 오류:", error);
+    return res.status(500).json({ success: false, message: "PDF 생성 중 오류가 발생했습니다.", error: error.message });
+  }
+};
+
+/** GET — live TPS job에 저장된 report로 PDF (대량 로그 POST 본문·Nginx 한도 회피) */
+const downloadTpsReportByJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = tpsLiveJobs.get(jobId);
+    if (!job || !job.report) {
+      return res.status(404).json({
+        success: false,
+        message: "세션이 없거나 만료되었습니다. 테스트를 다시 실행한 뒤 PDF를 받아 주세요.",
+      });
+    }
+    const report = JSON.parse(JSON.stringify(job.report));
+    pipeTpsReportPdf(report, res);
   } catch (error) {
     logger.error("[TPS PDF] 오류:", error);
     return res.status(500).json({ success: false, message: "PDF 생성 중 오류가 발생했습니다.", error: error.message });
@@ -2399,4 +2420,5 @@ module.exports = {
   runTpsTest,
   streamTpsTest,
   downloadTpsReport,
+  downloadTpsReportByJob,
 };

@@ -280,11 +280,16 @@ router.get("/tps-test/stream/:jobId", utilController.streamTpsTest);
 
 /**
  * @swagger
+ * /api/utils/tps-test/pdf/{jobId}:
+ *   get:
+ *     summary: TPS live jobId로 PDF (본문 없음 — 대량 로그 시 권장)
+ *     tags: [Utils]
  * /api/utils/tps-test/pdf:
  *   post:
- *     summary: TPS 테스트 결과 PDF 다운로드
+ *     summary: TPS 테스트 결과 PDF 다운로드 (report JSON)
  *     tags: [Utils]
  */
+router.get("/tps-test/pdf/:jobId", utilController.downloadTpsReportByJob);
 router.post("/tps-test/pdf", utilController.downloadTpsReport);
 
 module.exports = router;
