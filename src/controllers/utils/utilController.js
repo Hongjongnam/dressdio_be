@@ -1806,7 +1806,9 @@ async function runTpsWorkload(body, onEachRow) {
       ? String(firstFailureLog.error || "").slice(0, 300)
       : null;
 
-    const throughputPass = parseFloat(actualRps) >= tps;
+    /** 관측 TPS는 성공 건÷벽시계라 설정보다 소폭 낮을 수 있음 → max(설정−1, 설정×0.995) 이상이면 달성 */
+    const tpsSoftMin = tps <= 1 ? tps : Math.max(tps - 1, parseFloat((tps * 0.995).toFixed(6)));
+    const throughputPass = parseFloat(actualRps) + 1e-9 >= tpsSoftMin;
 
     /** TPS 완료 시점: 프로세스 메모리·엔드포인트별 실패 건수 — 부하 한계(백엔드 vs RPC) 추적용 */
     try {
@@ -1865,6 +1867,8 @@ async function runTpsWorkload(body, onEachRow) {
         successRate: `${successRate}%`,
         actualRps: parseFloat(actualRps),
         throughputPass,
+        /** PDF/표시용: 달성 판정에 쓰인 관측 TPS 하한(벽시계·반올림 허용) */
+        throughputSoftMin: tpsSoftMin,
         sampleBlockNumber,
         firstFailureMessage,
       },
@@ -1923,7 +1927,7 @@ const runTpsTest = async (req, res) => {
 };
 
 /**
- * PDF용: 각 로그의 error 문자열만 적당히 줄여 JSON POST 크기 완화(행 수는 자르지 않음).
+ * PDF용: 각 로그의 error 문자열만 적당히 줄여 JSON POST 크기 완화(이후 PDF 경로에서는 로그 배열을 비움).
  */
 function normalizeTpsReportForPdfInPlace(report) {
   const MAX_ERR_LEN = 500;
@@ -1941,11 +1945,39 @@ function normalizeTpsReportForPdfInPlace(report) {
   }
 }
 
+/** 성공 건 latencyMs 기준 히스토그램 (PDF는 개별 로그를 넣지 않고 이 집계만 사용) */
+function tpsLatencyHistogramBucketsFromLogs(logs) {
+  const buckets = [0, 0, 0, 0, 0];
+  if (!Array.isArray(logs)) return buckets;
+  for (let i = 0; i < logs.length; i++) {
+    const l = logs[i];
+    if (!l || !l.success || typeof l.latencyMs !== "number") continue;
+    const ms = Number(l.latencyMs);
+    if (ms < 50) buckets[0] += 1;
+    else if (ms < 100) buckets[1] += 1;
+    else if (ms < 200) buckets[2] += 1;
+    else if (ms < 500) buckets[3] += 1;
+    else buckets[4] += 1;
+  }
+  return buckets;
+}
+
 /**
  * TPS 리포트 → PDF 스트리밍 (본문 없이 jobId만으로 받을 때도 동일 로직 사용)
+ * 개별 요청/응답 로그는 PDF에 포함하지 않음 — CSV 참고.
  */
 function pipeTpsReportPdf(report, res) {
+  let pdfLatencyBuckets = tpsLatencyHistogramBucketsFromLogs(report.requestLogs);
+  if (
+    pdfLatencyBuckets.every((b) => b === 0) &&
+    Array.isArray(report._pdfLatencyBucketsForPdf) &&
+    report._pdfLatencyBucketsForPdf.length === 5
+  ) {
+    pdfLatencyBuckets = report._pdfLatencyBucketsForPdf.map((n) => Math.max(0, Math.floor(Number(n)) || 0));
+  }
+  delete report._pdfLatencyBucketsForPdf;
   normalizeTpsReportForPdfInPlace(report);
+  report.requestLogs = [];
 
   const PDFDocument = require("pdfkit");
     const path = require("path");
@@ -1971,7 +2003,18 @@ function pipeTpsReportPdf(report, res) {
     const L = 40;
     const R = 555;
     const TW = R - L;
-    const checkPage = (h) => { if (doc.y + h > 780) doc.addPage(); };
+    const pageBottomSafe = () => {
+      const m = doc.page.margins || { bottom: 40 };
+      return doc.page.height - (m.bottom || 40) - 24;
+    };
+    /** 페이지 하단 안전 영역 — 푸터·줄바꿈으로 빈 페이지가 추가되는 것 완화 */
+    const checkPage = (h) => {
+      if (doc.y + h > pageBottomSafe()) doc.addPage();
+    };
+
+    // 푸터는 doc.end() 직전 switchToPage로만 그림.
+    // doc.on("pageAdded") 안에서 fillColor/text를 쓰면 PDFKit LineWrapper와 꼬여
+    // continueOnNewPage → addPage → pageAdded 가 무한 반복(Maximum call stack)될 수 있음.
 
     // ── helpers ──
 
@@ -2023,7 +2066,12 @@ function pipeTpsReportPdf(report, res) {
       drawHdr();
 
       rows.forEach((vals, ri) => {
-        if (doc.y + rowH > 780) { doc.addPage(); drawHdr(); }
+        const m = doc.page.margins || { bottom: 40 };
+        const maxY = doc.page.height - (m.bottom || 40) - 24;
+        if (doc.y + rowH > maxY) {
+          doc.addPage();
+          drawHdr();
+        }
         const y = doc.y;
         const bg = vals._bg || (ri % 2 === 0 ? "#f8f9fa" : "#fff");
         doc.rect(startX, y, TW, rowH).fill(bg);
@@ -2058,7 +2106,15 @@ function pipeTpsReportPdf(report, res) {
     doc.moveDown(0.15);
     doc.fontSize(9).font(bodyFont).fillColor("#777")
       .text("Private Blockchain  |  Hyperledger Besu (Clique)  |  Read-Only Performance Test", { align: "center" });
-    doc.fillColor("#000").moveDown(0.8);
+    doc.moveDown(0.35);
+    doc.fontSize(8).font(bodyFont).fillColor("#546e7a")
+      .text(
+        "이 PDF는 집계·시각화 중심입니다. 건별 요청·응답 상세는 화면의 CSV 다운로드로 확인하세요.",
+        L,
+        doc.y,
+        { width: TW, align: "center", lineGap: 1 }
+      );
+    doc.fillColor("#000").moveDown(0.55);
 
     // 1. Test Environment
     sectionTitle("1. Test Environment");
@@ -2074,12 +2130,46 @@ function pipeTpsReportPdf(report, res) {
     kvRow("설정 초당 요청", `${ti.targetTps.toLocaleString()} 건`, { bg: "#f8f9fa" });
     kvRow("Duration", `${ti.durationSeconds} sec`);
     kvRow("Total Requests", `${ti.totalPlannedRequests.toLocaleString()}  (${ti.targetTps.toLocaleString()} x ${ti.durationSeconds}s)`, { bg: "#f8f9fa" });
-
+    if (ti.tpsTransport && typeof ti.tpsTransport === "object") {
+      const tt = ti.tpsTransport;
+      const st = tt.staggerWithinSecond !== false ? "ON" : "OFF";
+      kvRow(
+        "전송(부하)",
+        `${tt.mode || "—"} · keep-alive maxSockets/host ${tt.maxSocketsPerHost ?? "—"} · 초내 분산 ${st}`,
+        { bg: "#f8f9fa" }
+      );
+    }
     // 2. Results
     sectionTitle("2. Results");
     kvRow("Elapsed Time", `${rs.totalElapsedSeconds} sec  (${rs.totalElapsedMs} ms)`);
     kvRow("Success", `${rs.successCount.toLocaleString()}  (${rs.successRate})`, { bg: "#e8f5e9", color: "#2e7d32" });
     kvRow("Fail", `${rs.failCount.toLocaleString()}`, { bg: rs.failCount > 0 ? "#ffebee" : "#f8f9fa", color: rs.failCount > 0 ? "#c62828" : "#000" });
+    if (rs.failCount > 0 && rs.firstFailureMessage) {
+      kvRow(
+        "첫 실패 메시지(발췌)",
+        String(rs.firstFailureMessage).slice(0, 220),
+        { bg: "#fff3e0", color: "#e65100" }
+      );
+    }
+    (() => {
+      const soft =
+        rs.throughputSoftMin != null && Number.isFinite(Number(rs.throughputSoftMin))
+          ? Number(rs.throughputSoftMin)
+          : Math.max((ti.targetTps || 0) - 1, (ti.targetTps || 0) * 0.995);
+      const softStr = Number.isFinite(soft) ? soft.toFixed(2).replace(/\.?0+$/, "") : "—";
+      kvRow(
+        "처리량 목표",
+        rs.throughputPass === true
+          ? `달성 (관측 ≥ ${softStr} 건/초, 벽시계·반올림 허용)`
+          : rs.throughputPass === false
+            ? `미달 (관측 < ${softStr} 건/초 허용선)`
+            : "—",
+        {
+          bg: rs.throughputPass === true ? "#e8f5e9" : rs.throughputPass === false ? "#fff8e1" : "#f8f9fa",
+          color: rs.throughputPass === true ? "#1b5e20" : rs.throughputPass === false ? "#f57f17" : "#000",
+        }
+      );
+    })();
     kvRow("Sample block #", rs.sampleBlockNumber);
     doc.moveDown(0.4);
     checkPage(30);
@@ -2108,18 +2198,15 @@ function pipeTpsReportPdf(report, res) {
 
     // 4. 요약
     sectionTitle("4. 요약");
-    checkPage(20);
+    checkPage(36);
     doc.fontSize(11).font(bodyFont).fillColor("#000")
-      .text(report.verdict, { align: "center" });
+      .text(String(report.verdict || ""), L, doc.y, { width: TW, align: "center", lineGap: 2 });
     doc.fillColor("#000");
 
-    const requestLogsAll = Array.isArray(report.requestLogs) ? report.requestLogs : [];
-    const latForHist = requestLogsAll
-      .filter((l) => l && l.success && typeof l.latencyMs === "number")
-      .map((l) => Number(l.latencyMs));
+    const histTotal = pdfLatencyBuckets.reduce((a, b) => a + b, 0);
     const hasPerSec = report.perSecondStats && report.perSecondStats.length > 0;
     const okFailTotal = (rs.successCount || 0) + (rs.failCount || 0);
-    const showViz = hasPerSec || okFailTotal > 0 || latForHist.length > 0;
+    const showViz = hasPerSec || okFailTotal > 0 || histTotal > 0;
 
     // ═══════ 5. 시각화 (대시보드와 동일 지표) ═══════
     if (showViz) {
@@ -2264,19 +2351,12 @@ function pipeTpsReportPdf(report, res) {
         doc.moveDown(0.3);
       }
 
-      if (latForHist.length > 0) {
+      if (histTotal > 0) {
         checkPage(200);
         doc.fontSize(10).font(bodyFont).fillColor("#37474f").text("5.4 응답 시간 분포 (ms, 성공 요청만)", L, doc.y);
         doc.moveDown(0.4);
-        const buckets = [0, 0, 0, 0, 0];
+        const buckets = pdfLatencyBuckets;
         const labels = ["0–50", "50–100", "100–200", "200–500", "500+"];
-        latForHist.forEach((ms) => {
-          if (ms < 50) buckets[0] += 1;
-          else if (ms < 100) buckets[1] += 1;
-          else if (ms < 200) buckets[2] += 1;
-          else if (ms < 500) buckets[3] += 1;
-          else buckets[4] += 1;
-        });
         const maxB = Math.max(1, ...buckets);
         const hTop = doc.y + 6;
         const hBot = hTop + 112;
@@ -2329,47 +2409,20 @@ function pipeTpsReportPdf(report, res) {
       doc.fillColor("#000");
     }
 
-    // ═══════ 7. Full RPC Request Logs ═══════
-    if (report.requestLogs && report.requestLogs.length > 0) {
-      doc.addPage();
-      const logTitle = `7. RPC Request Logs  (${report.requestLogs.length.toLocaleString()} rows)`;
-      sectionTitle(logTitle);
-      if (ti.pdfLogsNote) {
-        doc.fontSize(8).font(bodyFont).fillColor("#e65100").text(ti.pdfLogsNote, L, doc.y, { width: TW });
-        doc.fillColor("#000").moveDown(0.5);
-      }
+    // 개별 RPC 요청/응답 로그는 PDF에 넣지 않음 (용량·가독성 — 상세는 CSV)
 
-      const logCols = [
-        { label: "#",        width: 38 },
-        { label: "Sec",      width: 30 },
-        { label: "Timestamp", width: 120 },
-        { label: "OK",       width: 24 },
-        { label: "ms",       width: 42 },
-        { label: "Block #", width: 145 },
-        { label: "Endpoint", width: TW - 38 - 30 - 120 - 24 - 42 - 145 },
-      ];
-
-      const logRows = report.requestLogs.map((log) => {
-        const ep = (log.rpcEndpoint || "").replace(/^https?:\/\//, "").slice(0, 22);
-        const bal = log.success ? (log.responseBlockNumber || "0") : (log.error ? log.error.slice(0, 24) : "ERR");
-        const ts = (log.timestamp || "").replace("T", " ").slice(11, 23);
-        const v = [log.seq, log.second, ts, log.success ? "Y" : "N", log.latencyMs, bal, ep];
-        if (!log.success) { v._bg = "#ffebee"; v._color = "#c62828"; }
-        return v;
-      });
-
-      drawGrid(logCols, logRows, doc.y, 10, 14, 6);
-    }
-
-    // ── Footer on all pages ──
-    const pageCount = doc.bufferedPageRange().count;
-    for (let i = 0; i < pageCount; i++) {
-      doc.switchToPage(i);
-      doc.fontSize(7).font(bodyFont).fillColor("#bbb")
-        .text(
-          `Generated: ${new Date().toISOString()}  |  Dressdio Blockchain Platform  |  Page ${i + 1} / ${pageCount}`,
-          L, 810, { width: TW, align: "center" }
-        );
+    const footerGenAt = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const footerText = `${footerGenAt} UTC | Dressdio`;
+    const br = doc.bufferedPageRange();
+    const pStart = typeof br.start === "number" ? br.start : 0;
+    const pCount = br.count;
+    for (let pi = pStart; pi < pStart + pCount; pi++) {
+      doc.switchToPage(pi);
+      doc.save();
+      const footerY = doc.page.maxY() - 8;
+      doc.fontSize(7).font(bodyFont).fillColor([186, 186, 186]);
+      doc.text(footerText, L, footerY, { width: TW, align: "center", lineBreak: false });
+      doc.restore();
     }
 
     doc.end();
@@ -2383,7 +2436,7 @@ const downloadTpsReport = async (req, res) => {
     }
     pipeTpsReportPdf(report, res);
   } catch (error) {
-    logger.error("[TPS PDF] 오류:", error);
+    logger.error("[TPS PDF] 오류:", error && error.stack ? error.stack : error);
     return res.status(500).json({ success: false, message: "PDF 생성 중 오류가 발생했습니다.", error: error.message });
   }
 };
@@ -2402,7 +2455,7 @@ const downloadTpsReportByJob = async (req, res) => {
     const report = JSON.parse(JSON.stringify(job.report));
     pipeTpsReportPdf(report, res);
   } catch (error) {
-    logger.error("[TPS PDF] 오류:", error);
+    logger.error("[TPS PDF] 오류:", error && error.stack ? error.stack : error);
     return res.status(500).json({ success: false, message: "PDF 생성 중 오류가 발생했습니다.", error: error.message });
   }
 };
