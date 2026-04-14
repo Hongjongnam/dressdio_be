@@ -2199,24 +2199,32 @@ const setupBlockchainTab = () => {
     });
   }
 
+  function tpsHistogramBucketsFromLogs(logs) {
+    const buckets = [0, 0, 0, 0, 0];
+    if (!Array.isArray(logs)) return buckets;
+    for (let i = 0; i < logs.length; i++) {
+      const l = logs[i];
+      if (!l || !l.success || typeof l.latencyMs !== "number") continue;
+      const ms = Number(l.latencyMs);
+      if (ms < 50) buckets[0] += 1;
+      else if (ms < 100) buckets[1] += 1;
+      else if (ms < 200) buckets[2] += 1;
+      else if (ms < 500) buckets[3] += 1;
+      else buckets[4] += 1;
+    }
+    return buckets;
+  }
+
   /**
-   * PDF용: error 문자열만 줄여 POST 본문 크기 완화(요청 로그 행 수는 그대로 전달).
+   * PDF용 POST 폴백: 개별 로그는 보내지 않고 히스토그램 버킷만 첨부(본문 작게 유지).
    */
   function slimReportForTpsPdf(report) {
-    const MAX_ERR_LEN = 500;
     const out = JSON.parse(JSON.stringify(report));
-    const logs = out.requestLogs;
-    if (!Array.isArray(logs) || logs.length === 0) return out;
     if (out.testInfo && out.testInfo.pdfLogsNote) {
       delete out.testInfo.pdfLogsNote;
     }
-    for (let i = 0; i < logs.length; i++) {
-      const log = logs[i];
-      if (log && log.error != null) {
-        const s = String(log.error);
-        log.error = s.length > MAX_ERR_LEN ? `${s.slice(0, MAX_ERR_LEN)}…` : s;
-      }
-    }
+    out._pdfLatencyBucketsForPdf = tpsHistogramBucketsFromLogs(out.requestLogs);
+    out.requestLogs = [];
     return out;
   }
 
